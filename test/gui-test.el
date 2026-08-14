@@ -2,7 +2,9 @@
 
 ;;; Commentary:
 
-;; Loaded by `make gui' inside a graphic Emacs.  It boxes two side
+;; Loaded by `make gui' inside a graphic Emacs.  It is the one test
+;; file the Makefile leaves out of the byte-compilation, because it
+;; calls what only a build with X defines.  It boxes two side
 ;; windows, exports the frame and exits; gui-check.py reads the pixels
 ;; back.
 ;;
@@ -14,10 +16,6 @@
 ;;; Code:
 
 (require 'window-box)
-
-;; Only a build with X has these, and only such a build runs this test.
-(declare-function x-export-frames "xfns.c" (&optional frames type))
-(declare-function scroll-bar-mode "scroll-bar.el" (&optional arg))
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.

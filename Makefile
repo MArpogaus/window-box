@@ -16,7 +16,10 @@ SANDBOX ?= .sandbox
 DEPS    ?= package-lint
 
 SRC  := $(filter-out %-autoloads.el %-pkg.el,$(wildcard *.el))
-TEST := $(wildcard test/*.el)
+# gui-test.el is left out on purpose: it runs only on a graphic
+# display and calls functions a console build does not define.  The
+# `gui' target loads it, so a mistake there still shows up.
+TEST := $(filter-out test/gui-test.el,$(wildcard test/*.el))
 
 # Elisp programs live in variables: make joins their continuation lines,
 # while a backslash inside a quoted recipe line would reach Emacs as is.
