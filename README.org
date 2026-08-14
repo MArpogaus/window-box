@@ -105,6 +105,15 @@ Only window dressing is used:
   and a glyph bound for a margin stays invisible in a window that has
   none — so the sides show in the boxed windows and nowhere else.
   The buffer's own prefix comes back when the mode turns off.
+- A window whose margins are wider than the one column a side glyph
+  needs keeps them, and gets the top and bottom edges alone.  Magit's
+  log writes the author and the date into a thirty column right
+  margin, and a box that took that column would drop them without a
+  word.  The rule reads the margins as they stand, so a buffer that
+  sets them after the box went up is noticed on the next window
+  change and the sides give way then.  Only in a terminal: on a
+  graphic display the sides are fringes and the margins are never
+  touched.
 
 Other packages dress windows too, and a side window rule that sets
 its parameters on every display would strip the box off again.  So
