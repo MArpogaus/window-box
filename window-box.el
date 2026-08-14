@@ -73,7 +73,27 @@ In order: the four corners, the vertical edge, the horizontal edge.
 A graphic display draws thin pixel lines instead."
   :type 'string)
 
+(defcustom window-box-color nil
+  "Color of the box, or nil for the foreground of the `window-box' face.
+Set it buffer-locally for a box color per buffer; turning the mode on
+again applies it."
+  :type '(choice (const :tag "Face foreground" nil) color)
+  :local t)
+
+(defcustom window-box-attached-edges t
+  "Where the horizontal edges go on a graphic display.
+Non-nil attaches them to the lines the window already has: the top
+edge becomes an overline on the header line, the bottom edge an
+overline on the mode line.  Nil, and wherever those lines are
+missing, the edge is a thin bar row of its own.  A terminal always
+draws its own rows, from `window-box-characters'."
+  :type 'boolean)
+
 ;;;; Drawing
+
+(defun window-box--color ()
+  "Return the color the box is drawn in."
+  (or window-box-color (face-foreground 'window-box nil 'default)))
 
 (defun window-box--edge (left right)
   "Return one horizontal edge of the box.
@@ -82,11 +102,8 @@ LEFT and RIGHT are unused.  In a terminal it runs from corner LEFT to
 corner RIGHT, indices into `window-box-characters', and the columns
 are exact."
   (if (display-graphic-p)
-      ;; Inverse video turns the face's foreground into the bar's
-      ;; background, resolved by the display engine — so a buffer-local
-      ;; remap of `window-box' recolors the box.
       (propertize " "
-                  'face '(:inherit window-box :inverse-video t :height 0.1)
+                  'face (list :background (window-box--color) :height 0.1)
                   ;; Larger than any row is long: the fill stops at the
                   ;; row's end, fringes and margins included, which is
                   ;; where the side edges are.
@@ -116,8 +133,27 @@ are exact."
 
 ;;;; Boxing and unboxing windows
 
-(defvar-local window-box--fringe-cookie nil
-  "Face remap cookie that colors the fringes of this buffer.")
+(defvar-local window-box--cookies nil
+  "Face remap cookies this buffer holds, as an alist of face and cookie.")
+
+(defvar-local window-box--cookie-color nil
+  "Color the cookies were made with, so a change renews them.")
+
+(defun window-box--remap (face &rest spec)
+  "Remap FACE in the current buffer with SPEC, once."
+  (unless (assq face window-box--cookies)
+    (push (cons face (apply #'face-remap-add-relative face spec))
+          window-box--cookies)))
+
+(defun window-box--line-visible-p (window parameter format)
+  "Return non-nil when WINDOW shows the line PARAMETER names.
+FORMAT is the matching buffer-local format value.  The window
+parameter wins: `none' hides the line, any other non-nil value is a
+format of its own."
+  (let ((param (window-parameter window parameter)))
+    (cond ((eq param 'none) nil)
+          (param t)
+          (t format))))
 
 (defun window-box--overlay (window)
   "Return the side edge overlay of WINDOW, or nil."
@@ -128,47 +164,61 @@ are exact."
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
 Call it with the window's buffer current."
-  (set-window-parameter window 'tab-line-format
-                        '(:eval (window-box--top)))
-  ;; The bottom edge is the user's mode line.  Only a window without
-  ;; one gets the drawn edge, and the old parameter comes back when
-  ;; the box goes.
-  (unless (or mode-line-format
-              (equal (window-parameter window 'mode-line-format)
-                     '(:eval (window-box--bottom))))
-    (set-window-parameter window 'window-box--saved-mode-line
-                          (window-parameter window 'mode-line-format))
-    (set-window-parameter window 'mode-line-format
-                          '(:eval (window-box--bottom))))
-  (if (display-graphic-p (window-frame window))
-      ;; Fringes run the full window height, so they make better side
-      ;; edges than glyphs along the lines of text.
-      (progn
-        (unless (window-parameter window 'window-box--saved-fringes)
-          (let ((fringes (window-fringes window)))
-            (set-window-parameter window 'window-box--saved-fringes
-                                  (list (nth 0 fringes) (nth 1 fringes)))))
-        (set-window-fringes window 2 2 t)
-        (unless window-box--fringe-cookie
-          (setq window-box--fringe-cookie
-                (face-remap-add-relative
-                 'fringe '(:inherit window-box :inverse-video t)))))
-    ;; A terminal has no fringes; the sides are margin glyphs along
-    ;; the lines of text.
-    (unless (window-parameter window 'window-box--saved-margins)
-      (let ((margins (window-margins window)))
-        (set-window-parameter window 'window-box--saved-margins
-                              (list (car margins) (cdr margins)))))
-    (set-window-margins window 1 1)
-    (let ((overlay (or (window-box--overlay window)
-                       (let ((o (make-overlay (point-min) (point-max)
-                                              nil nil t)))
-                         (overlay-put o 'window-box t)
-                         (overlay-put o 'window window)
-                         o)))
-          (prefix (window-box--prefix)))
-      (overlay-put overlay 'line-prefix prefix)
-      (overlay-put overlay 'wrap-prefix prefix))))
+  (set-window-parameter window 'window-box t)
+  (let* ((graphic (display-graphic-p (window-frame window)))
+         (attach (and graphic window-box-attached-edges))
+         (color (window-box--color)))
+    (unless (equal color window-box--cookie-color)
+      (dolist (cookie window-box--cookies)
+        (face-remap-remove-relative (cdr cookie)))
+      (setq window-box--cookies nil
+            window-box--cookie-color color))
+    ;; The top edge: an overline on the header line when there is one
+    ;; to attach to, a thin row of its own otherwise.
+    (if (and attach (window-box--line-visible-p window 'header-line-format
+                                                header-line-format))
+        (window-box--remap 'header-line (list :overline color))
+      (set-window-parameter window 'tab-line-format
+                            '(:eval (window-box--top))))
+    ;; The bottom edge: an overline on the mode line when there is
+    ;; one, a thin row where the window shows none.
+    (cond
+     ((window-box--line-visible-p window 'mode-line-format mode-line-format)
+      (when attach
+        (window-box--remap 'mode-line-active (list :overline color))
+        (window-box--remap 'mode-line-inactive (list :overline color))))
+     ((not (equal (window-parameter window 'mode-line-format)
+                  '(:eval (window-box--bottom))))
+      (set-window-parameter window 'window-box--saved-mode-line
+                            (window-parameter window 'mode-line-format))
+      (set-window-parameter window 'mode-line-format
+                            '(:eval (window-box--bottom)))))
+    (if graphic
+        ;; Fringes run the full window height, so they make better
+        ;; side edges than glyphs along the lines of text.
+        (progn
+          (unless (window-parameter window 'window-box--saved-fringes)
+            (let ((fringes (window-fringes window)))
+              (set-window-parameter window 'window-box--saved-fringes
+                                    (list (nth 0 fringes) (nth 1 fringes)))))
+          (set-window-fringes window 2 2 t)
+          (window-box--remap 'fringe (list :background color)))
+      ;; A terminal has no fringes; the sides are margin glyphs along
+      ;; the lines of text.
+      (unless (window-parameter window 'window-box--saved-margins)
+        (let ((margins (window-margins window)))
+          (set-window-parameter window 'window-box--saved-margins
+                                (list (car margins) (cdr margins)))))
+      (set-window-margins window 1 1)
+      (let ((overlay (or (window-box--overlay window)
+                         (let ((o (make-overlay (point-min) (point-max)
+                                                nil nil t)))
+                           (overlay-put o 'window-box t)
+                           (overlay-put o 'window window)
+                           o)))
+            (prefix (window-box--prefix)))
+        (overlay-put overlay 'line-prefix prefix)
+        (overlay-put overlay 'wrap-prefix prefix)))))
 
 (defun window-box--restore (window parameter setter)
   "Give WINDOW the dressing it had before the box.
@@ -179,8 +229,12 @@ where nil stands for the default; SETTER applies them."
     (set-window-parameter window parameter nil)))
 
 (defun window-box--clear (window)
-  "Remove the box from WINDOW."
-  (set-window-parameter window 'tab-line-format nil)
+  "Remove the box from WINDOW.
+The face remaps are the buffer's and go when the mode turns off."
+  (set-window-parameter window 'window-box nil)
+  (when (equal (window-parameter window 'tab-line-format)
+               '(:eval (window-box--top)))
+    (set-window-parameter window 'tab-line-format nil))
   (when (equal (window-parameter window 'mode-line-format)
                '(:eval (window-box--bottom)))
     (set-window-parameter window 'mode-line-format
@@ -203,8 +257,7 @@ windows also get theirs back here."
         (with-current-buffer (window-buffer window)
           (window-box--apply window))
       ;; Only take away what this package drew.
-      (when (equal (window-parameter window 'tab-line-format)
-                   '(:eval (window-box--top)))
+      (when (window-parameter window 'window-box)
         (window-box--clear window)))))
 
 ;;;; The mode
@@ -223,9 +276,9 @@ box is built."
           (window-box--apply window)))
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
-    (when window-box--fringe-cookie
-      (face-remap-remove-relative window-box--fringe-cookie)
-      (setq window-box--fringe-cookie nil))
+    (dolist (cookie window-box--cookies)
+      (face-remap-remove-relative (cdr cookie)))
+    (setq window-box--cookies nil)
     (remove-overlays (point-min) (point-max) 'window-box t)))
 
 (provide 'window-box)
