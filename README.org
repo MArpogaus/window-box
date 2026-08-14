@@ -1,0 +1,141 @@
+# Inspired by: https://github.com/othneildrew/Best-README-Template
+#+OPTIONS: toc:nil
+
+[[https://github.com/MArpogaus/window-box/graphs/contributors][https://img.shields.io/github/contributors/MArpogaus/window-box.svg?style=flat-square]]
+[[https://github.com/MArpogaus/window-box/network/members][https://img.shields.io/github/forks/MArpogaus/window-box.svg?style=flat-square]]
+[[https://github.com/MArpogaus/window-box/stargazers][https://img.shields.io/github/stars/MArpogaus/window-box.svg?style=flat-square]]
+[[https://github.com/MArpogaus/window-box/issues][https://img.shields.io/github/issues/MArpogaus/window-box.svg?style=flat-square]]
+[[https://github.com/MArpogaus/window-box/blob/main/COPYING][https://img.shields.io/github/license/MArpogaus/window-box.svg?style=flat-square]]
+[[https://github.com/MArpogaus/window-box/actions/workflows/test.yml][https://img.shields.io/github/actions/workflow/status/MArpogaus/window-box/test.yml.svg?branch=main&label=tests&style=flat-square]]
+[[https://linkedin.com/in/MArpogaus][https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555]]
+
+* window-box :TOC_3_gh:noexport:
+  - [[#about-the-project][About The Project]]
+    - [[#how-it-works][How It Works]]
+  - [[#getting-started][Getting Started]]
+  - [[#customization][Customization]]
+  - [[#in-the-terminal][In the Terminal]]
+  - [[#known-limits][Known Limits]]
+  - [[#comparison-with-buffer-box][Comparison with buffer-box]]
+  - [[#contributions][Contributions]]
+  - [[#license][License]]
+  - [[#contact][Contact]]
+
+** About The Project
+
+=window-box-mode= draws a rectangular box around every window that
+shows the buffer.  Nothing more: the mode line and the header line
+stay whatever you made them.  It works on graphic displays and in the
+terminal.
+
+[[file:img/demo.gif]]
+
+*** How It Works
+
+The box is built from window dressing Emacs already has:
+
+- The top edge is the window's tab line, set through the window
+  parameter, so the buffer's own =tab-line-format= is not touched.
+- The side edges are glyphs in one-column display margins, drawn
+  through an overlay that carries the =window= property.  Each window
+  gets its own overlay, so one buffer shown in two windows works.
+- The bottom edge is your mode line.  Only when the window shows no
+  mode line does the box draw one, again through the window parameter,
+  and puts the old state back when the mode turns off.
+
+On a graphic display the horizontal edges are pixel-exact: the fill
+between the corners is a stretch space with a strike-through line, so
+the corners always meet the window edge.  In a terminal the fill is
+the plain box-drawing character.
+
+** Getting Started
+
+Install and turn the mode on in the buffers you want boxed:
+
+#+begin_src emacs-lisp
+  (use-package window-box
+    :ensure t)
+
+  ;; for example: a box around every help buffer
+  (add-hook 'help-mode-hook #'window-box-mode)
+#+end_src
+
+It pairs well with [[https://github.com/MArpogaus/auto-side-windows][auto-side-windows]]: box what lands in a side
+window, and the frame reads as panels.
+
+#+begin_src emacs-lisp
+  (add-hook 'auto-side-windows-after-display-hook
+            (lambda (buffer &rest _)
+              (with-current-buffer buffer (window-box-mode 1))))
+#+end_src
+
+** Customization
+
+There is little of it, on purpose:
+
+| Option                  | Meaning                                    |
+|-------------------------+--------------------------------------------|
+| =window-box-characters= | the four corners and the two edge glyphs   |
+| =window-box=            | face of the box around unselected windows  |
+| =window-box-selected=   | face of the box around the selected window |
+
+Rounded corners, for example:
+
+#+begin_src emacs-lisp
+  (setq window-box-characters "╭╮╰╯│─")
+#+end_src
+
+** In the Terminal
+
+The box is drawn from characters, so it works in =emacs -nw=.  The
+test suite proves it: =make tty= runs Emacs in a pseudo terminal and
+reads the screen back through [[https://github.com/selectel/pyte][pyte]]:
+
+#+begin_example
+  ┌──────────────────────────────────────────────┐
+  │boxed in the terminal                         │
+  │second line                                   │
+  └──────────────────────────────────────────────┘
+#+end_example
+
+** Known Limits
+
+- The side edges run along lines of text, so they stop where the
+  buffer ends.  In a window sized to its buffer this is invisible; in
+  a tall window the sides end with the content.
+- A window whose buffer shows its own tab line loses it to the top
+  edge while the box is on.
+- A scroll bar whose width is not a multiple of the character width
+  can offset the top right corner on graphic displays.
+
+** Comparison with buffer-box
+
+The mechanism follows Nicolas Rougier's [[https://github.com/rougier/buffer-box][buffer-box]], which draws its
+borders from the tab line, the margins and the mode line.  The
+differences are deliberate:
+
+- buffer-box replaces the header line and the mode line with its own;
+  window-box leaves both to you.
+- buffer-box attaches the side edges to the buffer, so one buffer in
+  two windows shares them; window-box attaches them to the window
+  through the overlay =window= property.
+- buffer-box zeroes the frame fringes and advises =set-window-margins=
+  and =set-window-fringes=; window-box changes nothing global and gets
+  exact edges from a stretch space instead.
+- buffer-box offers border styles and a rich header; window-box draws
+  a box.
+
+** Contributions
+
+Contributions are greatly appreciated!  Feel free to check the
+[[https://github.com/MArpogaus/window-box/issues][issues page]] or submit a [[https://github.com/MArpogaus/window-box/pulls][pull request]].
+
+** License
+
+Distributed under the [[file:COPYING][GPLv3]] License.
+
+** Contact
+
+[[https://github.com/MArpogaus/][Marcel Arpogaus]] - [[mailto:znepry.necbtnhf@tznvy.pbz][znepry.necbtnhf@tznvy.pbz]] (encrypted with [[https://rot13.com/][ROT13]])
+
+Project Link: [[https://github.com/MArpogaus/window-box][https://github.com/MArpogaus/window-box]]

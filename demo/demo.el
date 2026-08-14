@@ -1,0 +1,78 @@
+;; -*- lexical-binding: t; -*-
+;; Drives the demo recording; see README.org in this directory.
+(add-to-list 'load-path "/home/marcel/.emacs.d/packages/window-box")
+(require 'window-box)
+(setq inhibit-startup-screen t ring-bell-function #'ignore)
+(menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
+(set-frame-font "Source Code Pro 13" nil t)
+(blink-cursor-mode -1)
+(setq-default cursor-type 'bar)
+
+(defvar demo--frame 0)
+(defun demo--snap ()
+  (cl-incf demo--frame)
+  (let ((coding-system-for-write 'binary))
+    (write-region (x-export-frames nil 'png) nil
+                  (format "/tmp/demo-wb/frames/f%04d.png" demo--frame)
+                  nil 'quiet)))
+(defun demo--hold (seconds)
+  (dotimes (_ (round (* 10 seconds)))
+    (redisplay t)
+    (demo--snap)
+    (sit-for 0.02)))
+
+(defun demo ()
+  (make-directory "/tmp/demo-wb/frames" t)
+  (switch-to-buffer "*scratch*")
+  (delete-other-windows)
+  (erase-buffer)
+  (insert ";; window-box\n"
+          ";;\n"
+          ";; A rectangular box around a window, nothing more.\n"
+          ";; The mode line and the header line stay yours.\n")
+  (goto-char (point-min))
+  (let ((top (split-window nil 8 'above))
+        (right (split-window nil 42 'right)))
+    (set-window-buffer top (get-buffer-create "*warning*"))
+    (with-current-buffer "*warning*"
+      (insert "A side window without a mode line:\nthe box closes the bottom itself.\n")
+      (setq-local mode-line-format nil
+                  header-line-format "  ⚠ my own header line, untouched ")
+      (setq-local window-box-characters window-box-characters))
+    (set-window-buffer right (get-buffer-create "*notes*"))
+    (with-current-buffer "*notes*"
+      (insert "Boxed, and the normal\nmode line closes the box.\n"))
+    (demo--hold 2.5)
+    ;; 1. boxes on
+    (with-current-buffer "*warning*" (window-box-mode 1))
+    (demo--hold 2.5)
+    (with-current-buffer "*notes*" (window-box-mode 1))
+    (demo--hold 2.5)
+    ;; 2. the selected window's box stands out
+    (select-window (get-buffer-window "*notes*"))
+    (demo--hold 2.5)
+    (select-window (get-buffer-window "*warning*"))
+    (demo--hold 2.5)
+    (select-window (get-buffer-window "*scratch*"))
+    (demo--hold 2.5)
+    ;; 3. rounded corners, one option
+    (setq window-box-characters "╭╮╰╯│─")
+    (force-mode-line-update t)
+    (dolist (b '("*warning*" "*notes*"))
+      (with-current-buffer b
+        (dolist (w (get-buffer-window-list nil nil t))
+          (window-box--apply w))))
+    (demo--hold 3.0)
+    ;; 4. boxes off
+    (with-current-buffer "*warning*" (window-box-mode -1))
+    (with-current-buffer "*notes*" (window-box-mode -1))
+    (demo--hold 2.5))
+  (write-region (format "frames=%d\n" demo--frame) nil "/tmp/demo-wb/done")
+  (kill-emacs 0))
+(run-with-timer 1.0 nil
+                (lambda ()
+                  (set-frame-size (selected-frame) 900 520 t)
+                  (condition-case err (demo)
+                    (error (write-region (format "ERROR %S" err) nil
+                                         "/tmp/demo-wb/failed")
+                           (kill-emacs 1)))))
