@@ -219,5 +219,22 @@ anew, and the box's top edge went with them."
     (window-box--clear (selected-window))
     (should (equal line-prefix "> "))))
 
+(ert-deftest window-box-test-characters-of-the-wrong-length ()
+  "A value that is not six characters is dropped for the default.
+The box is drawn from a `:eval' during redisplay, so reading past the
+end of the string would repaint every boxed window as an error
+instead of naming the option behind it."
+  (let ((default (eval (car (get 'window-box-characters 'standard-value)) t)))
+    (dolist (value (list "┌┐└┘│" "+-|" "" nil 42))
+      (let ((window-box-characters value))
+        (should (equal (window-box--characters) default))
+        ;; and the drawing gets through with it
+        (should (stringp (window-box--edge 0 1)))
+        (should (stringp (window-box--prefix)))))
+    ;; six of them, whatever they are, are the user's business
+    (let ((window-box-characters "++++|-"))
+      (should (equal (window-box--characters) "++++|-"))
+      (should (string-prefix-p "+" (window-box--edge 0 1))))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
