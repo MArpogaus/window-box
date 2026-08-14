@@ -15,6 +15,9 @@
 
 (require 'window-box)
 
+;; Only a build with X has it, and only such a build runs this test.
+(declare-function x-export-frames "xfns.c" (&optional frames type))
+
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.
 (menu-bar-mode -1)
