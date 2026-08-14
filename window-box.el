@@ -224,6 +224,14 @@ variables are killed again.")
       (kill-local-variable 'wrap-prefix))
     (setq window-box--saved-prefix nil)))
 
+(defun window-box--wide-margins-p (window)
+  "Return non-nil when WINDOW has margins of its own to keep.
+One column is what the box needs for a side glyph; anything wider was
+put there by the buffer and holds something the box must not drop."
+  (let ((margins (window-margins window)))
+    (or (> (or (car margins) 0) 1)
+        (> (or (cdr margins) 0) 1))))
+
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
 Call it with the window's buffer current."
@@ -297,18 +305,30 @@ Call it with the window's buffer current."
       ;; buffer-local, so every window showing the buffer is boxed, and
       ;; a glyph bound for a margin stays invisible in a window that
       ;; has none.
-      (unless (window-parameter window 'window-box--saved-margins)
-        (let ((margins (window-margins window)))
-          (set-window-parameter window 'window-box--saved-margins
-                                (list (car margins) (cdr margins)))))
-      (unless (equal (window-margins window) '(1 . 1))
-        (set-window-margins window 1 1))
-      (unless window-box--saved-prefix
-        (setq window-box--saved-prefix
-              (list line-prefix wrap-prefix (local-variable-p 'line-prefix))))
-      (let ((prefix (window-box--prefix)))
-        (setq-local line-prefix prefix
-                    wrap-prefix prefix)))))
+      ;; A buffer that keeps something in its margins needs them more
+      ;; than the box does: magit's log writes the author and the date
+      ;; into a thirty column right margin, and taking it for a glyph
+      ;; drops that column without a word.  Such a window keeps its
+      ;; margins and gets the horizontal edges alone.  The test is the
+      ;; margins as they stand, not what they were when the box went
+      ;; up, so a buffer that sets them later is noticed on the next
+      ;; change and the sides give way then.
+      (if (window-box--wide-margins-p window)
+          (progn
+            (set-window-parameter window 'window-box--saved-margins nil)
+            (window-box--restore-prefix))
+        (unless (window-parameter window 'window-box--saved-margins)
+          (let ((margins (window-margins window)))
+            (set-window-parameter window 'window-box--saved-margins
+                                  (list (car margins) (cdr margins)))))
+        (unless (equal (window-margins window) '(1 . 1))
+          (set-window-margins window 1 1))
+        (unless window-box--saved-prefix
+          (setq window-box--saved-prefix
+                (list line-prefix wrap-prefix (local-variable-p 'line-prefix))))
+        (let ((prefix (window-box--prefix)))
+          (setq-local line-prefix prefix
+                      wrap-prefix prefix))))))
 
 (defun window-box--restore (window parameter setter)
   "Give WINDOW the dressing it had before the box.

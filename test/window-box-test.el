@@ -100,9 +100,11 @@ one column too long loses its last corner off the end."
 
 (ert-deftest window-box-test-mode-round-trip ()
   "The mode dresses the window and takes the dressing back.
-A batch session is a terminal, so the sides are margins here."
+A batch session is a terminal, so the sides are margins here.  One
+column is a margin the box may take; wider is the buffer's own, and
+`window-box-test-keeps-margins-a-buffer-uses' covers that."
   (window-box-test--with-buffer
-    (set-window-margins (selected-window) nil 3)
+    (set-window-margins (selected-window) nil 1)
     (window-box-mode 1)
     (should (equal (window-margins (selected-window)) '(1 . 1)))
     (should (equal (window-parameter (selected-window) 'tab-line-format)
@@ -110,7 +112,7 @@ A batch session is a terminal, so the sides are margins here."
     (should (stringp line-prefix))
     (should (local-variable-p 'line-prefix))
     (window-box-mode -1)
-    (should (equal (window-margins (selected-window)) '(nil . 3)))
+    (should (equal (window-margins (selected-window)) '(nil . 1)))
     (should-not (window-parameter (selected-window) 'tab-line-format))
     (should-not (window-parameter (selected-window)
                                   'window-box--saved-margins))
@@ -235,6 +237,49 @@ instead of naming the option behind it."
     (let ((window-box-characters "++++|-"))
       (should (equal (window-box--characters) "++++|-"))
       (should (string-prefix-p "+" (window-box--edge 0 1))))))
+
+(ert-deftest window-box-test-keeps-margins-a-buffer-uses ()
+  "A window with margins of its own keeps them and loses the sides.
+Magit's log writes the author and the date into a wide right margin,
+and one column is all a side glyph needs, so anything wider was put
+there by the buffer."
+  (skip-when (display-graphic-p))
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (set-window-margins (selected-window) 1 30)
+          (window-box-mode 1)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(1 . 30)))
+          (should-not (local-variable-p 'line-prefix))
+          ;; and unboxing gives the buffer's own margins back untouched
+          (window-box-mode -1)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(1 . 30))))
+      ;; leave the window as it was for whatever runs next
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
+(ert-deftest window-box-test-gives-way-to-a-late-margin ()
+  "A buffer that sets its margins after the box went up gets them."
+  (skip-when (display-graphic-p))
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (window-box-mode 1)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(1 . 1)))
+          (should (local-variable-p 'line-prefix))
+          (set-window-margins (selected-window) 1 30)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(1 . 30)))
+          (should-not (local-variable-p 'line-prefix)))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
