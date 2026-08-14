@@ -243,7 +243,7 @@ instead of naming the option behind it."
 Magit's log writes the author and the date into a wide right margin,
 and one column is all a side glyph needs, so anything wider was put
 there by the buffer."
-  (skip-when (display-graphic-p))
+  (skip-unless (not (display-graphic-p)))
   (let ((buffer (generate-new-buffer "*window-box test*")))
     (unwind-protect
         (with-current-buffer buffer
@@ -264,7 +264,7 @@ there by the buffer."
 
 (ert-deftest window-box-test-gives-way-to-a-late-margin ()
   "A buffer that sets its margins after the box went up gets them."
-  (skip-when (display-graphic-p))
+  (skip-unless (not (display-graphic-p)))
   (let ((buffer (generate-new-buffer "*window-box test*")))
     (unwind-protect
         (with-current-buffer buffer
