@@ -46,9 +46,9 @@
 ;; - The bottom edge is your mode line.  Only when the window shows no
 ;;   mode line does the box draw one, again through the window
 ;;   parameter.
-;; - The terminal side edges hang on an overlay that carries the
-;;   `window' property — each window gets its own, so one buffer in
-;;   two windows works.
+;; - The terminal side edges are glyphs in one column margins, hung on
+;;   the buffer's `line-prefix'.  They show only where there are
+;;   margins to show them in, which is where the box put them.
 ;;
 ;; The idea of building boxes from the tab line and the margins comes
 ;; from Nicolas Rougier's buffer-box:
@@ -57,7 +57,6 @@
 ;;; Code:
 
 (require 'face-remap)
-(require 'seq)
 
 (defgroup window-box nil
   "A rectangular box around a window."
@@ -168,11 +167,21 @@ format of its own."
           (param t)
           (t format))))
 
-(defun window-box--overlay (window)
-  "Return the side edge overlay of WINDOW, or nil."
-  (seq-find (lambda (o) (and (overlay-get o 'window-box)
-                             (eq (overlay-get o 'window) window)))
-            (overlays-in (point-min) (point-max))))
+(defvar-local window-box--saved-prefix nil
+  "What the buffer's line and wrap prefix were before the box.
+A list (LINE WRAP LOCAL), where LOCAL says the buffer had a prefix of
+its own, so it goes back as a buffer-local value; without it the
+variables are killed again.")
+
+(defun window-box--restore-prefix ()
+  "Give the current buffer back the line prefix it had before the box."
+  (when-let* ((saved window-box--saved-prefix))
+    (if (nth 2 saved)
+        (setq-local line-prefix (nth 0 saved)
+                    wrap-prefix (nth 1 saved))
+      (kill-local-variable 'line-prefix)
+      (kill-local-variable 'wrap-prefix))
+    (setq window-box--saved-prefix nil)))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
@@ -186,25 +195,23 @@ Call it with the window's buffer current."
         (face-remap-remove-relative (cdr cookie)))
       (setq window-box--cookies nil
             window-box--cookie-color color))
-    ;; The top edge: the header line when the window shows one, a row
-    ;; of the box's own where it shows none — the same rule the bottom
-    ;; edge follows.  A row of our own above a header line would leave
-    ;; the header between the box's sides without any, since neither
-    ;; margins nor fringes reach that row.
+    ;; The top edge is an overline on the header line, which gives the
+    ;; box the border role: the line's own underline and box give way,
+    ;; while content, fonts and colors stay.  Where there is no header
+    ;; line to carry it, or no overline to be had — a terminal has
+    ;; none — the edge is a row of the box's own, in the tab line.
     ;;
-    ;; On a graphic display the edge is an overline on that line, which
-    ;; gives the box the border role: the line's own underline and box
-    ;; give way, while content, fonts and colors stay.  Closing the
-    ;; row's ends is the row's own business — a box border after a
-    ;; stretch glyph is drawn or clipped at the display engine's whim,
-    ;; so a header that wants closed ends draws a glyph at each end, as
-    ;; the demo does.
+    ;; Closing the ends of a row the window already has is that row's
+    ;; own business: neither margins nor fringes reach it, and a box
+    ;; border after a stretch glyph is drawn or clipped at the display
+    ;; engine's whim.  A header that wants closed ends draws a glyph at
+    ;; each end, as the demo does.
     (cond
-     ((window-box--line-visible-p window 'header-line-format
-                                 header-line-format)
-      (when attach
-        (window-box--remap 'header-line
-                           (list :overline color :underline nil :box nil))))
+     ((and attach
+           (window-box--line-visible-p window 'header-line-format
+                                       header-line-format))
+      (window-box--remap 'header-line
+                         (list :overline color :underline nil :box nil)))
      (t
       (set-window-parameter window 'tab-line-format
                             '(:eval (window-box--top)))))
@@ -233,22 +240,25 @@ Call it with the window's buffer current."
                                     (list (nth 0 fringes) (nth 1 fringes)))))
           (set-window-fringes window 1 1 t)
           (window-box--remap 'fringe (list :background color)))
-      ;; A terminal has no fringes; the sides are margin glyphs along
-      ;; the lines of text.
+      ;; A terminal has no fringes; the sides are glyphs in one column
+      ;; margins.  They hang on the buffer's `line-prefix' and not on
+      ;; an overlay, because an overlay ends where the buffer does and
+      ;; the box would end with it, leaving the rows below the last
+      ;; line open.  Buffer-wide is no loss of precision: the mode is
+      ;; buffer-local, so every window showing the buffer is boxed, and
+      ;; a glyph bound for a margin stays invisible in a window that
+      ;; has none.
       (unless (window-parameter window 'window-box--saved-margins)
         (let ((margins (window-margins window)))
           (set-window-parameter window 'window-box--saved-margins
                                 (list (car margins) (cdr margins)))))
       (set-window-margins window 1 1)
-      (let ((overlay (or (window-box--overlay window)
-                         (let ((o (make-overlay (point-min) (point-max)
-                                                nil nil t)))
-                           (overlay-put o 'window-box t)
-                           (overlay-put o 'window window)
-                           o)))
-            (prefix (window-box--prefix)))
-        (overlay-put overlay 'line-prefix prefix)
-        (overlay-put overlay 'wrap-prefix prefix)))))
+      (unless window-box--saved-prefix
+        (setq window-box--saved-prefix
+              (list line-prefix wrap-prefix (local-variable-p 'line-prefix))))
+      (let ((prefix (window-box--prefix)))
+        (setq-local line-prefix prefix
+                    wrap-prefix prefix)))))
 
 (defun window-box--restore (window parameter setter)
   "Give WINDOW the dressing it had before the box.
@@ -276,8 +286,7 @@ The face remaps are the buffer's and go when the mode turns off."
   (window-box--restore window 'window-box--saved-margins
                        #'set-window-margins)
   (with-current-buffer (window-buffer window)
-    (when-let* ((overlay (window-box--overlay window)))
-      (delete-overlay overlay))))
+    (window-box--restore-prefix)))
 
 (defun window-box--refresh (&optional frame)
   "Box and unbox the windows of FRAME to match their buffers.
@@ -316,7 +325,7 @@ box is built."
       (face-remap-remove-relative (cdr cookie)))
     (setq window-box--cookies nil
           window-box--cookie-color nil)
-    (remove-overlays (point-min) (point-max) 'window-box t)))
+    (window-box--restore-prefix)))
 
 (provide 'window-box)
 ;;; window-box.el ends here
