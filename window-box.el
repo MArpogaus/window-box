@@ -173,20 +173,29 @@ Call it with the window's buffer current."
         (face-remap-remove-relative (cdr cookie)))
       (setq window-box--cookies nil
             window-box--cookie-color color))
-    ;; The top edge: an overline on the header line when there is one
-    ;; to attach to, a thin row of its own otherwise.
+    ;; The top edge: attached to the header line when there is one, a
+    ;; thin row of its own otherwise.  Attaching gives the box the
+    ;; border role of that line: the overline is the top edge, a
+    ;; vertical-only box closes the sides of the row, and the line's
+    ;; own underline gives way.  Content, fonts and colors stay.
     (if (and attach (window-box--line-visible-p window 'header-line-format
                                                 header-line-format))
-        (window-box--remap 'header-line (list :overline color))
+        (window-box--remap 'header-line
+                           (list :overline color :underline nil
+                                 :box (list :line-width '(2 . 0)
+                                            :color color)))
       (set-window-parameter window 'tab-line-format
                             '(:eval (window-box--top))))
-    ;; The bottom edge: an overline on the mode line when there is
-    ;; one, a thin row where the window shows none.
+    ;; The bottom edge: the mode line when there is one, a thin row
+    ;; where the window shows none.
     (cond
      ((window-box--line-visible-p window 'mode-line-format mode-line-format)
       (when attach
-        (window-box--remap 'mode-line-active (list :overline color))
-        (window-box--remap 'mode-line-inactive (list :overline color))))
+        (dolist (face '(mode-line-active mode-line-inactive))
+          (window-box--remap face
+                             (list :overline color :underline nil
+                                   :box (list :line-width '(2 . 0)
+                                              :color color))))))
      ((not (equal (window-parameter window 'mode-line-format)
                   '(:eval (window-box--bottom))))
       (set-window-parameter window 'window-box--saved-mode-line
