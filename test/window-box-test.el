@@ -159,6 +159,28 @@ box draws a row of its own above the header instead of nothing."
     (should (equal (window-parameter (selected-window) 'tab-line-format)
                    '(:eval (window-box--top))))))
 
+(ert-deftest window-box-test-the-box-puts-itself-back ()
+  "A window dressed again over the box gets the box back.
+Displaying a buffer in a side window sets that window's parameters
+anew, and the box's top edge went with them."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (set-window-parameter (selected-window) 'tab-line-format 'none)
+    (set-window-margins (selected-window) nil nil)
+    (window-box--refresh)
+    (should (equal (window-parameter (selected-window) 'tab-line-format)
+                   window-box--top-format))
+    (should (equal (window-margins (selected-window)) '(1 . 1)))
+    (window-box-mode -1)))
+
+(ert-deftest window-box-test-a-tab-line-of-your-own-stays ()
+  "A window that shows tabs keeps them; the box does not take the row."
+  (window-box-test--with-buffer
+    (setq-local tab-line-format " tabs ")
+    (window-box--apply (selected-window))
+    (should-not (window-parameter (selected-window) 'tab-line-format))
+    (window-box--clear (selected-window))))
+
 (ert-deftest window-box-test-refresh-leaves-foreign-parameters ()
   "Unboxing only removes what the package drew."
   (window-box-test--with-buffer
