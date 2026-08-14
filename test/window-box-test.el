@@ -108,6 +108,20 @@ A batch session is a terminal, so the sides are margins here."
     (should (eq (window-parameter (selected-window) 'mode-line-format)
                 'none))))
 
+(ert-deftest window-box-test-header-line-is-the-top-edge ()
+  "A window that shows a header line gets no row of its own above it.
+A row there would leave the header between the box's sides without
+any: neither margins nor fringes reach that row."
+  (window-box-test--with-buffer
+    (setq-local header-line-format " mine ")
+    (window-box--apply (selected-window))
+    (should-not (window-parameter (selected-window) 'tab-line-format))
+    (window-box--clear (selected-window))
+    (setq-local header-line-format nil)
+    (window-box--apply (selected-window))
+    (should (equal (window-parameter (selected-window) 'tab-line-format)
+                   '(:eval (window-box--top))))))
+
 (ert-deftest window-box-test-refresh-leaves-foreign-parameters ()
   "Unboxing only removes what the package drew."
   (window-box-test--with-buffer
