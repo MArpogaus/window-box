@@ -73,8 +73,13 @@ color per buffer.")
 (defcustom window-box-characters "┌┐└┘│─"
   "The six characters the box is drawn with in a terminal.
 In order: the four corners, the vertical edge, the horizontal edge.
-A graphic display draws one pixel lines instead."
-  :type 'string)
+A graphic display draws one pixel lines instead.
+
+A value that is not exactly six characters long is ignored and the
+default drawn instead.  The box is drawn from a `:eval\' in the tab
+line, so a value the drawing cannot read would turn every redisplay
+of a boxed window into an error."
+  :type '(string :tag "Six characters, in the order ┌ ┐ └ ┘ │ ─"))
 
 (defcustom window-box-color nil
   "Color of the box, or nil for the foreground of the `window-box' face.
@@ -106,6 +111,17 @@ no overline at all, and an invalid `:background nil'."
       (frame-parameter nil 'foreground-color)
       "grey50"))
 
+(defun window-box--characters ()
+  "Return the six characters the box is drawn with.
+`window-box-characters' can be set to anything — `setq\' asks no
+`:type\' — and a shorter string would signal from inside redisplay,
+where an error repaints as one instead of naming the option that
+caused it.  Such a value is dropped for the default."
+  (if (and (stringp window-box-characters)
+           (= (length window-box-characters) 6))
+      window-box-characters
+    (eval (car (get 'window-box-characters 'standard-value)) t)))
+
 (defun window-box--edge (left right)
   "Return one horizontal edge of the box.
 On a graphic display that is a thin bar across the whole row, and
@@ -136,10 +152,10 @@ are exact."
                      (or (car margins) 0)
                      (or (cdr margins) 0))))
       (propertize
-       (concat (string (aref window-box-characters left))
-               (make-string (max 0 (- width 2))
-                            (aref window-box-characters 5))
-               (string (aref window-box-characters right)))
+       (let ((characters (window-box--characters)))
+         (concat (string (aref characters left))
+                 (make-string (max 0 (- width 2)) (aref characters 5))
+                 (string (aref characters right))))
        'face 'window-box))))
 
 (defun window-box--top ()
@@ -152,7 +168,7 @@ are exact."
 
 (defun window-box--prefix ()
   "Return the line prefix that draws the terminal side edges."
-  (let ((bar (propertize (string (aref window-box-characters 4))
+  (let ((bar (propertize (string (aref (window-box--characters) 4))
                          'face 'window-box)))
     (concat
      (propertize " " 'display `((margin left-margin) ,bar))
