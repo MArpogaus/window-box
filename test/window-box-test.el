@@ -65,7 +65,7 @@
 
 (ert-deftest window-box-test-prefix ()
   "The line prefix puts one vertical edge into each margin."
-  (let ((prefix (window-box--prefix (selected-window))))
+  (let ((prefix (window-box--prefix)))
     (should (equal (car (get-text-property 0 'display prefix))
                    '(margin left-margin)))
     (should (equal (car (get-text-property 1 'display prefix))
@@ -75,20 +75,22 @@
 ;;;; Boxing windows
 
 (ert-deftest window-box-test-mode-round-trip ()
-  "The mode sets the margins and the parameters, and takes them back."
+  "The mode dresses the window and takes the dressing back.
+A batch session is a terminal, so the sides are margins here."
   (window-box-test--with-buffer
-    (setq-local left-margin-width 0 right-margin-width 3)
+    (set-window-margins (selected-window) nil 3)
     (window-box-mode 1)
-    (should (= left-margin-width 1))
-    (should (= right-margin-width 3))
+    (should (equal (window-margins (selected-window)) '(1 . 1)))
     (should (equal (window-parameter (selected-window) 'tab-line-format)
                    '(:eval (window-box--top))))
     (should (window-box--overlay (selected-window)))
     (window-box-mode -1)
-    (should (= left-margin-width 0))
-    (should (= right-margin-width 3))
+    (should (equal (window-margins (selected-window)) '(nil . 3)))
     (should-not (window-parameter (selected-window) 'tab-line-format))
-    (should-not (window-box--overlay (selected-window)))))
+    (should-not (window-parameter (selected-window)
+                                  'window-box--saved-margins))
+    (should-not (window-box--overlay (selected-window)))
+    (set-window-margins (selected-window) nil nil)))
 
 (ert-deftest window-box-test-mode-line-stays ()
   "A window with a mode line keeps it; one without gets the edge back."

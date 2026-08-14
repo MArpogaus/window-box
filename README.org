@@ -32,21 +32,23 @@ terminal.
 
 *** How It Works
 
-The box is built from window dressing Emacs already has:
+On a graphic display the box is made of thin pixel lines: the side
+edges are narrow fringes, which run the full window height, and the
+top and bottom edges are thin bar rows that span the whole row —
+corners meet exactly because the lines run to the window edges.  In a
+terminal the box is made of box-drawing characters, with the sides in
+one-column margins along the lines of text.
 
-- The top edge is the window's tab line, set through the window
+Either way, only window dressing is used:
+
+- The top edge lives in the window's tab line, set through the window
   parameter, so the buffer's own =tab-line-format= is not touched.
-- The side edges are glyphs in one-column display margins, drawn
-  through an overlay that carries the =window= property.  Each window
-  gets its own overlay, so one buffer shown in two windows works.
 - The bottom edge is your mode line.  Only when the window shows no
   mode line does the box draw one, again through the window parameter,
   and puts the old state back when the mode turns off.
-
-On a graphic display the horizontal edges are pixel-exact: the fill
-between the corners is a stretch space with a strike-through line, so
-the corners always meet the window edge.  In a terminal the fill is
-the plain box-drawing character.
+- The terminal side edges hang on an overlay that carries the
+  =window= property.  Each window gets its own, so one buffer shown in
+  two windows works.
 
 ** Getting Started
 
@@ -73,13 +75,18 @@ window, and the frame reads as panels.
 
 There is little of it, on purpose:
 
-| Option                  | Meaning                                    |
-|-------------------------+--------------------------------------------|
-| =window-box-characters= | the four corners and the two edge glyphs   |
-| =window-box=            | face of the box around unselected windows  |
-| =window-box-selected=   | face of the box around the selected window |
+| Option                  | Meaning                                        |
+|-------------------------+------------------------------------------------|
+| =window-box=            | face of the box; its foreground is the color   |
+| =window-box-characters= | the glyphs of the terminal box                 |
 
-Rounded corners, for example:
+Remap the face buffer-locally for a box color per buffer:
+
+#+begin_src emacs-lisp
+  (face-remap-add-relative 'window-box '(:foreground "orange"))
+#+end_src
+
+Rounded corners in the terminal, for example:
 
 #+begin_src emacs-lisp
   (setq window-box-characters "╭╮╰╯│─")
@@ -100,13 +107,14 @@ reads the screen back through [[https://github.com/selectel/pyte][pyte]]:
 
 ** Known Limits
 
-- The side edges run along lines of text, so they stop where the
-  buffer ends.  In a window sized to its buffer this is invisible; in
-  a tall window the sides end with the content.
+- In a terminal the side edges run along lines of text, so they stop
+  where the buffer ends.  On graphic displays the fringes run the full
+  window height.
+- The box color of the fringes is buffer wide, because face remaps
+  are: fringe indicators such as continuation arrows draw on the box
+  color.
 - A window whose buffer shows its own tab line loses it to the top
   edge while the box is on.
-- A scroll bar whose width is not a multiple of the character width
-  can offset the top right corner on graphic displays.
 
 ** Comparison with buffer-box
 
@@ -117,11 +125,12 @@ differences are deliberate:
 - buffer-box replaces the header line and the mode line with its own;
   window-box leaves both to you.
 - buffer-box attaches the side edges to the buffer, so one buffer in
-  two windows shares them; window-box attaches them to the window
-  through the overlay =window= property.
+  two windows shares them, and they stop at the end of the text;
+  window-box binds the terminal sides to the window through the
+  overlay =window= property, and on graphic displays uses fringes,
+  which run the full window height.
 - buffer-box zeroes the frame fringes and advises =set-window-margins=
-  and =set-window-fringes=; window-box changes nothing global and gets
-  exact edges from a stretch space instead.
+  and =set-window-fringes=; window-box changes nothing global.
 - buffer-box offers border styles and a rich header; window-box draws
   a box.
 
