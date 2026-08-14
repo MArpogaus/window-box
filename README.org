@@ -52,6 +52,12 @@ the package does not pretend to own it.  Set
 own, which the package does own in full; where a window has no header
 or mode line, a row is drawn either way.
 
+The rule is the same at the top and at the bottom: a line the window
+already shows is the edge, and only where it shows none does the box
+draw a row of its own.  In a terminal that is all there is to it,
+since a terminal has no overline: a header line is the top boundary,
+a mode line the bottom one.
+
 Only window dressing is used:
 
 - A drawn top edge lives in the window's tab line, set through the
@@ -126,6 +132,9 @@ reads the screen back through [[https://github.com/selectel/pyte][pyte]]:
 - In a terminal the side edges run along lines of text, so they stop
   where the buffer ends.  On graphic displays the fringes run the full
   window height.
+- A header or mode line row reaches past the side edges, which belong
+  to the body.  Closing such a row at its ends is the row's own
+  business: a glyph at each end does it, and the demo shows one.
 - The box color of the fringes is buffer wide, because face remaps
   are: fringe indicators such as continuation arrows draw on the box
   color.

@@ -173,20 +173,28 @@ Call it with the window's buffer current."
         (face-remap-remove-relative (cdr cookie)))
       (setq window-box--cookies nil
             window-box--cookie-color color))
-    ;; The top edge: attached to the header line when there is one, a
-    ;; thin row of its own otherwise.  Attaching gives the box the
-    ;; border role of that line: the overline is the edge, and the
-    ;; line's own underline and box give way.  Content, fonts and
-    ;; colors stay.  No side ticks on these rows: a box border after a
+    ;; The top edge: the header line when the window shows one, a row
+    ;; of the box's own where it shows none — the same rule the bottom
+    ;; edge follows.  A row of our own above a header line would leave
+    ;; the header between the box's sides without any, since neither
+    ;; margins nor fringes reach that row.
+    ;;
+    ;; On a graphic display the edge is an overline on that line, which
+    ;; gives the box the border role: the line's own underline and box
+    ;; give way, while content, fonts and colors stay.  Closing the
+    ;; row's ends is the row's own business — a box border after a
     ;; stretch glyph is drawn or clipped at the display engine's whim,
-    ;; so closing the row's ends is the row's own business — a header
-    ;; can end in a colored glyph, as the demo does.
-    (if (and attach (window-box--line-visible-p window 'header-line-format
-                                                header-line-format))
+    ;; so a header that wants closed ends draws a glyph at each end, as
+    ;; the demo does.
+    (cond
+     ((window-box--line-visible-p window 'header-line-format
+                                 header-line-format)
+      (when attach
         (window-box--remap 'header-line
-                           (list :overline color :underline nil :box nil))
+                           (list :overline color :underline nil :box nil))))
+     (t
       (set-window-parameter window 'tab-line-format
-                            '(:eval (window-box--top))))
+                            '(:eval (window-box--top)))))
     ;; The bottom edge: the mode line when there is one, a thin row
     ;; where the window shows none.
     (cond
