@@ -62,6 +62,11 @@ test: $(SANDBOX)
 tty:
 	@EMACS=$(EMACS) python3 test/tty-test.py
 
+# The pixel test needs a display; `xvfb-run' provides one where there
+# is none.  Without it the Emacs below falls back to a terminal and
+# dies on the missing tty.
+XVFB := $(shell command -v xvfb-run 2>/dev/null)
+
 # The exported frame shows what a user on a graphic display really
 # sees, down to the pixel.  It doubles as the screenshot in the README.
 gui:
