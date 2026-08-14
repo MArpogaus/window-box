@@ -111,6 +111,9 @@ There is little of it, on purpose:
 | =window-box-attached-edges=  | overlines on your lines, or rows of their own  |
 | =window-box-characters=      | the glyphs of the terminal box                 |
 
+Everything else is deliberately absent: the box has one thickness,
+one pixel, because an overline cannot be thicker.
+
 A box color per buffer:
 
 #+begin_src emacs-lisp
@@ -127,8 +130,9 @@ Rounded corners in the terminal, for example:
 ** In the Terminal
 
 The box is drawn from characters, so it works in =emacs -nw=.  The
-test suite proves it: =make tty= runs Emacs in a pseudo terminal and
-reads the screen back through [[https://github.com/selectel/pyte][pyte]]:
+test suite proves it: =make tty= runs Emacs in a pseudo terminal,
+boxes two windows side by side, and reads the screen back through
+[[https://github.com/selectel/pyte][pyte]], failing on any edge that never closes its corner:
 
 #+begin_example
   ┌──────────────────────────────────────────────┐
