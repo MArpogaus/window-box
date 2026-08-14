@@ -32,12 +32,17 @@ terminal.
 
 *** How It Works
 
-On a graphic display the box is made of thin pixel lines: the side
-edges are narrow fringes, which run the full window height, and the
-top and bottom edges are thin bar rows that span the whole row —
-corners meet exactly because the lines run to the window edges.  In a
-terminal the box is made of box-drawing characters, with the sides in
-one-column margins along the lines of text.
+On a graphic display the box is one pixel wide on every side: the
+side edges are one pixel fringes, which run the full window height,
+and the horizontal edges are one pixel rows or an overline.  One
+pixel throughout, because an overline is always one pixel and the
+rest matches it.  In a terminal the box is made of box-drawing
+characters, with the sides in one-column margins along the lines of
+text.
+
+=make gui= proves the pixels: it exports a frame with two boxed side
+windows and reads the edges back with pillow, checking that each one
+is exactly one pixel and sits on the window's edge.
 
 By default the horizontal edges attach to the lines the window
 already has: the top edge is an overline on the header line, the
@@ -127,6 +132,9 @@ reads the screen back through [[https://github.com/selectel/pyte][pyte]]:
   └──────────────────────────────────────────────┘
 #+end_example
 
+A window that shows a header line has no row of its own above it:
+the header is the top boundary, since a terminal has no overline.
+
 ** Known Limits
 
 - In a terminal the side edges run along lines of text, so they stop
@@ -139,7 +147,10 @@ reads the screen back through [[https://github.com/selectel/pyte][pyte]]:
   are: fringe indicators such as continuation arrows draw on the box
   color.
 - A window whose buffer shows its own tab line loses it to the top
-  edge while the box is on.
+  edge while the box is on, unless the window also shows a header
+  line, which the box then uses instead.
+- A scroll bar sits outside the fringe, so the right edge lands
+  inside it.  Turn the scroll bar off for a clean box.
 
 ** Comparison with buffer-box
 
