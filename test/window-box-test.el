@@ -63,6 +63,30 @@
     ;; corner + fill + corner spans the whole window
     (should (= (string-width top) (window-total-width)))))
 
+(ert-deftest window-box-test-edge-width-beside-a-neighbour ()
+  "The edge spans the window, not the column that separates two.
+A terminal puts that column inside `window-total-width', and an edge
+one column too long loses its last corner off the end."
+  (skip-unless (not (display-graphic-p)))
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (set-window-buffer (selected-window) buffer)
+          (split-window-right 30)
+          (with-current-buffer buffer
+            (set-window-margins (selected-window) 1 1)
+            (let ((margins (window-margins)))
+              (should (= (string-width (window-box--top))
+                         (+ (window-body-width)
+                            (or (car margins) 0)
+                            (or (cdr margins) 0))))
+              (should (< (string-width (window-box--top))
+                         (window-total-width))))
+            (set-window-margins (selected-window) nil nil)))
+      (delete-other-windows)
+      (kill-buffer buffer))))
+
 (ert-deftest window-box-test-prefix ()
   "The line prefix puts one vertical edge into each margin."
   (let ((prefix (window-box--prefix)))
