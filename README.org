@@ -30,6 +30,11 @@ terminal.
 
 [[file:img/demo.gif]]
 
+Two side windows boxed, on a graphic display; the frame comes from
+=make gui=, which also measures it:
+
+[[file:img/screenshot.png]]
+
 *** How It Works
 
 On a graphic display the box is one pixel wide on every side: the
