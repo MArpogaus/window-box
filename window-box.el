@@ -57,6 +57,7 @@
 ;;; Code:
 
 (require 'face-remap)
+(require 'seq)
 
 (defgroup window-box nil
   "A rectangular box around a window."
@@ -157,13 +158,23 @@ are exact."
     (push (cons face (apply #'face-remap-add-relative face spec))
           window-box--cookies)))
 
+(defconst window-box--top-format '(:eval (window-box--top))
+  "The tab line format the box draws its own top edge with.")
+
+(defconst window-box--bottom-format '(:eval (window-box--bottom))
+  "The mode line format the box draws its own bottom edge with.")
+
 (defun window-box--line-visible-p (window parameter format)
   "Return non-nil when WINDOW shows the line PARAMETER names.
 FORMAT is the matching buffer-local format value.  The window
 parameter wins: `none' hides the line, any other non-nil value is a
-format of its own."
+format of its own — unless it is one of the box's own, which is not
+a line the window brought along."
   (let ((param (window-parameter window parameter)))
     (cond ((eq param 'none) nil)
+          ((member param (list window-box--top-format
+                               window-box--bottom-format))
+           nil)
           (param t)
           (t format))))
 
@@ -195,11 +206,13 @@ Call it with the window's buffer current."
         (face-remap-remove-relative (cdr cookie)))
       (setq window-box--cookies nil
             window-box--cookie-color color))
-    ;; The top edge is an overline on the header line, which gives the
-    ;; box the border role: the line's own underline and box give way,
-    ;; while content, fonts and colors stay.  Where there is no header
-    ;; line to carry it, or no overline to be had — a terminal has
-    ;; none — the edge is a row of the box's own, in the tab line.
+    ;; The top edge goes in the tab line, which the box draws itself —
+    ;; unless the window is using that row for tabs.  Then the tabs are
+    ;; the top boundary, and on a graphic display the box marks them
+    ;; with an overline: the line's own underline and box give way,
+    ;; while content, fonts and colors stay.  A header line can carry
+    ;; that overline as well, but only where there is one to draw — a
+    ;; terminal has none, and takes the free tab line instead.
     ;;
     ;; Closing the ends of a row the window already has is that row's
     ;; own business: neither margins nor fringes reach it, and a box
@@ -207,14 +220,19 @@ Call it with the window's buffer current."
     ;; engine's whim.  A header that wants closed ends draws a glyph at
     ;; each end, as the demo does.
     (cond
+     ((window-box--line-visible-p window 'tab-line-format tab-line-format)
+      (when attach
+        (window-box--remap 'tab-line
+                           (list :overline color :underline nil :box nil))))
      ((and attach
            (window-box--line-visible-p window 'header-line-format
                                        header-line-format))
       (window-box--remap 'header-line
                          (list :overline color :underline nil :box nil)))
-     (t
+     ((not (equal (window-parameter window 'tab-line-format)
+                  window-box--top-format))
       (set-window-parameter window 'tab-line-format
-                            '(:eval (window-box--top)))))
+                            window-box--top-format)))
     ;; The bottom edge: the mode line when there is one, a thin row
     ;; where the window shows none.
     (cond
@@ -225,11 +243,11 @@ Call it with the window's buffer current."
                              (list :overline color :underline nil
                                    :box nil)))))
      ((not (equal (window-parameter window 'mode-line-format)
-                  '(:eval (window-box--bottom))))
+                  window-box--bottom-format))
       (set-window-parameter window 'window-box--saved-mode-line
                             (window-parameter window 'mode-line-format))
       (set-window-parameter window 'mode-line-format
-                            '(:eval (window-box--bottom)))))
+                            window-box--bottom-format)))
     (if graphic
         ;; Fringes run the full window height, so they make better
         ;; side edges than glyphs along the lines of text.
@@ -238,7 +256,8 @@ Call it with the window's buffer current."
             (let ((fringes (window-fringes window)))
               (set-window-parameter window 'window-box--saved-fringes
                                     (list (nth 0 fringes) (nth 1 fringes)))))
-          (set-window-fringes window 1 1 t)
+          (unless (equal (seq-take (window-fringes window) 2) '(1 1))
+            (set-window-fringes window 1 1 t))
           (window-box--remap 'fringe (list :background color)))
       ;; A terminal has no fringes; the sides are glyphs in one column
       ;; margins.  They hang on the buffer's `line-prefix' and not on
@@ -252,7 +271,8 @@ Call it with the window's buffer current."
         (let ((margins (window-margins window)))
           (set-window-parameter window 'window-box--saved-margins
                                 (list (car margins) (cdr margins)))))
-      (set-window-margins window 1 1)
+      (unless (equal (window-margins window) '(1 . 1))
+        (set-window-margins window 1 1))
       (unless window-box--saved-prefix
         (setq window-box--saved-prefix
               (list line-prefix wrap-prefix (local-variable-p 'line-prefix))))
@@ -273,10 +293,10 @@ where nil stands for the default; SETTER applies them."
 The face remaps are the buffer's and go when the mode turns off."
   (set-window-parameter window 'window-box nil)
   (when (equal (window-parameter window 'tab-line-format)
-               '(:eval (window-box--top)))
+               window-box--top-format)
     (set-window-parameter window 'tab-line-format nil))
   (when (equal (window-parameter window 'mode-line-format)
-               '(:eval (window-box--bottom)))
+               window-box--bottom-format)
     (set-window-parameter window 'mode-line-format
                           (window-parameter window
                                             'window-box--saved-mode-line))
@@ -311,12 +331,17 @@ box is built."
   :lighter ""
   (if window-box-mode
       (progn
-        ;; Showing a buffer resets the window's fringes and margins, so
-        ;; a boxed window needs them put back.  The hook stays for the
-        ;; session: it walks the windows of one frame and reads a
+        ;; Displaying a buffer resets the window's fringes, margins and
+        ;; parameters, and a package that dresses windows — side window
+        ;; rules, for one — sets its own over the box's every time it
+        ;; displays.  So the box puts itself back on both events, and
+        ;; only ever changes what differs, or setting the margins here
+        ;; would call this back forever.  The hooks stay for the
+        ;; session: they walk the windows of one frame and read a
         ;; buffer-local variable, and knowing when the last box went
         ;; would cost more than it saves.
         (add-hook 'window-buffer-change-functions #'window-box--refresh)
+        (add-hook 'window-configuration-change-hook #'window-box--refresh)
         (dolist (window (get-buffer-window-list nil nil t))
           (window-box--apply window)))
     (dolist (window (get-buffer-window-list nil nil t))
