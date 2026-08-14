@@ -48,6 +48,16 @@ if not any(l.startswith("│") and l.rstrip().endswith("│") for l in lines[1:5
 bottoms = [l for l in lines if l.startswith("└")]
 if not (bottoms and bottoms[0].rstrip().endswith("┘")):
     failures.append("bottom edge missing")
+# The sides run to the bottom edge, over the rows below the last line
+# of text: an overlay stops at the end of the buffer, a line prefix
+# does not.
+for number, line in enumerate(lines):
+    if line.startswith("└"):
+        above = lines[number - 1]
+        if not (above.startswith("│") and above.rstrip().endswith("│")):
+            failures.append("the sides stop above the bottom edge: "
+                            f"{above.rstrip()!r}")
+        break
 # Every top edge closes with a corner, the one beside a neighbour too.
 for number, line in enumerate(lines):
     for start in (i for i, c in enumerate(line) if c == "┌"):

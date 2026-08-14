@@ -62,11 +62,34 @@ the package does not pretend to own it.  Set
 own, which the package does own in full; where a window has no header
 or mode line, a row is drawn either way.
 
+A header line closes the box like this, and only while there is a box
+to close:
+
+#+begin_src emacs-lisp
+  (defun my-header-cap ()
+    (if window-box-mode
+        (propertize " " 'face (list :background (face-foreground
+                                                 'window-box nil 'default))
+                    'display '(space :width (1)))
+      ""))
+
+  (setq-local header-line-format
+              '(:eval (list (my-header-cap)
+                            " a header of my own"
+                            (propertize " " 'display '(space :align-to right))
+                            (my-header-cap))))
+#+end_src
+
+Align the closing cap to =right= rather than to a measured width: a
+glyph can render a pixel wider than =string-pixel-width= reports it,
+and the corner then misses by one.
+
 The rule is the same at the top and at the bottom: a line the window
 already shows is the edge, and only where it shows none does the box
-draw a row of its own.  In a terminal that is all there is to it,
-since a terminal has no overline: a header line is the top boundary,
-a mode line the bottom one.
+draw a row of its own.  A terminal has no overline, so nothing there
+can be attached to: the top edge is always a row of the box's own,
+above the header line, and the mode line is the bottom boundary
+itself — taking it over to draw an edge would cost you the mode line.
 
 Only window dressing is used:
 
@@ -75,9 +98,12 @@ Only window dressing is used:
   touched; a drawn bottom edge uses the mode line parameter of a
   window that shows no mode line, and puts the old state back when
   the mode turns off.
-- The terminal side edges hang on an overlay that carries the
-  =window= property.  Each window gets its own, so one buffer shown in
-  two windows works.
+- The terminal side edges are glyphs in one-column margins, hung on
+  the buffer's =line-prefix=.  A prefix reaches the empty rows below
+  the last line, where an overlay would stop and leave the box open,
+  and a glyph bound for a margin stays invisible in a window that has
+  none — so the sides show in the boxed windows and nowhere else.
+  The buffer's own prefix comes back when the mode turns off.
 
 ** Getting Started
 

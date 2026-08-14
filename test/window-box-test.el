@@ -107,14 +107,26 @@ A batch session is a terminal, so the sides are margins here."
     (should (equal (window-margins (selected-window)) '(1 . 1)))
     (should (equal (window-parameter (selected-window) 'tab-line-format)
                    '(:eval (window-box--top))))
-    (should (window-box--overlay (selected-window)))
+    (should (stringp line-prefix))
+    (should (local-variable-p 'line-prefix))
     (window-box-mode -1)
     (should (equal (window-margins (selected-window)) '(nil . 3)))
     (should-not (window-parameter (selected-window) 'tab-line-format))
     (should-not (window-parameter (selected-window)
                                   'window-box--saved-margins))
-    (should-not (window-box--overlay (selected-window)))
+    (should-not (local-variable-p 'line-prefix))
     (set-window-margins (selected-window) nil nil)))
+
+(ert-deftest window-box-test-a-prefix-of-your-own-comes-back ()
+  "A buffer that had a line prefix keeps it once the box is gone.
+The sides live in the prefix, so the box has to hand it back."
+  (window-box-test--with-buffer
+    (setq-local line-prefix "> " wrap-prefix "| ")
+    (window-box-mode 1)
+    (should-not (equal line-prefix "> "))
+    (window-box-mode -1)
+    (should (equal line-prefix "> "))
+    (should (equal wrap-prefix "| "))))
 
 (ert-deftest window-box-test-mode-line-stays ()
   "A window with a mode line keeps it; one without gets the edge back."
@@ -132,14 +144,15 @@ A batch session is a terminal, so the sides are margins here."
     (should (eq (window-parameter (selected-window) 'mode-line-format)
                 'none))))
 
-(ert-deftest window-box-test-header-line-is-the-top-edge ()
-  "A window that shows a header line gets no row of its own above it.
-A row there would leave the header between the box's sides without
-any: neither margins nor fringes reach that row."
+(ert-deftest window-box-test-a-terminal-draws-its-own-top-edge ()
+  "A header line carries the top edge only where an overline can be drawn.
+A batch session is a terminal, and a terminal has no overline, so the
+box draws a row of its own above the header instead of nothing."
   (window-box-test--with-buffer
     (setq-local header-line-format " mine ")
     (window-box--apply (selected-window))
-    (should-not (window-parameter (selected-window) 'tab-line-format))
+    (should (equal (window-parameter (selected-window) 'tab-line-format)
+                   '(:eval (window-box--top))))
     (window-box--clear (selected-window))
     (setq-local header-line-format nil)
     (window-box--apply (selected-window))
@@ -175,16 +188,14 @@ any: neither margins nor fringes reach that row."
     (set-window-parameter (selected-window) 'mode-line-format nil)
     (set-window-parameter (selected-window) 'header-line-format nil)))
 
-(ert-deftest window-box-test-overlay-per-window ()
-  "Each window gets its own overlay, found by its window property."
+(ert-deftest window-box-test-boxing-twice-saves-the-prefix-once ()
+  "A second box does not save the first one's prefix as the buffer's."
   (window-box-test--with-buffer
+    (setq-local line-prefix "> ")
     (window-box--apply (selected-window))
-    (let ((overlay (window-box--overlay (selected-window))))
-      (should overlay)
-      (should (eq (overlay-get overlay 'window) (selected-window)))
-      ;; applying again reuses it
-      (window-box--apply (selected-window))
-      (should (eq (window-box--overlay (selected-window)) overlay)))))
+    (window-box--apply (selected-window))
+    (window-box--clear (selected-window))
+    (should (equal line-prefix "> "))))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
