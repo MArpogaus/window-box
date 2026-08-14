@@ -175,15 +175,16 @@ Call it with the window's buffer current."
             window-box--cookie-color color))
     ;; The top edge: attached to the header line when there is one, a
     ;; thin row of its own otherwise.  Attaching gives the box the
-    ;; border role of that line: the overline is the top edge, a
-    ;; vertical-only box closes the sides of the row, and the line's
-    ;; own underline gives way.  Content, fonts and colors stay.
+    ;; border role of that line: the overline is the edge, and the
+    ;; line's own underline and box give way.  Content, fonts and
+    ;; colors stay.  No side ticks on these rows: a box border after a
+    ;; stretch glyph is drawn or clipped at the display engine's whim,
+    ;; so closing the row's ends is the row's own business — a header
+    ;; can end in a colored glyph, as the demo does.
     (if (and attach (window-box--line-visible-p window 'header-line-format
                                                 header-line-format))
         (window-box--remap 'header-line
-                           (list :overline color :underline nil
-                                 :box (list :line-width '(2 . 0)
-                                            :color color)))
+                           (list :overline color :underline nil :box nil))
       (set-window-parameter window 'tab-line-format
                             '(:eval (window-box--top))))
     ;; The bottom edge: the mode line when there is one, a thin row
@@ -194,8 +195,7 @@ Call it with the window's buffer current."
         (dolist (face '(mode-line-active mode-line-inactive))
           (window-box--remap face
                              (list :overline color :underline nil
-                                   :box (list :line-width '(2 . 0)
-                                              :color color))))))
+                                   :box nil)))))
      ((not (equal (window-parameter window 'mode-line-format)
                   '(:eval (window-box--bottom))))
       (set-window-parameter window 'window-box--saved-mode-line

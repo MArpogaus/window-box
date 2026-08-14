@@ -37,7 +37,16 @@
     (with-current-buffer "*warning*"
       (insert "A side window without a mode line:\nthe box closes the bottom itself.\n")
       (setq-local mode-line-format nil
-                  header-line-format "  ⚠ my own header line, untouched ")
+                  ;; the row closes its own ends: a colored chip left,
+                  ;; a one pixel glyph right — the package leaves the
+                  ;; header line alone
+                  header-line-format
+                  (list (propertize " ⚠ " 'face '(:inverse-video t))
+                        " my own header line, untouched"
+                        (propertize " " 'display
+                                    '(space :align-to (- right (1))))
+                        (propertize " " 'face '(:inverse-video t)
+                                    'display '(space :width (1)))))
       nil)
     (set-window-buffer right (get-buffer-create "*notes*"))
     (with-current-buffer "*notes*"
