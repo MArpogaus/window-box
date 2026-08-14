@@ -86,7 +86,8 @@ and the corner then misses by one.
 
 The rule is the same at the top and at the bottom: a line the window
 already shows is the edge, and only where it shows none does the box
-draw a row of its own.  A terminal has no overline, so nothing there
+draw a row of its own.  A window showing tabs keeps them — its top
+boundary is there already, and the box only marks it.  A terminal has no overline, so nothing there
 can be attached to: the top edge is always a row of the box's own,
 above the header line, and the mode line is the bottom boundary
 itself — taking it over to draw an edge would cost you the mode line.
@@ -95,7 +96,7 @@ Only window dressing is used:
 
 - A drawn top edge lives in the window's tab line, set through the
   window parameter, so the buffer's own =tab-line-format= is not
-  touched; a drawn bottom edge uses the mode line parameter of a
+  touched, and only where the window is not using that row for tabs; a drawn bottom edge uses the mode line parameter of a
   window that shows no mode line, and puts the old state back when
   the mode turns off.
 - The terminal side edges are glyphs in one-column margins, hung on
@@ -104,6 +105,11 @@ Only window dressing is used:
   and a glyph bound for a margin stays invisible in a window that has
   none — so the sides show in the boxed windows and nowhere else.
   The buffer's own prefix comes back when the mode turns off.
+
+Other packages dress windows too, and a side window rule that sets
+its parameters on every display would strip the box off again.  So
+the box listens for window changes and puts back what went missing,
+writing only what differs.
 
 ** Getting Started
 
