@@ -188,7 +188,11 @@ the header is the top boundary, since a terminal has no overline.
   inside it.  Turn the scroll bar off for a clean box.
 - The box narrows the window's fringes to its own width, so with the
   default eight pixel fringes the text shifts by seven the moment a
-  box appears.  =(fringe-mode 1)= makes boxing cost no layout change.
+  box appears.  =(fringe-mode 1)= leaves the text where it is.
+- An attached edge costs the line it hangs on one pixel of height, so
+  the body moves down by one when the box appears.  That is the price
+  of a box: it has to occupy a pixel somewhere, and an unattached edge
+  takes a whole row instead.
 
 ** Comparison with buffer-box
 

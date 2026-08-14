@@ -28,7 +28,9 @@ Three rules, each one measured against the source frames:
   178 after =scale=820=.
 - No dithering and no =--lossy=.  Both scatter noise over flat
   colours, and the file gets /bigger/: 80K dithered and lossy against
-  48K clean.
+  47K clean.  Decoded back, the lines the package draws come out
+  column for column; what the 256 colour palette costs is at most
+  five levels on antialiased text.
 - No frame rate resampling.  The =fps= filter drops frames unevenly
   and the motion stutters.
 

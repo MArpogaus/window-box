@@ -46,17 +46,28 @@
                   ;; header line alone
                   header-line-format
                   '(:eval
-                    (list (propertize " ⚠ " 'face '(:inverse-video t))
-                          " my own header line, untouched"
-                          (propertize " " 'display
-                                      '(space :align-to (- right (1))))
-                          ;; The box's sides belong to the body, so the
-                          ;; header closes its own end — while there is
-                          ;; a box to close it against.
-                          (if window-box-mode
-                              (propertize " " 'face '(:inverse-video t)
-                                          'display '(space :width (1)))
-                            ""))))
+                    ;; Fringes and margins stop below this row, so the
+                    ;; box cannot reach it and the header closes it
+                    ;; itself: a cap in the box's own color at each
+                    ;; end, while there is a box to close.  The closing
+                    ;; one aligns to `right', not to a measured width —
+                    ;; a glyph can render a pixel wider than it
+                    ;; measures and the corner then misses by one.
+                    (let ((cap (if window-box-mode
+                                   (propertize
+                                    " " 'face
+                                    (list :background
+                                          (or window-box-color
+                                              (face-foreground
+                                               'window-box nil 'default)))
+                                    'display '(space :width (1)))
+                                 "")))
+                      (list cap
+                            (propertize " ⚠ " 'face '(:inverse-video t))
+                            " my own header line, untouched"
+                            (propertize " " 'display
+                                        '(space :align-to right))
+                            cap))))
       nil)
     (set-window-buffer right (get-buffer-create "*notes*"))
     (with-current-buffer "*notes*"
