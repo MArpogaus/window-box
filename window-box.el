@@ -114,12 +114,19 @@ are exact."
                   ;; row's end, fringes and margins included, which is
                   ;; where the side edges are.
                   'display '(space :align-to 10000 :height (1)))
-    (propertize
-     (concat (string (aref window-box-characters left))
-             (make-string (max 0 (- (window-total-width) 2))
-                          (aref window-box-characters 5))
-             (string (aref window-box-characters right)))
-     'face 'window-box)))
+    ;; The body and the margins, not `window-total-width': that counts
+    ;; the column a terminal puts between two windows side by side, and
+    ;; an edge one column too long loses its last corner off the end.
+    (let* ((margins (window-margins))
+           (width (+ (window-body-width)
+                     (or (car margins) 0)
+                     (or (cdr margins) 0))))
+      (propertize
+       (concat (string (aref window-box-characters left))
+               (make-string (max 0 (- width 2))
+                            (aref window-box-characters 5))
+               (string (aref window-box-characters right)))
+       'face 'window-box))))
 
 (defun window-box--top ()
   "Return the top edge of the box."
@@ -262,7 +269,8 @@ The face remaps are the buffer's and go when the mode turns off."
                '(:eval (window-box--bottom)))
     (set-window-parameter window 'mode-line-format
                           (window-parameter window
-                                            'window-box--saved-mode-line)))
+                                            'window-box--saved-mode-line))
+    (set-window-parameter window 'window-box--saved-mode-line nil))
   (window-box--restore window 'window-box--saved-fringes
                        #'set-window-fringes)
   (window-box--restore window 'window-box--saved-margins
@@ -294,6 +302,11 @@ box is built."
   :lighter ""
   (if window-box-mode
       (progn
+        ;; Showing a buffer resets the window's fringes and margins, so
+        ;; a boxed window needs them put back.  The hook stays for the
+        ;; session: it walks the windows of one frame and reads a
+        ;; buffer-local variable, and knowing when the last box went
+        ;; would cost more than it saves.
         (add-hook 'window-buffer-change-functions #'window-box--refresh)
         (dolist (window (get-buffer-window-list nil nil t))
           (window-box--apply window)))
@@ -301,7 +314,8 @@ box is built."
       (window-box--clear window))
     (dolist (cookie window-box--cookies)
       (face-remap-remove-relative (cdr cookie)))
-    (setq window-box--cookies nil)
+    (setq window-box--cookies nil
+          window-box--cookie-color nil)
     (remove-overlays (point-min) (point-max) 'window-box t)))
 
 (provide 'window-box)

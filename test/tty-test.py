@@ -48,11 +48,20 @@ if not any(l.startswith("│") and l.rstrip().endswith("│") for l in lines[1:5
 bottoms = [l for l in lines if l.startswith("└")]
 if not (bottoms and bottoms[0].rstrip().endswith("┘")):
     failures.append("bottom edge missing")
+# Every top edge closes with a corner, the one beside a neighbour too.
+for number, line in enumerate(lines):
+    for start in (i for i, c in enumerate(line) if c == "┌"):
+        rest = line[start:]
+        end = rest.find("┐")
+        if end < 0:
+            failures.append(f"row {number}: an edge from column {start} "
+                            f"never closes: {line!r}")
 if "boxed in the terminal" not in "\n".join(lines):
     failures.append("buffer text missing")
 
-for line in lines[:8]:
-    print(line.rstrip())
+for number, line in enumerate(lines):
+    if any(glyph in line for glyph in "┌┐└┘│"):
+        print(f"{number:2d}|{line.rstrip()}")
 for failure in failures:
     print("FAIL:", failure)
 print("terminal box:", "BROKEN" if failures else "OK")

@@ -17,6 +17,15 @@
        (insert "boxed in the terminal\nsecond line\n")
        (setq-local mode-line-format nil)
        (window-box-mode 1)))
+   ;; A second box beside the first: a terminal spends one column of
+   ;; the window on the separator, and an edge that counts it loses a
+   ;; corner off the end.
+   (let ((right (split-window-right 40)))
+     (set-window-buffer right (get-buffer-create "*beside*"))
+     (with-current-buffer "*beside*"
+       (insert "boxed beside it\n")
+       (setq-local mode-line-format nil)
+       (window-box-mode 1)))
    (redisplay t)
    (run-with-timer 1.0 nil (lambda () (kill-emacs 0)))))
 ;;; tty-test.el ends here
