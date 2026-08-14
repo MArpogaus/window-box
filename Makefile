@@ -5,6 +5,7 @@
 #   make lint      package-lint, the MELPA rules
 #   make test      ERT test suite
 #   make tty       box drawn in a real terminal, needs python3 + pyte
+#   make gui       box measured pixel by pixel, needs a display + pillow
 #   make clean     remove build output and the tool sandbox
 #
 # The checks install their tools and this package's dependencies into
@@ -33,7 +34,7 @@ checkdoc = (progn (require (quote checkdoc)) \
 
 BATCH = $(EMACS) -Q --batch -L . -L test --eval '$(init)'
 
-.PHONY: all compile checkdoc lint test tty clean
+.PHONY: all compile checkdoc lint test tty gui clean
 
 all: compile checkdoc lint test
 
@@ -60,6 +61,12 @@ test: $(SANDBOX)
 # The pyte screen shows what a terminal user really sees.
 tty:
 	@EMACS=$(EMACS) python3 test/tty-test.py
+
+# The exported frame shows what a user on a graphic display really
+# sees, down to the pixel.  It doubles as the screenshot in the README.
+gui:
+	@$(XVFB) $(EMACS) -Q -L . -L test -l test/gui-test.el
+	@python3 test/gui-check.py
 
 clean:
 	@rm -rf $(SANDBOX) ./*.elc test/*.elc

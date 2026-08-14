@@ -30,9 +30,11 @@
 ;; shows the buffer.  Nothing more: the mode line and the header line
 ;; stay whatever you made them.
 ;;
-;; On a graphic display the box is made of thin pixel lines: the side
-;; edges are narrow fringes, which run the full window height, and the
-;; top and bottom edges are thin bar rows.  In a terminal the box is
+;; On a graphic display the box is made of one pixel lines: the side
+;; edges are one pixel fringes, which run the full window height, and
+;; the top and bottom edges are one pixel rows, or an overline on a
+;; line the window already has.  One pixel throughout, because an
+;; overline is always one pixel and the rest matches it.  In a terminal the box is
 ;; made of box-drawing characters, with the sides in one-column
 ;; margins along the lines of text.
 ;;
@@ -70,7 +72,7 @@ color per buffer.")
 (defcustom window-box-characters "┌┐└┘│─"
   "The six characters the box is drawn with in a terminal.
 In order: the four corners, the vertical edge, the horizontal edge.
-A graphic display draws thin pixel lines instead."
+A graphic display draws one pixel lines instead."
   :type 'string)
 
 (defcustom window-box-color nil
@@ -102,12 +104,16 @@ LEFT and RIGHT are unused.  In a terminal it runs from corner LEFT to
 corner RIGHT, indices into `window-box-characters', and the columns
 are exact."
   (if (display-graphic-p)
+      ;; The row's height comes from the display spec alone.  A face
+      ;; `:height' below one in a side window's mode line sends Emacs
+      ;; into an endless measuring recursion and it dies of a stack
+      ;; overflow; the display spec has no such effect.
       (propertize " "
-                  'face (list :background (window-box--color) :height 0.1)
+                  'face (list :background (window-box--color))
                   ;; Larger than any row is long: the fill stops at the
                   ;; row's end, fringes and margins included, which is
                   ;; where the side edges are.
-                  'display '(space :align-to 10000 :height (2)))
+                  'display '(space :align-to 10000 :height (1)))
     (propertize
      (concat (string (aref window-box-characters left))
              (make-string (max 0 (- (window-total-width) 2))
@@ -218,7 +224,7 @@ Call it with the window's buffer current."
             (let ((fringes (window-fringes window)))
               (set-window-parameter window 'window-box--saved-fringes
                                     (list (nth 0 fringes) (nth 1 fringes)))))
-          (set-window-fringes window 2 2 t)
+          (set-window-fringes window 1 1 t)
           (window-box--remap 'fringe (list :background color)))
       ;; A terminal has no fringes; the sides are margin glyphs along
       ;; the lines of text.
