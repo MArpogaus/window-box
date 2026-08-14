@@ -39,13 +39,21 @@ corners meet exactly because the lines run to the window edges.  In a
 terminal the box is made of box-drawing characters, with the sides in
 one-column margins along the lines of text.
 
-Either way, only window dressing is used:
+By default the horizontal edges attach to the lines the window
+already has: the top edge is an overline on the header line, the
+bottom edge an overline on the mode line.  Content, fonts and colors
+of both stay yours — the box only adds its line.  Set
+=window-box-attached-edges= to nil for edges as thin rows of their
+own; where a window has no header or mode line, a row is drawn either
+way.
 
-- The top edge lives in the window's tab line, set through the window
-  parameter, so the buffer's own =tab-line-format= is not touched.
-- The bottom edge is your mode line.  Only when the window shows no
-  mode line does the box draw one, again through the window parameter,
-  and puts the old state back when the mode turns off.
+Only window dressing is used:
+
+- A drawn top edge lives in the window's tab line, set through the
+  window parameter, so the buffer's own =tab-line-format= is not
+  touched; a drawn bottom edge uses the mode line parameter of a
+  window that shows no mode line, and puts the old state back when
+  the mode turns off.
 - The terminal side edges hang on an overlay that carries the
   =window= property.  Each window gets its own, so one buffer shown in
   two windows works.
@@ -75,15 +83,18 @@ window, and the frame reads as panels.
 
 There is little of it, on purpose:
 
-| Option                  | Meaning                                        |
-|-------------------------+------------------------------------------------|
-| =window-box=            | face of the box; its foreground is the color   |
-| =window-box-characters= | the glyphs of the terminal box                 |
+| Option                       | Meaning                                        |
+|------------------------------+------------------------------------------------|
+| =window-box=                 | face of the box; its foreground is the color   |
+| =window-box-color=           | one color override, buffer-local for per-buffer |
+| =window-box-attached-edges=  | overlines on your lines, or rows of their own  |
+| =window-box-characters=      | the glyphs of the terminal box                 |
 
-Remap the face buffer-locally for a box color per buffer:
+A box color per buffer:
 
 #+begin_src emacs-lisp
-  (face-remap-add-relative 'window-box '(:foreground "orange"))
+  (setq-local window-box-color "orange")
+  (window-box-mode 1)
 #+end_src
 
 Rounded corners in the terminal, for example:

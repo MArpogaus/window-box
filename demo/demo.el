@@ -48,9 +48,10 @@
     (demo--hold 2.5)
     (with-current-buffer "*notes*" (window-box-mode 1))
     (demo--hold 2.5)
-    ;; 3. a box color per buffer, through a face remap
+    ;; 3. a box color per buffer
     (with-current-buffer "*warning*"
-      (face-remap-add-relative 'window-box '(:foreground "#b48ead")))
+      (setq-local window-box-color "#b48ead")
+      (window-box-mode 1))
     (force-mode-line-update t)
     (demo--hold 3.0)
     ;; 4. boxes off

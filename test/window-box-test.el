@@ -117,6 +117,26 @@ A batch session is a terminal, so the sides are margins here."
                    "foreign"))
     (set-window-parameter (selected-window) 'tab-line-format nil)))
 
+(ert-deftest window-box-test-line-visible ()
+  "The window parameter wins over the buffer's format."
+  (window-box-test--with-buffer
+    (setq-local mode-line-format "mine")
+    (should (window-box--line-visible-p (selected-window)
+                                        'mode-line-format
+                                        mode-line-format))
+    (set-window-parameter (selected-window) 'mode-line-format 'none)
+    (should-not (window-box--line-visible-p (selected-window)
+                                            'mode-line-format
+                                            mode-line-format))
+    ;; a header handed down by the window, as side window rules do
+    (setq-local header-line-format nil)
+    (set-window-parameter (selected-window) 'header-line-format "param")
+    (should (window-box--line-visible-p (selected-window)
+                                        'header-line-format
+                                        header-line-format))
+    (set-window-parameter (selected-window) 'mode-line-format nil)
+    (set-window-parameter (selected-window) 'header-line-format nil)))
+
 (ert-deftest window-box-test-overlay-per-window ()
   "Each window gets its own overlay, found by its window property."
   (window-box-test--with-buffer
