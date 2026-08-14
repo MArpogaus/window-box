@@ -3,6 +3,10 @@
 (add-to-list 'load-path "/home/marcel/.emacs.d/packages/window-box")
 (require 'window-box)
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
+;; One pixel fringes from the start: the box narrows the fringes to
+;; its own width, and with the default eight the text would shift by
+;; seven pixels the moment a box appears.
+(fringe-mode 1)
 (menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
 (set-frame-font "Source Code Pro 13" nil t)
 (blink-cursor-mode -1)
@@ -41,12 +45,18 @@
                   ;; a one pixel glyph right — the package leaves the
                   ;; header line alone
                   header-line-format
-                  (list (propertize " ⚠ " 'face '(:inverse-video t))
-                        " my own header line, untouched"
-                        (propertize " " 'display
-                                    '(space :align-to (- right (1))))
-                        (propertize " " 'face '(:inverse-video t)
-                                    'display '(space :width (1)))))
+                  '(:eval
+                    (list (propertize " ⚠ " 'face '(:inverse-video t))
+                          " my own header line, untouched"
+                          (propertize " " 'display
+                                      '(space :align-to (- right (1))))
+                          ;; The box's sides belong to the body, so the
+                          ;; header closes its own end — while there is
+                          ;; a box to close it against.
+                          (if window-box-mode
+                              (propertize " " 'face '(:inverse-video t)
+                                          'display '(space :width (1)))
+                            ""))))
       nil)
     (set-window-buffer right (get-buffer-create "*notes*"))
     (with-current-buffer "*notes*"
@@ -71,7 +81,7 @@
   (kill-emacs 0))
 (run-with-timer 1.0 nil
                 (lambda ()
-                  (set-frame-size (selected-frame) 900 520 t)
+                  (set-frame-size (selected-frame) 840 500 t)
                   (condition-case err (demo)
                     (error (write-region (format "ERROR %S" err) nil
                                          "/tmp/demo-wb/failed")

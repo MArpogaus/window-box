@@ -9,18 +9,31 @@ per tenth of a second through =x-export-frames=.
   DISPLAY=:99 emacs -Q -l demo.el    # writes frames to /tmp/demo-wb
 #+end_src
 
-Build the animation from the frames:
+Build the animation from the frames, at their own size and without
+dithering:
 
 #+begin_src shell
   ffmpeg -framerate 13 -start_number 1 -i frames/f%04d.png \
-      -filter_complex "[0:v]scale=820:-1:flags=lanczos,split[a][b];\
-                       [a]palettegen=max_colors=128[p];[b][p]paletteuse" \
+      -filter_complex "[0:v]tpad=stop_mode=clone:stop_duration=2,\
+                       split[a][b];[a]palettegen=max_colors=256[p];\
+                       [b][p]paletteuse=dither=none" \
       -loop 0 raw.gif
-  gifsicle -O3 --lossy=80 raw.gif -o ../img/demo.gif
+  gifsicle -O3 raw.gif -o ../img/demo.gif
 #+end_src
 
-Never resample the frame rate afterwards: dropping every few frames
-makes the motion stutter.
+Three rules, each one measured against the source frames:
+
+- No scaling.  The box is one pixel wide, and a resize turns that
+  line into two grey ones: the edge column reads 127 in the frame and
+  178 after =scale=820=.
+- No dithering and no =--lossy=.  Both scatter noise over flat
+  colours, and the file gets /bigger/: 80K dithered and lossy against
+  48K clean.
+- No frame rate resampling.  The =fps= filter drops frames unevenly
+  and the motion stutters.
+
+Record at a width the reader will not scale either; 840 fits the
+column GitHub renders the README in.
 
 The terminal box is checked without eyes: =make tty= in the top
 directory runs Emacs in a pseudo terminal and reads the screen back
