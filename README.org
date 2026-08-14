@@ -41,8 +41,10 @@ one-column margins along the lines of text.
 
 By default the horizontal edges attach to the lines the window
 already has: the top edge is an overline on the header line, the
-bottom edge an overline on the mode line.  Content, fonts and colors
-of both stay yours — the box only adds its line.  Set
+bottom edge an overline on the mode line, and a vertical-only box
+closes the sides of those rows, so the frame is complete.  Attaching
+gives the box the border role of the line: its own underline and box
+give way, while content, fonts and colors stay yours.  Set
 =window-box-attached-edges= to nil for edges as thin rows of their
 own; where a window has no header or mode line, a row is drawn either
 way.
