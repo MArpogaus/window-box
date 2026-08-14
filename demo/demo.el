@@ -38,7 +38,7 @@
       (insert "A side window without a mode line:\nthe box closes the bottom itself.\n")
       (setq-local mode-line-format nil
                   header-line-format "  ⚠ my own header line, untouched ")
-      (setq-local window-box-characters window-box-characters))
+      nil)
     (set-window-buffer right (get-buffer-create "*notes*"))
     (with-current-buffer "*notes*"
       (insert "Boxed, and the normal\nmode line closes the box.\n"))
@@ -48,20 +48,10 @@
     (demo--hold 2.5)
     (with-current-buffer "*notes*" (window-box-mode 1))
     (demo--hold 2.5)
-    ;; 2. the selected window's box stands out
-    (select-window (get-buffer-window "*notes*"))
-    (demo--hold 2.5)
-    (select-window (get-buffer-window "*warning*"))
-    (demo--hold 2.5)
-    (select-window (get-buffer-window "*scratch*"))
-    (demo--hold 2.5)
-    ;; 3. rounded corners, one option
-    (setq window-box-characters "╭╮╰╯│─")
+    ;; 3. a box color per buffer, through a face remap
+    (with-current-buffer "*warning*"
+      (face-remap-add-relative 'window-box '(:foreground "#b48ead")))
     (force-mode-line-update t)
-    (dolist (b '("*warning*" "*notes*"))
-      (with-current-buffer b
-        (dolist (w (get-buffer-window-list nil nil t))
-          (window-box--apply w))))
     (demo--hold 3.0)
     ;; 4. boxes off
     (with-current-buffer "*warning*" (window-box-mode -1))
