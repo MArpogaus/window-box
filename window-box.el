@@ -42,7 +42,8 @@
 ;;
 ;; - The top edge lives in the window's tab line, set through the
 ;;   window parameter, so the buffer's own `tab-line-format' is not
-;;   touched.
+;;   touched — and only while the window is not using that row for
+;;   tabs.  A window that shows tabs has its top boundary already.
 ;; - The bottom edge is your mode line.  Only when the window shows no
 ;;   mode line does the box draw one, again through the window
 ;;   parameter.
@@ -87,8 +88,10 @@ again applies it."
 Non-nil attaches them to the lines the window already has: the top
 edge becomes an overline on the header line, the bottom edge an
 overline on the mode line.  Nil, and wherever those lines are
-missing, the edge is a thin bar row of its own.  A terminal always
-draws its own rows, from `window-box-characters'."
+missing, the edge is a thin bar row of its own.  A terminal has no
+overline: there the top edge is always a row of its own, from
+`window-box-characters', and a mode line is the bottom boundary
+itself."
   :type 'boolean)
 
 ;;;; Drawing
