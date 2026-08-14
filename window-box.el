@@ -94,8 +94,14 @@ draws its own rows, from `window-box-characters'."
 ;;;; Drawing
 
 (defun window-box--color ()
-  "Return the color the box is drawn in."
-  (or window-box-color (face-foreground 'window-box nil 'default)))
+  "Return the color the box is drawn in.
+Never nil: a face with no foreground of its own — a terminal leaves
+the default face without one — would give `:overline nil', which is
+no overline at all, and an invalid `:background nil'."
+  (or window-box-color
+      (face-foreground 'window-box nil 'default)
+      (frame-parameter nil 'foreground-color)
+      "grey50"))
 
 (defun window-box--edge (left right)
   "Return one horizontal edge of the box.
@@ -109,7 +115,12 @@ are exact."
       ;; into an endless measuring recursion and it dies of a stack
       ;; overflow; the display spec has no such effect.
       (propertize " "
-                  'face (list :background (window-box--color))
+                  ;; Background and overline both: a one pixel row of
+                  ;; the box's own takes the background in a tab line
+                  ;; but not in a mode line, where the line's own face
+                  ;; wins — the overline paints that pixel either way.
+                  'face (let ((color (window-box--color)))
+                          (list :background color :overline color))
                   ;; Larger than any row is long: the fill stops at the
                   ;; row's end, fringes and margins included, which is
                   ;; where the side edges are.
