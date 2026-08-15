@@ -410,5 +410,31 @@ added."
             (should (re-search-forward "(autoload 'window-box-mode" nil t))))
       (delete-directory directory t))))
 
+(ert-deftest window-box-test-split-keeps-its-own-margins ()
+  "A window split off while the box is on gets its own margins back.
+Emacs gives a new window what the one it was split from had, so it
+arrives wearing the box's one column, and saving that would give it
+back as the width the window is supposed to have."
+  (skip-unless (not (display-graphic-p)))
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (window-box-mode 1)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(1 . 1)))
+          (let ((other (split-window)))
+            (window-box--refresh)
+            (should (equal (window-parameter other 'window-box--saved-margins)
+                           (list left-margin-width right-margin-width)))
+            (window-box-mode -1)
+            (window-box--refresh)
+            (should (equal (window-margins other) '(nil)))
+            (should (equal (window-margins (selected-window)) '(nil)))
+            (delete-window other)))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
