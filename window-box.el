@@ -424,10 +424,12 @@ windows also get theirs back here."
 
 ;;;; The mode
 
-;;;###autoload
-;;;###autoload
+;; Before the mode, so that loading the package sets it whether or not
+;; the mode has ever been on: a major mode change would otherwise clear
+;; the mode along with every other local variable.
 (put 'window-box-mode 'permanent-local t)
 
+;;;###autoload
 (define-minor-mode window-box-mode
   "Draw a rectangular box around every window that shows this buffer.
 The mode line and the header line stay untouched: the box only adds
