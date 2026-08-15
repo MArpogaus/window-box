@@ -357,5 +357,30 @@ buttons use."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-survives-a-major-mode-change ()
+  "The box is still there after a major mode change.
+`kill-all-local-variables' clears a buffer local minor mode like any
+other local variable, and an org source block gets its major mode
+after the buffer is displayed, so every such panel came up bare."
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\n")
+          (set-window-buffer (selected-window) buffer)
+          (window-box-mode 1)
+          (window-box--refresh)
+          (should (window-parameter (selected-window) 'window-box))
+          (should (local-variable-p 'line-prefix))
+          (emacs-lisp-mode)
+          ;; the mode survives the change
+          (should window-box-mode)
+          (should (window-parameter (selected-window) 'window-box))
+          ;; and what the change cleared is drawn again, from the hook
+          ;; the mode installs: the prefix that carries the sides is
+          ;; no more permanent-local than the face remaps are
+          (should (local-variable-p 'line-prefix)))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
