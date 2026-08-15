@@ -190,6 +190,12 @@ the header is the top boundary, since a terminal has no overline.
 - In a terminal the side edges run along lines of text, so they stop
   where the buffer ends.  On graphic displays the fringes run the full
   window height.
+- In a terminal a window that shows a mode line gets no bottom edge:
+  that row belongs to the mode line, and the box would have to take
+  it over to draw one, which would cost the mode line itself.  The
+  box is drawn on three sides there and the mode line closes it.  A
+  window with no mode line, which is how a side window is usually
+  dressed, gets the box's own row and closes properly.
 - A header or mode line row reaches past the side edges, which belong
   to the body.  Closing such a row at its ends is the row's own
   business: a glyph at each end does it, and the demo shows one.
