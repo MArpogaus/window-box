@@ -139,6 +139,11 @@ window, and the frame reads as panels.
   (add-hook 'auto-side-windows-after-display-hook
             (lambda (buffer &rest _)
               (with-current-buffer buffer (window-box-mode 1))))
+
+  ;; The mode is the buffer's, and a help buffer turns up in a panel
+  ;; and in an ordinary window at once.  A box belongs to the place:
+  (setq window-box-window-predicate
+        (lambda (window) (window-parameter window 'window-side)))
 #+end_src
 
 ** Customization
@@ -151,6 +156,7 @@ There is little of it, on purpose:
 | =window-box-color=           | one color override, buffer-local for per-buffer |
 | =window-box-attached-edges=  | overlines on your lines, or rows of their own  |
 | =window-box-characters=      | the glyphs of the terminal box                 |
+| =window-box-window-predicate= | which windows of a boxed buffer get the box    |
 
 Everything else is deliberately absent: the box has one thickness,
 one pixel, because an overline cannot be thicker.

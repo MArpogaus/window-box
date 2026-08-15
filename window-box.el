@@ -88,6 +88,22 @@ again applies it."
   :type '(choice (const :tag "Face foreground" nil) color)
   :local t)
 
+(defcustom window-box-window-predicate nil
+  "Which windows of a boxed buffer get the box, or nil for all of them.
+A function called with one window, whose buffer has `window-box-mode'
+on; a nil answer leaves that window alone and takes an existing box
+off it again.
+
+The mode is a buffer's, and a buffer is often shown twice: a help
+buffer in a side window and the same one in an ordinary window.  A
+box usually belongs to the place rather than to the text, and this is
+how a configuration says which places:
+
+  (setq window-box-window-predicate
+        (lambda (window) (window-parameter window \='window-side)))"
+  :type '(choice (const :tag "Every window showing the buffer" nil)
+                 function))
+
 (defcustom window-box-attached-edges t
   "Where the horizontal edges go on a graphic display.
 Non-nil attaches them to the lines the window already has: the top
@@ -356,14 +372,28 @@ The face remaps are the buffer's and go when the mode turns off."
   (window-box--restore window 'window-box--saved-margins
                        #'set-window-margins)
   (with-current-buffer (window-buffer window)
-    (window-box--restore-prefix)))
+    ;; The terminal sides hang on the buffer's own prefix, so they
+    ;; serve every boxed window at once.  Taking it back while another
+    ;; one still needs it would strip that window and the next refresh
+    ;; would put it back, once a window change.
+    (unless (seq-some (lambda (other)
+                        (and (not (eq other window))
+                             (window-parameter other 'window-box)))
+                      (get-buffer-window-list nil 'no-minibuffer t))
+      (window-box--restore-prefix))))
+
+(defun window-box--boxed-p (window)
+  "Return non-nil when WINDOW is one to draw a box around."
+  (and (buffer-local-value 'window-box-mode (window-buffer window))
+       (or (null window-box-window-predicate)
+           (funcall window-box-window-predicate window))))
 
 (defun window-box--refresh (&optional frame)
   "Box and unbox the windows of FRAME to match their buffers.
 Showing a buffer resets the window's fringes and margins, so boxed
 windows also get theirs back here."
   (dolist (window (window-list frame 'no-minibuffer))
-    (if (buffer-local-value 'window-box-mode (window-buffer window))
+    (if (window-box--boxed-p window)
         (with-current-buffer (window-buffer window)
           (window-box--apply window))
       ;; Only take away what this package drew.
