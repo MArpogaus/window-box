@@ -382,5 +382,33 @@ after the buffer is displayed, so every such panel came up bare."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-mode-is-autoloaded ()
+  "The mode carries its own autoload cookie.
+A configuration turns it on from a hook, in a buffer that was just
+displayed, before anything has loaded the package.  A cookie that
+slips onto the form above describes that form instead, and the mode
+gets none — which is what happened when the permanent-local put was
+added."
+  (skip-unless (fboundp 'loaddefs-generate))
+  (let* ((library (locate-library "window-box"))
+         (source (and library
+                      (if (string-suffix-p ".elc" library)
+                          (substring library 0 -1)
+                        library)))
+         (directory (make-temp-file "window-box-autoloads" t))
+         ;; not `make-temp-file': `loaddefs-generate' writes nothing
+         ;; when its output is newer than the sources, and a file
+         ;; created a moment ago always is
+         (file (expand-file-name "autoloads.el" directory)))
+    (skip-unless (and source (file-exists-p source)))
+    (unwind-protect
+        (progn
+          (loaddefs-generate (file-name-directory source) file)
+          (with-temp-buffer
+            (insert-file-contents file)
+            (goto-char (point-min))
+            (should (re-search-forward "(autoload 'window-box-mode" nil t))))
+      (delete-directory directory t))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
