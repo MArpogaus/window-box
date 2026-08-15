@@ -193,6 +193,15 @@ the header is the top boundary, since a terminal has no overline.
 - A header or mode line row reaches past the side edges, which belong
   to the body.  Closing such a row at its ends is the row's own
   business: a glyph at each end does it, and the demo shows one.
+- Attached edges leave the two rows on different sides of the box: an
+  overline sits at the top of its row, so the header line ends up
+  inside the box and the mode line below it, outside.  Drawing the
+  bottom edge as an underline instead would even that out, but Emacs
+  puts an underline at the baseline of the row and not at its bottom
+  — measured four pixels above the window's edge — so the box would
+  no longer sit on the edge.  With =window-box-attached-edges= at
+  nil, where a window shows neither line, the box owns both rows and
+  the question does not arise.
 - The box color of the fringes is buffer wide, because face remaps
   are: fringe indicators such as continuation arrows draw on the box
   color.
