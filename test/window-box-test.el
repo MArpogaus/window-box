@@ -281,5 +281,55 @@ there by the buffer."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-predicate-picks-the-windows ()
+  "A box can be a window's, not only a buffer's.
+The mode is the buffer's, and a help buffer is shown in a panel and
+in an ordinary window at once; the predicate says which of them is
+framed."
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (window-box-mode 1)
+          (window-box--refresh)
+          (should (window-parameter (selected-window) 'window-box))
+          ;; a predicate that says no takes the box off again
+          (let ((window-box-window-predicate #'ignore))
+            (window-box--refresh)
+            (should-not (window-parameter (selected-window) 'window-box)))
+          ;; and one that says yes puts it back
+          (let ((window-box-window-predicate (lambda (_window) t)))
+            (window-box--refresh)
+            (should (window-parameter (selected-window) 'window-box))))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
+(ert-deftest window-box-test-two-windows-share-the-prefix ()
+  "Unboxing one window leaves the other window's sides alone.
+In a terminal the sides hang on the buffer's own prefix, which serves
+every boxed window of that buffer at once."
+  (skip-unless (not (display-graphic-p)))
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (let ((other (split-window)))
+            (set-window-buffer other buffer)
+            (window-box-mode 1)
+            (window-box--refresh)
+            (should (local-variable-p 'line-prefix))
+            ;; one of the two is no longer a window to box
+            (let ((window-box-window-predicate
+                   (lambda (window) (not (eq window other)))))
+              (window-box--refresh)
+              (should-not (window-parameter other 'window-box))
+              (should (window-parameter (selected-window) 'window-box))
+              (should (local-variable-p 'line-prefix)))
+            (delete-window other)))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
