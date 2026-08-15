@@ -63,9 +63,37 @@ package draws, the mode line's own shadow among them.")
             cap)))
   "A header line that measures itself, as a real one does.")
 
+(defun gui-test--fringes ()
+  "Check that unboxing gives a split window its own fringes back.
+Emacs gives a new window the fringes of the one it was split from, so
+a window split off while the box is on arrives wearing the box\='s
+own — and saving those would give them back for good.  Only a graphic
+display has fringes, so this is checked here rather than in the batch
+suite."
+  (let ((buffer (get-buffer-create "*fringes*")))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert "split while boxed\n"))
+    (switch-to-buffer buffer)
+    (delete-other-windows)
+    (let ((wide (seq-take (window-fringes (selected-window)) 2)))
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (split-window-below)
+      (window-box--refresh)
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (dolist (window (window-list nil 'no-minibuffer))
+        (unless (equal (seq-take (window-fringes window) 2) wide)
+          (error "A window kept the box's fringes: %S, wanted %S"
+                 (seq-take (window-fringes window) 2) wide))))
+    (delete-other-windows)
+    (kill-buffer buffer)))
+
 (defun gui-test--run ()
   "Box two side windows, export the frame and exit."
   (set-frame-size (selected-frame) 700 520 t)
+  (gui-test--fringes)
   (switch-to-buffer (get-buffer-create "*main*"))
   (delete-other-windows)
   (insert "The main window keeps its own dressing.\n")

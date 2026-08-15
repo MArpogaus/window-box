@@ -319,9 +319,17 @@ Call it with the window's buffer current."
         ;; side edges than glyphs along the lines of text.
         (progn
           (unless (window-parameter window 'window-box--saved-fringes)
-            (let ((fringes (window-fringes window)))
-              (set-window-parameter window 'window-box--saved-fringes
-                                    (list (nth 0 fringes) (nth 1 fringes)))))
+            (let ((fringes (seq-take (window-fringes window) 2)))
+              (set-window-parameter
+               window 'window-box--saved-fringes
+               ;; A window split off from a boxed one arrives wearing
+               ;; the box's own fringes, and saving those would give
+               ;; them back for good.  The frame's widths are the
+               ;; honest answer for a window that had none of its own.
+               (if (equal fringes '(1 1))
+                   (list (frame-parameter (window-frame window) 'left-fringe)
+                         (frame-parameter (window-frame window) 'right-fringe))
+                 fringes))))
           (unless (equal (seq-take (window-fringes window) 2) '(1 1))
             (set-window-fringes window 1 1 t))
           (window-box--remap 'fringe (list :background color)))
@@ -357,8 +365,14 @@ Call it with the window's buffer current."
             (window-box--restore-prefix))
         (unless (window-parameter window 'window-box--saved-margins)
           (let ((margins (window-margins window)))
-            (set-window-parameter window 'window-box--saved-margins
-                                  (list (car margins) (cdr margins)))))
+            (set-window-parameter
+             window 'window-box--saved-margins
+             ;; The same as for the fringes: a window split off from a
+             ;; boxed one arrives with the box's own margins, and the
+             ;; buffer's widths are what Emacs would have given it.
+             (if (equal margins '(1 . 1))
+                 (list left-margin-width right-margin-width)
+               (list (car margins) (cdr margins))))))
         (unless (equal (window-margins window) '(1 . 1))
           (set-window-margins window 1 1))
         (unless window-box--saved-prefix
