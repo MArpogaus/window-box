@@ -109,11 +109,15 @@ Only window dressing is used:
   needs keeps them, and gets the top and bottom edges alone.  Magit's
   log writes the author and the date into a thirty column right
   margin, and a box that took that column would drop them without a
-  word.  The rule reads the margins as they stand, so a buffer that
-  sets them after the box went up is noticed on the next window
-  change and the sides give way then.  Only in a terminal: on a
-  graphic display the sides are fringes and the margins are never
-  touched.
+  word.  The buffer is asked as well as the window, and any width it
+  asks for counts: Emacs applies =left-margin-width= when a buffer is
+  displayed, so a mode that asks later — outline drawing its fold
+  buttons in the margin — would never be seen once the box has
+  written its own width into the window, and one column is all a fold
+  arrow needs.  The box gives the window back its own width when it
+  steps aside, unless someone else has set one since.  Only in a
+  terminal: on a graphic display the sides are fringes and the
+  margins are never touched.
 
 Other packages dress windows too, and a side window rule that sets
 its parameters on every display would strip the box off again.  So

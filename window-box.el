@@ -243,10 +243,22 @@ variables are killed again.")
 (defun window-box--wide-margins-p (window)
   "Return non-nil when WINDOW has margins of its own to keep.
 One column is what the box needs for a side glyph; anything wider was
-put there by the buffer and holds something the box must not drop."
+put there by whoever dressed the window, and holds something the box
+must not drop.
+
+The buffer is asked as well as the window, and any width it asks for
+counts.  Emacs applies `left-margin-width' when the buffer is
+displayed, so a buffer that asks for a margin later — as
+`outline-minor-mode' does when it draws its buttons there — would
+never be seen: the box has written its own width into the window by
+then.  One column is enough for a fold arrow, so the box gives way to
+any width at all rather than to a wider one."
   (let ((margins (window-margins window)))
     (or (> (or (car margins) 0) 1)
-        (> (or (cdr margins) 0) 1))))
+        (> (or (cdr margins) 0) 1)
+        (with-current-buffer (window-buffer window)
+          (or (> (or left-margin-width 0) 0)
+              (> (or right-margin-width 0) 0))))))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
@@ -331,6 +343,16 @@ Call it with the window's buffer current."
       ;; change and the sides give way then.
       (if (window-box--wide-margins-p window)
           (progn
+            ;; Give back what the box took, if it took anything: the
+            ;; buffer's own widths, which Emacs applies when it
+            ;; displays a buffer and which the box has been writing
+            ;; over since.  A window dressed by someone else, magit's
+            ;; log among them, is left as it stands.
+            (when (and (window-parameter window 'window-box--saved-margins)
+                       ;; only the box's own width, never a width
+                       ;; someone else has set since
+                       (equal (window-margins window) '(1 . 1)))
+              (set-window-margins window left-margin-width right-margin-width))
             (set-window-parameter window 'window-box--saved-margins nil)
             (window-box--restore-prefix))
         (unless (window-parameter window 'window-box--saved-margins)

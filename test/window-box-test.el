@@ -331,5 +331,31 @@ every boxed window of that buffer at once."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-gives-way-to-a-buffer-margin ()
+  "A buffer that asks for a margin after the box went up gets it.
+Emacs applies `left-margin-width' when a buffer is displayed, so a
+mode that asks for a margin later — outline drawing its buttons there
+— would never be seen: the box has written its own width into the
+window by then, and its side glyph would land in the column the
+buttons use."
+  (skip-unless (not (display-graphic-p)))
+  (let ((buffer (generate-new-buffer "*window-box test*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (window-box-mode 1)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(1 . 1)))
+          (should (local-variable-p 'line-prefix))
+          ;; the buffer asks for two columns of its own
+          (setq left-margin-width 2)
+          (window-box--refresh)
+          (should-not (local-variable-p 'line-prefix))
+          ;; and the window shows the buffer's width, not the box's
+          (should (equal (window-margins (selected-window)) '(2))))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
