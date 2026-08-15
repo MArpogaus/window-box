@@ -425,6 +425,9 @@ windows also get theirs back here."
 ;;;; The mode
 
 ;;;###autoload
+;;;###autoload
+(put 'window-box-mode 'permanent-local t)
+
 (define-minor-mode window-box-mode
   "Draw a rectangular box around every window that shows this buffer.
 The mode line and the header line stay untouched: the box only adds
@@ -444,6 +447,12 @@ box is built."
         ;; would cost more than it saves.
         (add-hook 'window-buffer-change-functions #'window-box--refresh)
         (add-hook 'window-configuration-change-hook #'window-box--refresh)
+        ;; A major mode change clears the face remaps and the saved
+        ;; prefix along with every other local variable, and neither
+        ;; event above fires for it.  The mode itself survives, being
+        ;; permanent-local, so the box is drawn again from scratch —
+        ;; which is what the cleared cookies ask for.
+        (add-hook 'after-change-major-mode-hook #'window-box--refresh)
         (dolist (window (get-buffer-window-list nil nil t))
           (window-box--apply window)))
     (dolist (window (get-buffer-window-list nil nil t))
