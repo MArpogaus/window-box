@@ -464,5 +464,26 @@ line."
                 'none))
     (set-window-parameter (selected-window) 'tab-line-format nil)))
 
+(ert-deftest window-box-test-a-saved-window-comes-back-marked ()
+  "A window put away with the box on knows it is boxed when it returns.
+`window-state-get\=' saves the margins and the fringes, so the box\='s
+widths travel with a window that is hidden — a side window toggled
+away.  Without the mark travelling too, a mode turned off in the
+meantime would leave those widths on a window nothing knows to
+undress."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (should (equal (window-margins (selected-window)) '(1 . 1)))
+    (let ((state (window-state-get (selected-window))))
+      (window-box-mode -1)
+      (window-state-put state (selected-window))
+      (should (window-parameter (selected-window) 'window-box))
+      (should (equal (window-margins (selected-window)) '(1 . 1)))
+      ;; the buffer is not boxed anymore, so the refresh takes the
+      ;; widths back off
+      (window-box--refresh)
+      (should-not (window-parameter (selected-window) 'window-box))
+      (should (equal (window-margins (selected-window)) '(nil . nil))))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
