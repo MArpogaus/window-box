@@ -46,6 +46,15 @@
                      (format " a header line in %s " name)
                      mode-line-format (format " a mode line in %s " name))
          (window-box-mode 1))))
+   ;; A header line with a button at its right hand end: it aligns the
+   ;; button to `right', which is the column the box wants for its own
+   ;; end, and the box has to keep that column.
+   (with-current-buffer "*rows*"
+     (setq-local header-line-format
+                 '(" a header line in *rows*"
+                   (:eval (propertize " " 'display
+                                      '(space :align-to (- right 3))))
+                   "[x]")))
    (redisplay t)
    (run-with-timer 1.0 nil (lambda () (kill-emacs 0)))))
 ;;; tty-test.el ends here

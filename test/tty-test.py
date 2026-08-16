@@ -85,6 +85,10 @@ for name in ("*rows*", "*more rows*"):
         return next((piece for piece in line.split("|") if wanted in piece),
                     line)
     piece = segment(header[0], name)
+    # *rows* right-aligns a button in its header; the box keeps the
+    # last column all the same.
+    if name == "*rows*" and "[x]" not in piece:
+        failures.append(f"{name}: the header lost its button: {piece!r}")
     if not (piece.startswith("│") and piece.rstrip().endswith("│")):
         failures.append(f"{name}: the header line is not inside the box: "
                         f"{piece!r}")
