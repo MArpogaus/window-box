@@ -71,16 +71,32 @@ if "boxed in the terminal" not in "\n".join(lines):
 # The window that keeps its own rows: the box takes them in, so its
 # header line rides between the sides and its mode line closes the
 # box, a terminal having no row below one.
-header = [l for l in lines if "a header line of my own" in l]
-mode = [l for l in lines if "a mode line of my own" in l]
-if not (header and header[0].startswith("│") and header[0].rstrip().endswith("│")):
-    failures.append(f"the header line is not inside the box: {header!r}")
-if not (mode and mode[0].startswith("└") and mode[0].rstrip().endswith("┘")):
-    failures.append(f"the mode line does not close the box: {mode!r}")
-if header:
-    above = lines[lines.index(header[0]) - 1]
+# Two such windows side by side, so the one left of the divider is
+# checked as well: a terminal spends a column of that window on the
+# separator, and an end placed by the row's own right edge lands in it.
+for name in ("*rows*", "*more rows*"):
+    header = [l for l in lines if f"a header line in {name} " in l]
+    mode = [l for l in lines if f"a mode line in {name} " in l]
+    if not header or not mode:
+        failures.append(f"{name}: no header or mode line on the screen")
+        continue
+    # A screen line holds both windows; the separator column splits it.
+    def segment(line, wanted):
+        return next((piece for piece in line.split("|") if wanted in piece),
+                    line)
+    piece = segment(header[0], name)
+    if not (piece.startswith("│") and piece.rstrip().endswith("│")):
+        failures.append(f"{name}: the header line is not inside the box: "
+                        f"{piece!r}")
+    piece = segment(mode[0], name)
+    if not (piece.startswith("└") and piece.rstrip().endswith("┘")):
+        failures.append(f"{name}: the mode line does not close the box: "
+                        f"{piece!r}")
+    column = header[0].index(segment(header[0], name))
+    above = lines[lines.index(header[0]) - 1][column:].split("|")[0]
     if not (above.startswith("┌") and above.rstrip().endswith("┐")):
-        failures.append(f"no top edge above the header line: {above!r}")
+        failures.append(f"{name}: no top edge above the header line: "
+                        f"{above!r}")
 
 for number, line in enumerate(lines):
     if any(glyph in line for glyph in "┌┐└┘│"):

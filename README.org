@@ -248,6 +248,11 @@ Both screens come from =make tty=, which asserts them.
 - A row the box takes in shows the box's ends where its own content
   would otherwise begin, so a row that fills its width to the last
   column loses that column to the edge.
+- On a graphic display the first pixel column of a window that has a
+  neighbour on its left is where Emacs draws its own border between
+  the two, over the box's fringe.  The line is there either way, in
+  the frame's colour rather than the box's, and it stops at the last
+  full row of text.
 - The box color of the fringes is buffer wide, because face remaps
   are: fringe indicators such as continuation arrows draw on the box
   color.
