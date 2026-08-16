@@ -173,6 +173,11 @@ The mode adds =window-box--refresh= to three hooks:
 - =window-configuration-change-hook=
 - =after-change-major-mode-hook=
 
+A theme change is not a window change, and it changes the color of
+the box.  The mode therefore also adds =window-box--refresh-frames=
+to =enable-theme-functions=.  That function walks each frame, because
+a theme reaches them all.
+
 The refresh walks the windows of the frame.  It draws the box where
 the buffer has the mode on and the predicate agrees.  It removes the
 box from the other windows.  It writes only the values that differ,
