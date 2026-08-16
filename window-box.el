@@ -198,7 +198,7 @@ are exact."
 (defvar-local window-box--cookie-color nil
   "Color the cookies were made with, so a change renews them.")
 
-(defun window-box--remap (face &rest spec)
+(defun window-box--remap (face spec)
   "Remap FACE in the current buffer with SPEC, once.
 A remap is the buffer\='s and would reach every window showing it,
 including the ones `window-box-window-predicate\=' spares — which is
@@ -208,7 +208,7 @@ drawn and nowhere else."
   (unless (assq face window-box--cookies)
     (push (cons face
                 (face-remap-add-relative
-                 face `(:filtered (:window window-box t) ,(car spec))))
+                 face `(:filtered (:window window-box t) ,spec)))
           window-box--cookies)))
 
 (defconst window-box--top-format '(:eval (window-box--top))
