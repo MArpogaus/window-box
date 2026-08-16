@@ -304,6 +304,8 @@ Call it with the window's buffer current."
                          (list :overline color :underline nil :box nil)))
      ((not (equal (window-parameter window 'tab-line-format)
                   window-box--top-format))
+      (set-window-parameter window 'window-box--saved-tab-line
+                            (window-parameter window 'tab-line-format))
       (set-window-parameter window 'tab-line-format
                             window-box--top-format)))
     ;; The bottom edge: the mode line when there is one, a thin row
@@ -403,7 +405,10 @@ The face remaps are the buffer's and go when the mode turns off."
   (set-window-parameter window 'window-box nil)
   (when (equal (window-parameter window 'tab-line-format)
                window-box--top-format)
-    (set-window-parameter window 'tab-line-format nil))
+    (set-window-parameter window 'tab-line-format
+                          (window-parameter window
+                                            'window-box--saved-tab-line))
+    (set-window-parameter window 'window-box--saved-tab-line nil))
   (when (equal (window-parameter window 'mode-line-format)
                window-box--bottom-format)
     (set-window-parameter window 'mode-line-format
