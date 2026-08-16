@@ -449,5 +449,20 @@ its mode line."
       (should (equal (nth 1 spec) '(:window window-box t)))
       (should (equal (nth 2 spec) '(:background "red"))))))
 
+(ert-deftest window-box-test-a-hidden-tab-line-stays-hidden ()
+  "A window that had hidden its tab line has it hidden again after.
+The top edge goes in the tab line parameter, so it has to hand back
+what it found there, the same as the bottom edge does with the mode
+line."
+  (window-box-test--with-buffer
+    (set-window-parameter (selected-window) 'tab-line-format 'none)
+    (window-box--apply (selected-window))
+    (should (equal (window-parameter (selected-window) 'tab-line-format)
+                   window-box--top-format))
+    (window-box--clear (selected-window))
+    (should (eq (window-parameter (selected-window) 'tab-line-format)
+                'none))
+    (set-window-parameter (selected-window) 'tab-line-format nil)))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
