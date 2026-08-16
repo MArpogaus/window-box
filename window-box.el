@@ -430,6 +430,29 @@ The face remaps are the buffer's and go when the mode turns off."
                       (get-buffer-window-list nil 'no-minibuffer t))
       (window-box--restore-prefix))))
 
+(defun window-box--persist ()
+  "Let the box\='s window parameters travel with a saved window state.
+`window-state-get\=' saves the margins and the fringes, so the box\='s own
+widths travel with a hidden side window — the mark that says they are
+the box\='s does not, unless it is named here.  Turn the mode off while
+such a window is away, and it comes back wearing the box\='s widths
+with no box and nothing that knows to take them off again.
+
+The widths and the mark are numbers and t, which a state written to a
+file can hold; the rows the box took over are formats, and a format
+can hold a closure, which such a state cannot.  Those travel within
+the session only."
+  (dolist (entry '((window-box . writable)
+                   (window-box--saved-margins . writable)
+                   (window-box--saved-fringes . writable)
+                   (window-box--saved-tab-line . t)
+                   (window-box--saved-header-line . t)
+                   (window-box--saved-mode-line . t)))
+    (unless (assq (car entry) window-persistent-parameters)
+      (push entry window-persistent-parameters))))
+
+(window-box--persist)
+
 (defun window-box--boxed-p (window)
   "Return non-nil when WINDOW is one to draw a box around."
   (and (buffer-local-value 'window-box-mode (window-buffer window))
