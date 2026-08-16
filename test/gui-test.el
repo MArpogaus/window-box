@@ -31,6 +31,16 @@
 The checker needs them: a frame holds more grey lines than this
 package draws, the mode line's own shadow among them.")
 
+(defconst gui-test-encloses-file "/tmp/window-box-encloses.png"
+  "Where the frame of the `window-box-encloses\=' examples lands.")
+
+(defconst gui-test-encloses-geometry "/tmp/window-box-encloses.txt"
+  "Where the boxed windows of that frame land, with the edges they want.
+Each line is LEFT TOP RIGHT BOTTOM TOP-EDGE BOTTOM-EDGE, the last two
+worked out from the row heights Emacs reports and the setting alone,
+so the checker measures the package against the display and not
+against itself.")
+
 (defvar gui-test-header
   '(:eval
     (let* ((chip (propertize " ! " 'face '(:background "#d08770"
@@ -90,6 +100,83 @@ suite."
     (delete-other-windows)
     (kill-buffer buffer)))
 
+(defun gui-test--wanted (window)
+  "Return the pixel rows the box\='s edges want around WINDOW.
+The edge above a row that is inside the box sits on that row\='s first
+pixel, the edge below a row that is outside it on that row\='s last —
+so the rows the setting leaves out are what stands between the window
+and its box."
+  (pcase-let* ((`(,_ ,top ,_ ,bottom) (window-edges window nil nil t))
+               (encloses (buffer-local-value 'window-box-encloses
+                                             (window-buffer window)))
+               (outside (+ (if (memq 'tab-line encloses)
+                               0 (window-tab-line-height window))
+                           (if (memq 'header-line encloses)
+                               0 (window-header-line-height window)))))
+    (list (if (zerop outside) top (+ top outside -1))
+          (if (memq 'mode-line encloses)
+              (1- bottom)
+            (- bottom (window-mode-line-height window))))))
+
+(defun gui-test--example (name encloses tabs)
+  "Return a buffer NAME with rows to enclose, ENCLOSES what to take in.
+TABS non-nil gives it a tab line of its own."
+  (let ((buffer (get-buffer-create name)))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert (format "%s: %s\n"
+                      name (if encloses
+                               (mapconcat #'symbol-name encloses ", ")
+                             "the text alone")))
+      (setq-local header-line-format " a header line of my own "
+                  mode-line-format " a mode line of my own "
+                  window-box-encloses encloses)
+      (when tabs (setq-local tab-line-format " a tab line of my own ")))
+    buffer))
+
+(defun gui-test--encloses ()
+  "Export a frame with one window per `window-box-encloses\=' setting."
+  ;; Four windows with a header, a mode line and room to see them.
+  (set-frame-size (selected-frame) 700 760 t)
+  (switch-to-buffer (gui-test--example "*text*" nil nil))
+  (delete-other-windows)
+  (let* ((first (selected-window))
+         (second (split-window first nil 'below))
+         (third (split-window second nil 'below))
+         (fourth (split-window third nil 'below))
+         (windows (list first second third fourth)))
+    (set-window-buffer second (gui-test--example "*header*" '(header-line) nil))
+    (set-window-buffer third (gui-test--example "*header and mode*"
+                                                '(header-line mode-line) nil))
+    (set-window-buffer fourth (gui-test--example "*everything*"
+                                                 '(tab-line header-line
+                                                            mode-line)
+                                                 t))
+    (dolist (window windows)
+      (with-current-buffer (window-buffer window) (window-box-mode 1)))
+    (window-box--refresh)
+    (force-mode-line-update t)
+    (redisplay t)
+    (write-region
+     (mapconcat (lambda (window)
+                  (format "%s %s\n"
+                          (string-join
+                           (mapcar #'number-to-string
+                                   (window-edges window nil nil t))
+                           " ")
+                          (string-join
+                           (mapcar #'number-to-string
+                                   (gui-test--wanted window))
+                           " ")))
+                windows "")
+     nil gui-test-encloses-geometry nil 'quiet)
+    (let ((coding-system-for-write 'binary))
+      (write-region (x-export-frames nil 'png) nil
+                    gui-test-encloses-file nil 'quiet))
+    (dolist (window windows)
+      (with-current-buffer (window-buffer window) (window-box-mode -1)))
+    (delete-other-windows)))
+
 (defun gui-test--run ()
   "Box two side windows, export the frame and exit."
   (set-frame-size (selected-frame) 700 520 t)
@@ -123,6 +210,7 @@ suite."
    nil gui-test-geometry nil 'quiet)
   (let ((coding-system-for-write 'binary))
     (write-region (x-export-frames nil 'png) nil gui-test-file nil 'quiet))
+  (gui-test--encloses)
   (kill-emacs 0))
 
 ;; Wait for the frame: the test measures pixels, so redisplay has to
@@ -130,8 +218,12 @@ suite."
 (run-with-timer 0.5 nil
                 (lambda ()
                   (condition-case err (gui-test--run)
-                    (error (message "gui-test: %S" err)
-                           (kill-emacs 1)))))
+                    (error
+                     ;; A message goes to the echo area of a frame
+                     ;; nobody is watching; the runner reads this.
+                     (write-region (format "gui-test: %S\n" err) nil
+                                   "/tmp/window-box-gui-error.txt" nil 'quiet)
+                     (kill-emacs 1)))))
 
 (provide 'gui-test)
 ;;; gui-test.el ends here

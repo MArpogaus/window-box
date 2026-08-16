@@ -1,0 +1,120 @@
+;; -*- lexical-binding: t; -*-
+;; Draws the README screenshots; see README.org in this directory.
+(add-to-list 'load-path (expand-file-name ".." (file-name-directory
+                                                load-file-name)))
+(require 'window-box)
+(setq inhibit-startup-screen t ring-bell-function #'ignore)
+;; One pixel fringes from the start: the box narrows the fringes to
+;; its own width, and with the default eight the text would shift by
+;; seven pixels the moment a box appears.
+(fringe-mode 1)
+(menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
+(blink-cursor-mode -1)
+(setq-default cursor-type 'bar)
+(let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
+                      '("Source Code Pro" "DejaVu Sans Mono"
+                        "Noto Sans Mono" "Liberation Mono"))))
+  (when font (set-frame-font (format "%s 13" font) nil t)))
+
+
+;; The screenshots show where the edges land, so the box is drawn in a
+;; color rather than in the grey of the `window-box' face: a one pixel
+;; grey line on a grey mode line is honest and invisible.
+(setq-default window-box-color "#5e81ac")
+
+(defvar shots-directory
+  (expand-file-name "../img" (file-name-directory load-file-name))
+  "Where the screenshots land.")
+
+(defun shots--write (name)
+  "Export the frame as NAME in `shots-directory'."
+  ;; The startup notice sits in the echo area of a fresh Emacs.
+  (message nil)
+  (redisplay t)
+  (let ((coding-system-for-write 'binary))
+    (write-region (x-export-frames nil 'png) nil
+                  (expand-file-name name shots-directory) nil 'quiet)))
+
+(defun shots--buffer (name encloses text &optional tabs)
+  "Return a buffer NAME showing TEXT, with ENCLOSES set in it.
+TABS non-nil gives it a tab line of its own as well."
+  (let ((buffer (get-buffer-create name)))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert text)
+      (goto-char (point-min))
+      (setq-local header-line-format " a header line of my own "
+                  mode-line-format " a mode line of my own "
+                  window-box-encloses encloses)
+      (when tabs (setq-local tab-line-format " a tab line of my own "))
+      (window-box-mode 1))
+    buffer))
+
+(defun shots-encloses ()
+  "One window per `window-box-encloses' setting, boxed."
+  (set-frame-size (selected-frame) 840 520 t)
+  (switch-to-buffer
+   (shots--buffer "*text*" nil
+                  "window-box-encloses nil\nthe text alone\n"))
+  (delete-other-windows)
+  ;; A share of the frame each, taken from the top: splitting in half
+  ;; and in half again leaves the last window too small to split.
+  (let* ((share (/ (window-total-height (frame-root-window)) 4))
+         (first (selected-window))
+         (second (split-window first share 'below))
+         (third (split-window second share 'below))
+         (fourth (split-window third share 'below)))
+    (set-window-buffer
+     second (shots--buffer "*header*" '(header-line)
+                           "window-box-encloses '(header-line)\n\
+the header inside, the mode line out\n"))
+    (set-window-buffer
+     third (shots--buffer "*header and mode*" '(header-line mode-line)
+                          "window-box-encloses '(header-line mode-line)\n\
+both inside\n"))
+    (set-window-buffer
+     fourth (shots--buffer "*everything*" '(tab-line header-line mode-line)
+                           "window-box-encloses '(tab-line header-line \
+mode-line)\nthe whole window, which is the default\n"
+                           t))
+    (window-box--refresh)
+    (force-mode-line-update t)
+    (shots--write "encloses-gui.png")
+    (dolist (window (list first second third fourth))
+      (with-current-buffer (window-buffer window) (window-box-mode -1)))
+    (delete-other-windows)))
+
+(defun shots-windows ()
+  "One buffer in two windows, boxed in one of them only."
+  (set-frame-size (selected-frame) 840 320 t)
+  (let ((buffer (get-buffer-create "*notes*")))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert ";; The same buffer in two windows.\n"
+              ";;\n"
+              ";; The box is the buffer's, and a predicate says which\n"
+              ";; windows wear it — here the one on the right.\n")
+      (goto-char (point-min))
+      (setq-local mode-line-format " *notes* "))
+    (switch-to-buffer buffer)
+    (delete-other-windows)
+    (split-window-right)
+    (setq window-box-window-predicate
+          ;; the right hand one of the two
+          (lambda (window) (window-prev-sibling window)))
+    (with-current-buffer buffer (window-box-mode 1))
+    (window-box--refresh)
+    (force-mode-line-update t)
+    (shots--write "windows-gui.png")
+    (with-current-buffer buffer (window-box-mode -1))
+    (setq window-box-window-predicate nil)
+    (delete-other-windows)))
+
+(run-with-timer
+ 1.0 nil
+ (lambda ()
+   (condition-case err
+       (progn (shots-encloses) (shots-windows) (kill-emacs 0))
+     (error (write-region (format "shots: %S\n" err) nil
+                          "/tmp/window-box-shots-error.txt" nil 'quiet)
+            (kill-emacs 1)))))

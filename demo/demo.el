@@ -1,6 +1,7 @@
 ;; -*- lexical-binding: t; -*-
 ;; Drives the demo recording; see README.org in this directory.
-(add-to-list 'load-path "/home/marcel/.emacs.d/packages/window-box")
+(add-to-list 'load-path (expand-file-name ".." (file-name-directory
+                                                load-file-name)))
 (require 'window-box)
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
 ;; One pixel fringes from the start: the box narrows the fringes to
@@ -8,9 +9,16 @@
 ;; seven pixels the moment a box appears.
 (fringe-mode 1)
 (menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
-(set-frame-font "Source Code Pro 13" nil t)
+(let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
+                      '("Source Code Pro" "DejaVu Sans Mono"
+                        "Noto Sans Mono" "Liberation Mono"))))
+  (when font (set-frame-font (format "%s 13" font) nil t)))
 (blink-cursor-mode -1)
 (setq-default cursor-type 'bar)
+;; A one pixel line in the grey of the `window-box' face is what the
+;; package draws by default and is next to invisible in a recording;
+;; the colour is an option, and the demo uses it.
+(setq-default window-box-color "#5e81ac")
 
 (defvar demo--frame 0)
 (defun demo--snap ()
@@ -25,6 +33,14 @@
     (demo--snap)
     (sit-for 0.02)))
 
+(defun demo--say (text seconds)
+  "Put TEXT in the echo area and hold the frame for SECONDS."
+  ;; The echo area is the only room for a word of narration in a frame
+  ;; that is otherwise all box.
+  (let ((message-log-max nil))
+    (message "%s" text)
+    (demo--hold seconds)))
+
 (defun demo ()
   (make-directory "/tmp/demo-wb/frames" t)
   (switch-to-buffer "*scratch*")
@@ -32,67 +48,51 @@
   (erase-buffer)
   (insert ";; window-box\n"
           ";;\n"
-          ";; A rectangular box around a window, nothing more.\n"
-          ";; The mode line and the header line stay yours.\n")
+          ";; A box around a window, drawn from what the window\n"
+          ";; already has: its fringes, its margins, and the rows\n"
+          ";; it shows above and below the text.\n")
   (goto-char (point-min))
-  (let ((top (split-window nil 8 'above))
-        (right (split-window nil 42 'right)))
-    (set-window-buffer top (get-buffer-create "*warning*"))
-    (with-current-buffer "*warning*"
-      (insert "A side window without a mode line:\nthe box closes the bottom itself.\n")
-      (setq-local mode-line-format nil
-                  ;; the row closes its own ends: a colored chip left,
-                  ;; a one pixel glyph right — the package leaves the
-                  ;; header line alone
-                  header-line-format
-                  '(:eval
-                    ;; Fringes and margins stop below this row, so the
-                    ;; box cannot reach it and the header closes it
-                    ;; itself: a cap in the box's own color at each
-                    ;; end, while there is a box to close.  The closing
-                    ;; one aligns to `right', not to a measured width —
-                    ;; a glyph can render a pixel wider than it
-                    ;; measures and the corner then misses by one.
-                    (let ((cap (if window-box-mode
-                                   (propertize
-                                    " " 'face
-                                    (list :background
-                                          (or window-box-color
-                                              (face-foreground
-                                               'window-box nil 'default)))
-                                    'display '(space :width (1)))
-                                 "")))
-                      (list cap
-                            (propertize " ⚠ " 'face '(:inverse-video t))
-                            " my own header line, untouched"
-                            (propertize " " 'display
-                                        '(space :align-to right))
-                            cap))))
-      nil)
-    (set-window-buffer right (get-buffer-create "*notes*"))
-    (with-current-buffer "*notes*"
-      (insert "Boxed, and the normal\nmode line closes the box.\n"))
-    (demo--hold 2.5)
-    ;; 1. boxes on
-    (with-current-buffer "*warning*" (window-box-mode 1))
-    (demo--hold 2.5)
-    (with-current-buffer "*notes*" (window-box-mode 1))
-    (demo--hold 2.5)
-    ;; 3. a box color per buffer
-    (with-current-buffer "*warning*"
-      (setq-local window-box-color "#b48ead")
-      (window-box-mode 1))
-    (force-mode-line-update t)
-    (demo--hold 3.0)
-    ;; 4. boxes off
-    (with-current-buffer "*warning*" (window-box-mode -1))
-    (with-current-buffer "*notes*" (window-box-mode -1))
-    (demo--hold 2.5))
+  ;; A header line as well, so the edges have somewhere to move to
+  ;; when the demo changes what the box encloses.
+  (setq-local header-line-format " a header line of my own ")
+  (demo--say "a buffer in one window" 2.0)
+  ;; 1. the box, around the whole window
+  (window-box-mode 1)
+  (demo--say "window-box-mode" 2.5)
+  ;; 2. the same buffer in a second window
+  (split-window-right)
+  (demo--say "the same buffer in a second window: boxed as well" 3.0)
+  ;; 3. and only where the predicate says
+  (setq window-box-window-predicate
+        (lambda (window) (window-prev-sibling window)))
+  (window-box--refresh)
+  (force-mode-line-update t)
+  (demo--say "window-box-window-predicate: which windows wear it" 3.5)
+  ;; 4. what the box encloses
+  (setq-local window-box-encloses nil)
+  (window-box--refresh)
+  (force-mode-line-update t)
+  (demo--say "window-box-encloses nil: the text alone" 3.0)
+  (setq-local window-box-encloses '(mode-line))
+  (window-box--refresh)
+  (force-mode-line-update t)
+  (demo--say "'(mode-line): the mode line inside the box" 3.0)
+  (setq-local window-box-encloses '(tab-line header-line mode-line))
+  (setq-local window-box-color "#b48ead")
+  (window-box-mode 1)
+  (force-mode-line-update t)
+  (demo--say "and a color of its own, per buffer" 3.0)
+  ;; 5. off
+  (window-box-mode -1)
+  (setq window-box-window-predicate nil)
+  (window-box--refresh)
+  (force-mode-line-update t)
+  (demo--say "" 2.0)
   (write-region (format "frames=%d\n" demo--frame) nil "/tmp/demo-wb/done")
   (kill-emacs 0))
 (run-with-timer 1.0 nil
                 (lambda ()
-                  (set-frame-size (selected-frame) 840 500 t)
+                  (set-frame-size (selected-frame) 840 400 t)
                   (condition-case err (demo)
                     (error (write-region (format "ERROR %S" err) nil
                                          "/tmp/demo-wb/failed")
