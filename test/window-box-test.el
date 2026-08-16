@@ -436,5 +436,18 @@ back as the width the window is supposed to have."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-remaps-name-the-windows-they-apply-to ()
+  "A remap says which windows it is for, since it is the buffer\='s.
+Without that, a window `window-box-window-predicate\=' spares wears
+the box\='s colours: measured on a graphic frame, its fringes in the
+box colour at their full eight pixel width and the box\='s overline on
+its mode line."
+  (with-temp-buffer
+    (window-box--remap 'fringe (list :background "red"))
+    (let ((spec (cadr (assq 'fringe face-remapping-alist))))
+      (should (eq (car-safe spec) :filtered))
+      (should (equal (nth 1 spec) '(:window window-box t)))
+      (should (equal (nth 2 spec) '(:background "red"))))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
