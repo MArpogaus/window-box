@@ -37,6 +37,33 @@ Three rules, each one measured against the source frames:
 Record at a width the reader will not scale either; 840 fits the
 column GitHub renders the README in.
 
+* Screenshots
+
+=shots.el= draws the graphic ones the same way, one frame each:
+
+#+begin_src shell
+  DISPLAY=:99 emacs -Q -l shots.el   # writes ../img/encloses-gui.png
+                                     # and ../img/windows-gui.png
+#+end_src
+
+=img/screenshot.png= comes from =make gui= in the top directory,
+which exports the frame it measures.
+
+The terminal one is not a photograph of a terminal.  =shots.py= runs
+Emacs in a pseudo terminal, feeds the byte stream into a [[https://github.com/selectel/pyte][pyte]] screen —
+the same way =make tty= checks the terminal box — and paints the
+screen it reports, cell by cell, into a PNG:
+
+#+begin_src shell
+  python3 shots.py shots-tty.el ../img/encloses-tty.png
+#+end_src
+
+The recordings draw the box in a colour, through
+=window-box-color=.  The default is the grey of the =window-box=
+face, which is what the package draws and what a one pixel line
+should look like next to your text — and next to invisible in a
+picture the reader looks at once.
+
 The terminal box is checked without eyes: =make tty= in the top
 directory runs Emacs in a pseudo terminal and reads the screen back
 through pyte.

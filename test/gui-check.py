@@ -12,6 +12,8 @@ from PIL import Image
 
 PNG = "/tmp/window-box-gui.png"
 GEOMETRY = "/tmp/window-box-gui.txt"
+ENCLOSES_PNG = "/tmp/window-box-encloses.png"
+ENCLOSES_GEOMETRY = "/tmp/window-box-encloses.txt"
 WIDTH = 1                      # window-box draws one pixel lines
 BOX = (127, 127, 127)          # the `shadow' foreground of the default theme
 
@@ -70,6 +72,36 @@ def check(image, windows):
     return failures, found
 
 
+def check_encloses(image, windows):
+    """Check where the edges land for each `window-box-encloses' setting.
+
+    WINDOWS carries the two rows the edges want, worked out from the
+    row heights Emacs reports.  Between those rows the sides must run
+    unbroken: the fringes down the text, the box's own ends on every
+    row it takes in.
+    """
+    failures, found = [], []
+    for left, top, right, bottom, want_top, want_bottom in windows:
+        edges = [y for y in range(top, bottom)
+                 if sum(1 for x in range(left, right)
+                        if close(image.getpixel((x, y)), BOX))
+                 > (right - left) * 0.9]
+        found.append(((left, top), edges, (want_top, want_bottom)))
+        if want_top not in edges:
+            failures.append(f"window at {left},{top}: no top edge at "
+                            f"y={want_top}, edges at {edges}")
+        if want_bottom not in edges:
+            failures.append(f"window at {left},{top}: no bottom edge at "
+                            f"y={want_bottom}, edges at {edges}")
+        gaps = [y for y in range(want_top, want_bottom + 1)
+                if not (close(image.getpixel((left, y)), BOX)
+                        and close(image.getpixel((right - 1, y)), BOX))]
+        if gaps:
+            failures.append(f"window at {left},{top}: the sides break at "
+                            f"y={gaps[:5]}{' and on' if len(gaps) > 5 else ''}")
+    return failures, found
+
+
 def main():
     image = Image.open(PNG).convert("RGB")
     with open(GEOMETRY, encoding="utf-8") as handle:
@@ -82,6 +114,17 @@ def main():
     for corner, columns, rows in found:
         print(f"boxed window at {corner}: side edges x={columns}, "
               f"horizontal edges y={rows}")
+    with open(ENCLOSES_GEOMETRY, encoding="utf-8") as handle:
+        examples = [tuple(int(n) for n in line.split())
+                    for line in handle if line.strip()]
+    if not examples:
+        print("FAIL: no window-box-encloses example reported")
+        return 1
+    more, shown = check_encloses(Image.open(ENCLOSES_PNG).convert("RGB"),
+                                 examples)
+    failures += more
+    for corner, edges, wanted in shown:
+        print(f"encloses example at {corner}: edges y={edges}, wanted {wanted}")
     for failure in failures:
         print("FAIL:", failure)
     print("pixel box:", "BROKEN" if failures else "OK")

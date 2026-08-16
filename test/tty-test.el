@@ -11,7 +11,7 @@
  (lambda ()
    (switch-to-buffer "*main*") (delete-other-windows)
    (insert "main window\n")
-   (let ((top (split-window nil 6 'above)))
+   (let ((top (split-window nil -6 'above)))
      (set-window-buffer top (get-buffer-create "*boxed*"))
      (with-current-buffer "*boxed*"
        (insert "boxed in the terminal\nsecond line\n")
@@ -25,6 +25,16 @@
      (with-current-buffer "*beside*"
        (insert "boxed beside it\n")
        (setq-local mode-line-format nil)
+       (window-box-mode 1)))
+   ;; A window with rows of its own, and the box drawn around them:
+   ;; the top edge takes the free tab line row, and the mode line
+   ;; closes the box, since a terminal has no row below it.
+   (let ((below (split-window (frame-root-window) -8 'below)))
+     (set-window-buffer below (get-buffer-create "*rows*"))
+     (with-current-buffer "*rows*"
+       (insert "boxed around its own rows\n")
+       (setq-local header-line-format " a header line of my own "
+                   mode-line-format " a mode line of my own ")
        (window-box-mode 1)))
    (redisplay t)
    (run-with-timer 1.0 nil (lambda () (kill-emacs 0)))))

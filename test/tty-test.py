@@ -68,6 +68,19 @@ for number, line in enumerate(lines):
                             f"never closes: {line!r}")
 if "boxed in the terminal" not in "\n".join(lines):
     failures.append("buffer text missing")
+# The window that keeps its own rows: the box takes them in, so its
+# header line rides between the sides and its mode line closes the
+# box, a terminal having no row below one.
+header = [l for l in lines if "a header line of my own" in l]
+mode = [l for l in lines if "a mode line of my own" in l]
+if not (header and header[0].startswith("│") and header[0].rstrip().endswith("│")):
+    failures.append(f"the header line is not inside the box: {header!r}")
+if not (mode and mode[0].startswith("└") and mode[0].rstrip().endswith("┘")):
+    failures.append(f"the mode line does not close the box: {mode!r}")
+if header:
+    above = lines[lines.index(header[0]) - 1]
+    if not (above.startswith("┌") and above.rstrip().endswith("┐")):
+        failures.append(f"no top edge above the header line: {above!r}")
 
 for number, line in enumerate(lines):
     if any(glyph in line for glyph in "┌┐└┘│"):
