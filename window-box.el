@@ -700,6 +700,18 @@ the session only."
 
 (window-box--persist)
 
+(defun window-box--refresh-frames (&rest _)
+  "Draw the box again in each window of each frame.
+A theme change reaches every frame at once, and it changes the color
+the box is drawn in.  The color of the fringes lives in a face remap,
+which is made when a window is dressed; without this the box keeps
+the color of the old theme until something else dresses that window
+again.  A frame that switches from a light theme to a dark one on a
+timer, as `auto-dark-mode\=' does, would keep the old color for the
+rest of the session."
+  (dolist (frame (frame-list))
+    (window-box--refresh frame)))
+
 (defun window-box--boxed-p (window)
   "Return non-nil when WINDOW is one to draw a box around."
   (and (buffer-local-value 'window-box-mode (window-buffer window))
@@ -751,6 +763,9 @@ box is built."
         ;; permanent-local, so the box is drawn again from scratch —
         ;; which is what the cleared cookies ask for.
         (add-hook 'after-change-major-mode-hook #'window-box--refresh)
+        ;; A theme change is not a window change, and the color of the
+        ;; box comes from a face.
+        (add-hook 'enable-theme-functions #'window-box--refresh-frames)
         (dolist (window (get-buffer-window-list nil nil t))
           (window-box--apply window)))
     (dolist (window (get-buffer-window-list nil nil t))

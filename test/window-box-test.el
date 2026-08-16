@@ -579,5 +579,35 @@ the entry remains.  The next round adds another one on top."
       (should (= (length face-remapping-alist) before))
       (should-not window-box--cookies))))
 
+(ert-deftest window-box-test-a-theme-change-renews-the-color ()
+  "The box takes the color of the theme that is on now.
+The color of the fringes lives in a face remap, and a remap is made
+when a window is dressed.  A theme change dresses no window, so the
+box would keep the color of the old theme until something else did."
+  (window-box-test--with-buffer
+    (let ((window-box-color nil))
+      (set-face-foreground 'window-box "#111111")
+      (window-box-mode 1)
+      (should (member #'window-box--refresh-frames enable-theme-functions))
+      (should (equal (nth 2 (assq 'fringe window-box--cookies))
+                     '(:background "#111111")))
+      ;; a theme change, and the box follows it
+      (set-face-foreground 'window-box "#eeeeee")
+      (window-box--refresh-frames 'a-theme)
+      (should (equal (nth 2 (assq 'fringe window-box--cookies))
+                     '(:background "#eeeeee")))
+      (window-box-mode -1)
+      (set-face-foreground 'window-box 'unspecified))
+    ;; and each frame, since a theme change reaches them all
+    (let (seen)
+      (cl-letf (((symbol-function 'frame-list) (lambda () '(one two)))
+                ((symbol-function 'window-box--refresh)
+                 (lambda (&optional frame) (push frame seen))))
+        (window-box--refresh-frames 'a-theme)
+        ;; the window hooks fire in here as well, so ask for the two
+        ;; frames rather than for the whole list
+        (should (memq 'one seen))
+        (should (memq 'two seen))))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
