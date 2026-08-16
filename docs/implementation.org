@@ -86,6 +86,13 @@ with the right edge of the row.  A terminal spends one column of a
 window on the separator to the window at its right.  That column is
 not part of the text area.
 
+The content of the row can align something to the right edge itself.
+A header line with a button at its right hand end does this, and that
+button would fill the place of the box.  The box therefore draws the
+content with =format-mode-line= and moves each =right= in the
+alignments of the result in by one.  The drawing keeps the text
+properties, so the button keeps its keymap and its face.
+
 * The dressing that the box uses
 
 The box changes only window dressing, and it gives each part back.

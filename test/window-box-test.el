@@ -609,5 +609,23 @@ box would keep the color of the old theme until something else did."
         (should (memq 'one seen))
         (should (memq 'two seen))))))
 
+(ert-deftest window-box-test-a-row-leaves-room-for-the-end ()
+  "What a row aligns to its right edge stops before the box\='s end.
+A header line with a button at its right hand end aligns that button
+to `right\=', which is the column the box puts its own end in.  The
+alignments of the content are therefore moved in by one."
+  (should (equal (window-box--indented 'right) '(- right 1)))
+  (should (equal (window-box--indented '(space :align-to right))
+                 '(space :align-to (- right 1))))
+  ;; an alignment that already counts back from the right counts back
+  ;; from the new one
+  (should (equal (window-box--indented '(space :align-to (- right 2)))
+                 '(space :align-to (- (- right 1) 2))))
+  ;; a width, and anything else the content brought, is left alone
+  (should (equal (window-box--indented '(space :width (1)))
+                 '(space :width (1))))
+  ;; a session that draws nothing gives the content back as it came
+  (should (equal (window-box--fitted " header ") " header ")))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here

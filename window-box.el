@@ -440,6 +440,40 @@ with when the edge beyond it has nowhere to go."
            '(2 3))
           (t '(4 4)))))
 
+(defun window-box--indented (spec)
+  "Return SPEC with each `right\=' in it moved in by the width of one end.
+A window parameter is the whole row, and the box takes the last
+column of it, or the last pixel.  What the content of the row aligns
+to `right\=' must therefore stop one step earlier, or it fills the
+place of the end and the box has a hole in that row."
+  (cond ((eq spec 'right) (if (display-graphic-p) '(- right (1)) '(- right 1)))
+        ((consp spec) (mapcar #'window-box--indented spec))
+        (t spec)))
+
+(defun window-box--fitted (content)
+  "Return CONTENT drawn, with room for the end of the box after it.
+A header line with a button at its right hand end aligns that button
+to `right\=', which is where the box puts its own end.  The content is
+therefore drawn here, and the alignments it carries are moved in by
+one.  The drawing keeps the text properties, so a button still has
+its keymap and its face."
+  (let ((row (format-mode-line content))
+        (pos 0))
+    ;; A session without a display draws nothing, and there is nothing
+    ;; to fit: the content goes back as it came.
+    (when (or (null row) (string-empty-p row))
+      (setq row nil))
+    (setq row (and row (copy-sequence row)))
+    (while (and row
+                (setq pos (text-property-not-all pos (length row)
+                                                 'display nil row)))
+      (let ((spec (get-text-property pos 'display row))
+            (end (next-single-property-change pos 'display row (length row))))
+        (when (eq (car-safe spec) 'space)
+          (put-text-property pos end 'display (window-box--indented spec) row))
+        (setq pos end)))
+    (or row content)))
+
 (defun window-box--row (parameter)
   "Return the row PARAMETER names with the box\='s ends on it.
 Called from the window parameter the box sets, so the window being
@@ -447,7 +481,7 @@ redisplayed is the selected one and its buffer is current."
   (let* ((window (selected-window))
          (corners (window-box--corners window parameter)))
     (list (window-box--cap (nth 0 corners))
-          (window-box--content window parameter)
+          (window-box--fitted (window-box--content window parameter))
           ;; The stretch reaches the last column, or the last pixel,
           ;; and the end goes after it — where the side edge of the
           ;; text below it runs.  In a terminal that column is counted
