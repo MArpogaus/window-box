@@ -192,8 +192,11 @@ boxes two windows side by side, and reads the screen back through
   └──────────────────────────────────────────────┘
 #+end_example
 
-A window that shows a header line has no row of its own above it:
-the header is the top boundary, since a terminal has no overline.
+A window that shows a header line still gets a row of the box's own
+above it.  A terminal has no overline, so there is no way to mark the
+header as the boundary, and the box draws its top edge in the tab line
+row instead.  The header row itself is outside the sides, which belong
+to the body.
 
 ** Known Limits
 
@@ -221,9 +224,10 @@ the header is the top boundary, since a terminal has no overline.
 - The box color of the fringes is buffer wide, because face remaps
   are: fringe indicators such as continuation arrows draw on the box
   color.
-- A window whose buffer shows its own tab line loses it to the top
-  edge while the box is on, unless the window also shows a header
-  line, which the box then uses instead.
+- A window that shows its own tab line keeps it: the tabs are the top
+  boundary and the box only marks them, with an overline where there
+  is one to draw.  A terminal has none, so such a window is boxed on
+  three sides and its tabs close it at the top.
 - A scroll bar sits outside the fringe, so the right edge lands
   inside it.  Turn the scroll bar off for a clean box.
 - The box narrows the window's fringes to its own width, so with the
@@ -242,11 +246,12 @@ differences are deliberate:
 
 - buffer-box replaces the header line and the mode line with its own;
   window-box leaves both to you.
-- buffer-box attaches the side edges to the buffer, so one buffer in
-  two windows shares them, and they stop at the end of the text;
-  window-box binds the terminal sides to the window through the
-  overlay =window= property, and on graphic displays uses fringes,
-  which run the full window height.
+- buffer-box attaches the side edges to the buffer with overlays, so
+  they stop at the end of the text; window-box hangs the terminal
+  sides on the buffer's =line-prefix=, which reaches the empty rows
+  below the last line as well, and a glyph bound for a margin stays
+  invisible in a window that has none.  On graphic displays the sides
+  are fringes, which run the full window height.
 - buffer-box zeroes the frame fringes and advises =set-window-margins=
   and =set-window-fringes=; window-box changes nothing global.
 - buffer-box offers border styles and a rich header; window-box draws
