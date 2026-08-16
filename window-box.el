@@ -254,6 +254,15 @@ drawn and nowhere else."
     (face-remap-remove-relative (nth 1 entry))
     (setq window-box--cookies (delq entry window-box--cookies))))
 
+(defun window-box--unmap-all ()
+  "Take back every remap this buffer holds.
+The one way out for all of them: a cookie that a caller reads by hand
+is a cookie that stays behind when the record changes shape."
+  (dolist (entry (copy-sequence window-box--cookies))
+    (window-box--unmap (car entry)))
+  (setq window-box--cookies nil
+        window-box--cookie-color nil))
+
 (defun window-box--remaps (wanted)
   "Hold exactly the remaps in WANTED, an alist of face and spec.
 A face that is no longer wanted gives its remap back, and one whose
@@ -529,10 +538,8 @@ Call it with the window's buffer current."
          (faces (list (cons 'fringe (list :background color))))
          (wanted nil))
     (unless (equal color window-box--cookie-color)
-      (dolist (cookie window-box--cookies)
-        (face-remap-remove-relative (nth 1 cookie)))
-      (setq window-box--cookies nil
-            window-box--cookie-color color))
+      (window-box--unmap-all)
+      (setq window-box--cookie-color color))
     ;; The horizontal edges: an overline sits at the top of a row and
     ;; an underline, asked for the bottom position, at its very last
     ;; pixel — so the same row can be inside the box or outside it,
@@ -748,10 +755,7 @@ box is built."
           (window-box--apply window)))
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
-    (dolist (cookie window-box--cookies)
-      (face-remap-remove-relative (cdr cookie)))
-    (setq window-box--cookies nil
-          window-box--cookie-color nil)
+    (window-box--unmap-all)
     (window-box--restore-prefix)))
 
 (provide 'window-box)

@@ -566,5 +566,18 @@ undress."
       (should-not (window-parameter (selected-window) 'window-box))
       (should (equal (window-margins (selected-window)) '(nil . nil))))))
 
+(ert-deftest window-box-test-the-remaps-go-back-with-the-mode ()
+  "Turning the mode off gives back every remap it made.
+A remap that stays behind is invisible: the box filters its specs on
+a window parameter that the mode takes off, so the colour goes and
+the entry remains.  The next round adds another one on top."
+  (window-box-test--with-buffer
+    (let ((before (length face-remapping-alist)))
+      (dotimes (_ 5)
+        (window-box-mode 1)
+        (window-box-mode -1))
+      (should (= (length face-remapping-alist) before))
+      (should-not window-box--cookies))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
