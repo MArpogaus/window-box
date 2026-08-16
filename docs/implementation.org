@@ -226,10 +226,10 @@ output into a pyte screen.  =test/tty-test.el= boxes four windows: a
 window without a mode line, a window beside it, and a pair of windows
 with a header line and a mode line.
 
-The check asserts the corners, the side characters on the rows below
-the last line of text, and the ends of the rows inside the box.  The
-pair covers the window at the left of a separator, where a wrong
-column for the right end is visible.
+The check asserts three things: the corners, the side characters on
+the rows below the last line of text, and the ends of the rows inside
+the box.  The pair of windows covers the one at the left of a
+separator.  A wrong column for the right end shows there.
 
 * Pictures
 
