@@ -439,10 +439,28 @@ redisplayed is the selected one and its buffer is current."
          (corners (window-box--corners window parameter)))
     (list (window-box--cap (nth 0 corners))
           (window-box--content window parameter)
-          ;; The stretch reaches the right edge of the row and the end
-          ;; goes after it, in the last column or the last pixel —
-          ;; where the side edge of the text below it runs.
-          (propertize " " 'display '(space :align-to right))
+          ;; The stretch reaches the last column, or the last pixel,
+          ;; and the end goes after it — where the side edge of the
+          ;; text below it runs.  In a terminal that column is counted
+          ;; rather than asked for: a window left of another spends a
+          ;; column of its own width on the separator, `right' does
+          ;; not count it, and an end placed by it lands in it.
+          (propertize " " 'display
+                      (if (display-graphic-p)
+                          '(space :align-to right)
+                        ;; `right' is the right edge of the text area,
+                        ;; which is where the row ends in the window
+                        ;; at the frame's edge and not in one left of
+                        ;; another: a terminal spends a column of that
+                        ;; window on the separator, and a stretch that
+                        ;; runs to `right' there swallows the end that
+                        ;; follows it.  The column is counted instead,
+                        ;; from the text area outwards, as the drawn
+                        ;; edges count their width.
+                        (let ((margins (window-margins)))
+                          `(space :align-to
+                                  ,(+ (window-body-width)
+                                      (or (cdr margins) 0) -1)))))
           (window-box--cap (nth 1 corners)))))
 
 (defvar-local window-box--saved-prefix nil

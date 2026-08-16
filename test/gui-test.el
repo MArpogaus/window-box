@@ -152,6 +152,14 @@ TABS non-nil gives it a tab line of its own."
                                                  '(tab-line header-line
                                                             mode-line)
                                                  t))
+    ;; One of them split, so a window that is not at the frame's right
+    ;; edge is measured too: an end placed by the row's own right edge
+    ;; can land in what separates the two.
+    (let ((beside (with-selected-window third (split-window-right))))
+      (set-window-buffer beside (gui-test--example "*beside*"
+                                                   '(header-line mode-line)
+                                                   nil))
+      (setq windows (append windows (list beside))))
     (dolist (window windows)
       (with-current-buffer (window-buffer window) (window-box-mode 1)))
     (window-box--refresh)

@@ -16,6 +16,7 @@ ENCLOSES_PNG = "/tmp/window-box-encloses.png"
 ENCLOSES_GEOMETRY = "/tmp/window-box-encloses.txt"
 WIDTH = 1                      # window-box draws one pixel lines
 BOX = (127, 127, 127)          # the `shadow' foreground of the default theme
+PAPER = (255, 255, 255)        # the default background, where no line is
 
 
 def close(pixel, want, tolerance=40):
@@ -86,16 +87,25 @@ def check_encloses(image, windows):
                  if sum(1 for x in range(left, right)
                         if close(image.getpixel((x, y)), BOX))
                  > (right - left) * 0.9]
-        found.append(((left, top), edges, (want_top, want_bottom)))
+        found.append(((left, top), edges, (want_top, want_bottom),
+                      "both sides" if left == 0 else "right side only, "
+                      "the left one is Emacs's window border"))
         if want_top not in edges:
             failures.append(f"window at {left},{top}: no top edge at "
                             f"y={want_top}, edges at {edges}")
         if want_bottom not in edges:
             failures.append(f"window at {left},{top}: no bottom edge at "
                             f"y={want_bottom}, edges at {edges}")
+        # The first pixel column of a window that has a neighbour on
+        # its left belongs to Emacs: it draws its own border between
+        # the two there, over the box's fringe, in the frame's colour
+        # and only down to the last full row of text.  That column is
+        # not the box's to answer for, so only the right one is
+        # measured for such a window.
+        columns = [right - 1] if left else [left, right - 1]
         gaps = [y for y in range(want_top, want_bottom + 1)
-                if not (close(image.getpixel((left, y)), BOX)
-                        and close(image.getpixel((right - 1, y)), BOX))]
+                if not all(close(image.getpixel((x, y)), BOX)
+                           for x in columns)]
         if gaps:
             failures.append(f"window at {left},{top}: the sides break at "
                             f"y={gaps[:5]}{' and on' if len(gaps) > 5 else ''}")
@@ -123,8 +133,9 @@ def main():
     more, shown = check_encloses(Image.open(ENCLOSES_PNG).convert("RGB"),
                                  examples)
     failures += more
-    for corner, edges, wanted in shown:
-        print(f"encloses example at {corner}: edges y={edges}, wanted {wanted}")
+    for corner, edges, wanted, sides in shown:
+        print(f"encloses example at {corner}: edges y={edges}, "
+              f"wanted {wanted}, {sides}")
     for failure in failures:
         print("FAIL:", failure)
     print("pixel box:", "BROKEN" if failures else "OK")

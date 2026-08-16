@@ -29,13 +29,23 @@
    ;; A window with rows of its own, and the box drawn around them:
    ;; the top edge takes the free tab line row, and the mode line
    ;; closes the box, since a terminal has no row below it.
-   (let ((below (split-window (frame-root-window) -8 'below)))
+   (let* ((below (split-window (frame-root-window) -8 'below))
+          ;; and one beside it, left of the divider: a terminal spends
+          ;; a column of that window on the separator, and an end
+          ;; placed by the row's own right edge lands in it.
+          (beside (with-selected-window below (split-window-right 40))))
      (set-window-buffer below (get-buffer-create "*rows*"))
-     (with-current-buffer "*rows*"
-       (insert "boxed around its own rows\n")
-       (setq-local header-line-format " a header line of my own "
-                   mode-line-format " a mode line of my own ")
-       (window-box-mode 1)))
+     (set-window-buffer beside (get-buffer-create "*more rows*"))
+     (dolist (name '("*rows*" "*more rows*"))
+       (with-current-buffer (get-buffer-create name)
+         (erase-buffer)
+         (insert (format "%s\n" (if (equal name "*rows*")
+                                    "boxed around its own rows"
+                                  "and beside it")))
+         (setq-local header-line-format
+                     (format " a header line in %s " name)
+                     mode-line-format (format " a mode line in %s " name))
+         (window-box-mode 1))))
    (redisplay t)
    (run-with-timer 1.0 nil (lambda () (kill-emacs 0)))))
 ;;; tty-test.el ends here
