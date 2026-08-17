@@ -25,19 +25,17 @@
 ** About The Project
 
 =window-box-mode= draws a box around each window that shows the
-buffer.  The sides live in the margins of the window: one pixel of
-image at the outermost edge on a graphic display, a character in a
-terminal.  The horizontal edges are drawn on the rows the window has.
+buffer.  The sides sit at the window's very edge: on a graphic
+display one pixel at the outermost edge of each fringe, in a terminal
+a character in the outermost column of each margin.  The horizontal
+edges are drawn on the rows the window has.
 
 The mode keeps the width of the fringes, so their indicators stay
-where you can read them.  It puts the margins outside them, because
-that is where the sides of the box belong, and it gives that order
-back when it goes.  A buffer that keeps text in its margins — magit's
-log holds its dates in one — keeps them; its sides move to the
-fringes, one pixel at their outermost edge, and the margin content
-sits inside the box.  The mode does not change what your header line
-and your mode line show, and =window-box-padding= buys air between
-the box and the text.
+where you can read them, and it leaves the margins to their owners: a
+buffer that keeps text in its margins — magit's log holds its dates
+in one — keeps them, inside the box.  The mode does not change what
+your header line and your mode line show, and =window-box-padding=
+buys air between the box and the text.
 
 [[file:img/demo.gif]]
 
@@ -130,11 +128,12 @@ The package has few options:
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
 
 The box is one pixel on every side.  The horizontal edges are one
-pixel because an overline cannot be thicker.  A side is a one pixel
-image exactly as tall as the line, so it tiles into one unbroken line
-in any font — a character's ink height is the font's business, and an
-option for it turned out to be a choice between dashes and pillars,
-so there is none.
+pixel because an overline cannot be thicker.  A side is a periodic
+fringe bitmap, one pixel wide, which repeats over every line's full
+height — an ordinary text line, a banner drawn from images, a formula
+preview.  A character's ink height is the font's business and a
+margin image is one line tall, so neither survives every buffer; the
+bitmap does, and there is no option for the look of the sides.
 
 Give a buffer more air:
 
@@ -183,13 +182,13 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 ** Known Limits
 
-- The box takes one column of the window on each side, and
-  =window-box-padding= more.  A buffer that uses its margins for its
-  own text keeps them; on a graphic display its sides move to the
-  fringes, and a line whose fringe shows an indicator of its own —
-  magit's section arrows, a continuation arrow — shows that instead
-  of the side there.  A terminal has no fringes to move to and draws
-  such a window's horizontal edges alone.
+- On a graphic display the sides live in the fringes, so a line
+  whose fringe shows an indicator of its own — magit's section
+  arrows, a continuation arrow — shows that instead of the side
+  there, and a frame whose fringes are switched off shows no sides at
+  all.  A terminal draws the sides in one column of margin per side;
+  a buffer that uses its margins for its own text keeps them, and
+  such a window gets the horizontal edges alone there.
 - In a terminal an edge needs a row of its own, and a window has only
   so many rows.  The top edge uses the tab line row if the window
   shows no tabs.  There is no row below the mode line.  The box has

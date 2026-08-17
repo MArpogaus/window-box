@@ -224,32 +224,28 @@ TABS non-nil gives it a tab line of its own."
     (delete-other-windows)))
 
 (defun gui-test--order ()
-  "Check that the box puts the margins outside the fringes.
-The sides are drawn in the margins, and with the fringes outside them
-a side sits between the fringe and the text.  A window keeps that
-order, so one that another package left the other way round, or an
-older version of this package, says so.  Only a graphic display has
-fringes, so this is checked here and not in the batch suite."
+  "Check that the box leaves the fringes exactly as it finds them.
+The sides are periodic bitmaps in the fringes, so the box needs
+neither their order nor their widths changed — a window another
+package dressed keeps whatever it was given.  Only a graphic display
+has fringes, so this is checked here and not in the batch suite."
   (set-frame-size (selected-frame) 700 520 t)
   (let ((buffer (get-buffer-create "*order*")))
     (with-current-buffer buffer
       (erase-buffer)
-      (insert "fringes outside the margins\n"))
+      (insert "fringes as they were\n"))
     (switch-to-buffer buffer)
     (delete-other-windows)
     (let ((window (selected-window)))
       (set-window-fringes window 8 8 t)
       (with-current-buffer buffer (window-box-mode 1))
       (window-box--refresh)
-      (when (nth 2 (window-fringes window))
-        (error "The box left the fringes outside the margins"))
-      (unless (equal (seq-take (window-fringes window) 2) '(8 8))
-        (error "The box changed the fringe widths: %S"
-               (seq-take (window-fringes window) 2)))
+      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
+        (error "The box touched the fringes: %S" (window-fringes window)))
       (with-current-buffer buffer (window-box-mode -1))
       (window-box--refresh)
-      (unless (nth 2 (window-fringes window))
-        (error "The box kept the order it turned around")))
+      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
+        (error "Unboxing touched the fringes: %S" (window-fringes window))))
     (delete-other-windows)
     (kill-buffer buffer)))
 

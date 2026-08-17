@@ -17,34 +17,39 @@ The text uses these terms:
 
 * The two displays
 
-The sides live in the margins on both displays.  A terminal draws the
-vertical edge of =window-box-characters= in the outermost column, with
-`window-box-padding' columns of nothing inside it.  A graphic display
-draws one image per margin: as wide as the whole margin, as tall as
-the line, with only the outermost pixel column inked — the padding is
-the blank part of the same image.  The fringes are not touched, so
-their indicators stay legible.
+A graphic display draws the sides in the fringes: a one pixel
+periodic bitmap at the outermost pixel of each fringe, repeating over
+every line's full height.  Nothing else survives every buffer.  A
+character's ink height is the font's business — FiraCode draws a
+block character over the whole line, Noto Sans Mono four pixels
+short, and =font-get-glyphs= cannot tell the two apart in advance.  A
+filled margin column is unbroken but ten pixels wide against
+horizontal edges of one.  A margin image with only its outermost
+pixel column inked is one default line tall, and a line taller than
+that — a banner drawn from images, a LaTeX preview — keeps bare
+pixels above and below it, while an image taller than the line grows
+every line to its own height.  The periodic bitmap alone tiles
+whatever the line is.
 
-The image is the margin's display itself, never a display property on
-a string's characters: that would be a nested display property, which
-redisplay does not read.  And it is an image because nothing else is
-one pixel and unbroken: a character's ink height is the font's
-business — FiraCode draws a block character over the whole line, Noto
-Sans Mono four pixels short, and =font-get-glyphs= cannot tell the two
-apart in advance — while a filled margin column is unbroken but ten
-pixels wide against horizontal edges of one.  An image's height is
-explicit, so the sides tile line to line whatever the font does.
+The margins are therefore left to their owners.  A buffer that keeps
+text in them — magit's log holds its dates in a thirty column margin
+— keeps them, and with the default order, fringes outside margins,
+the sides still frame that content.  =window-box-padding= only ever
+adds blank margins between the fringe and the text.  A line whose
+fringe shows an indicator of its own shows that instead of the side,
+and a frame without fringes shows no sides.  A terminal has no
+fringes: it draws the vertical edge of =window-box-characters= in the
+outermost column of each margin, the padding inside it, and a
+terminal window whose buffer owns the margins gets the horizontal
+edges alone.
 
-A buffer that keeps text in its own margins — magit's log holds its
-dates in a thirty column one — keeps them.  Its sides move to the
-fringes: a one pixel periodic bitmap at the outermost pixel of each
-fringe, repeating over every line's height.  Such a window keeps the
-default order, fringes outside the margins, so the side sits at the
-window's edge and the dates sit inside the box.  A line whose fringe
-shows an indicator of its own shows that instead of the side.  A
-terminal has no fringes and draws such a window's horizontal edges
-alone.  The pixel rig measures the side column either way, where a
-gap is the package's fault and never the font's.
+The sides hang on `line-prefix', on two carriers at once.  The
+buffer-local variable reaches the rows below the last line of text,
+where an overlay ends.  A whole-buffer overlay outranks the prefix a
+line brings as a text property — a shell indents its output that way,
+and those lines went bare on the variable alone.  The pixel rig
+measures the side column either way, where a gap is the package's
+fault and never the font's.
 
 The horizontal edges differ by display, because a terminal has no
 overline and no underline:
@@ -122,8 +127,12 @@ The content of the row can align something to the right edge itself.
 A header line with a button at its right hand end does this, and that
 button would fill the place of the box.  The box therefore draws the
 content with =format-mode-line= and moves each =right= in the
-alignments of the result in by one.  The drawing keeps the text
-properties, so the button keeps its keymap and its face.
+alignments of the result in — by one pixel on a graphic display, by
+two columns in a terminal, where a window left of another spends its
+last column on the separator and a tail that compensates for the
+margin otherwise ends exactly on the corner's column.  The drawing
+keeps the text properties, so the button keeps its keymap and its
+face.
 
 * The dressing that the box uses
 

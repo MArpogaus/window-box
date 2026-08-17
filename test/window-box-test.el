@@ -89,7 +89,8 @@ one column too long loses its last corner off the end."
 
 (ert-deftest window-box-test-prefix ()
   "The line prefix puts one vertical edge into each margin."
-  (let ((prefix (window-box--prefix (selected-window))))
+  (skip-unless (not (display-graphic-p)))
+  (let ((prefix (window-box--prefix)))
     (should (equal (car (get-text-property 0 'display prefix))
                    '(margin left-margin)))
     (should (equal (car (get-text-property 1 'display prefix))
@@ -109,24 +110,35 @@ column is a margin the box may take; wider is the buffer's own, and
     (should (equal (window-margins (selected-window)) '(1 . 1)))
     (should (equal (window-parameter (selected-window) 'tab-line-format)
                    '(:eval (window-box--top))))
-    (should (stringp line-prefix))
+    (should (overlayp window-box--prefix-overlay))
+    (should (stringp (overlay-get window-box--prefix-overlay 'line-prefix)))
     (should (local-variable-p 'line-prefix))
     (window-box-mode -1)
     (should (equal (window-margins (selected-window)) '(nil . 1)))
     (should-not (window-parameter (selected-window) 'tab-line-format))
     (should-not (window-parameter (selected-window)
                                   'window-box--saved-margins))
+    (should-not window-box--prefix-overlay)
     (should-not (local-variable-p 'line-prefix))
     (set-window-margins (selected-window) nil nil)))
 
 (ert-deftest window-box-test-a-prefix-of-your-own-comes-back ()
-  "A buffer that had a line prefix keeps it once the box is gone.
-The sides live in the prefix, so the box has to hand it back."
+  "A buffer that had a line prefix gets it back once the box is gone.
+The sides ride the variable — for the rows below the last line — and
+a buffer-spanning overlay, which outranks the prefix a single line
+brings as a text property, where the variable loses."
   (window-box-test--with-buffer
     (setq-local line-prefix "> " wrap-prefix "| ")
     (window-box-mode 1)
     (should-not (equal line-prefix "> "))
+    (should (overlayp window-box--prefix-overlay))
+    (should (= (overlay-start window-box--prefix-overlay) (point-min)))
+    (should (= (overlay-end window-box--prefix-overlay) (point-max)))
+    ;; Text added at the end wears the sides too.
+    (save-excursion (goto-char (point-max)) (insert "three\n"))
+    (should (= (overlay-end window-box--prefix-overlay) (point-max)))
     (window-box-mode -1)
+    (should-not window-box--prefix-overlay)
     (should (equal line-prefix "> "))
     (should (equal wrap-prefix "| "))))
 
@@ -246,7 +258,7 @@ instead of naming the option behind it."
         (should (equal (window-box--characters) default))
         ;; and the drawing gets through with it
         (should (stringp (window-box--edge 0 1)))
-        (should (stringp (window-box--prefix (selected-window))))))
+        (should (stringp (window-box--prefix)))))
     ;; six of them, whatever they are, are the user's business
     (let ((window-box-characters "++++|-"))
       (should (equal (window-box--characters) "++++|-"))
@@ -267,7 +279,7 @@ there by the buffer."
           (window-box-mode 1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 30)))
-          (should-not (local-variable-p 'line-prefix))
+          (should-not window-box--prefix-overlay)
           ;; and unboxing gives the buffer's own margins back untouched
           (window-box-mode -1)
           (window-box--refresh)
@@ -287,11 +299,11 @@ there by the buffer."
           (window-box-mode 1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 1)))
-          (should (local-variable-p 'line-prefix))
+          (should (overlayp window-box--prefix-overlay))
           (set-window-margins (selected-window) 1 30)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 30)))
-          (should-not (local-variable-p 'line-prefix)))
+          (should-not window-box--prefix-overlay))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
@@ -333,14 +345,14 @@ every boxed window of that buffer at once."
             (set-window-buffer other buffer)
             (window-box-mode 1)
             (window-box--refresh)
-            (should (local-variable-p 'line-prefix))
+            (should (overlayp window-box--prefix-overlay))
             ;; one of the two is no longer a window to box
             (let ((window-box-window-predicate
                    (lambda (window) (not (eq window other)))))
               (window-box--refresh)
               (should-not (window-parameter other 'window-box))
               (should (window-parameter (selected-window) 'window-box))
-              (should (local-variable-p 'line-prefix)))
+              (should (overlayp window-box--prefix-overlay)))
             (delete-window other)))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
@@ -361,11 +373,11 @@ buttons use."
           (window-box-mode 1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 1)))
-          (should (local-variable-p 'line-prefix))
+          (should (overlayp window-box--prefix-overlay))
           ;; the buffer asks for two columns of its own
           (setq left-margin-width 2)
           (window-box--refresh)
-          (should-not (local-variable-p 'line-prefix))
+          (should-not window-box--prefix-overlay)
           ;; and the window shows the buffer's width, not the box's
           (should (equal (window-margins (selected-window)) '(2))))
       (set-window-margins (selected-window) nil nil)
@@ -384,15 +396,14 @@ after the buffer is displayed, so every such panel came up bare."
           (window-box-mode 1)
           (window-box--refresh)
           (should (window-parameter (selected-window) 'window-box))
-          (should (local-variable-p 'line-prefix))
+          (should (overlayp window-box--prefix-overlay))
           (emacs-lisp-mode)
           ;; the mode survives the change
           (should window-box-mode)
           (should (window-parameter (selected-window) 'window-box))
-          ;; and what the change cleared is drawn again, from the hook
-          ;; the mode installs: the prefix that carries the sides is
-          ;; no more permanent-local than the face remaps are
-          (should (local-variable-p 'line-prefix)))
+          ;; the overlay that carries the sides lives in the buffer,
+          ;; and its variable is permanent-local, so nothing is lost
+          (should (overlayp window-box--prefix-overlay)))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
@@ -440,8 +451,10 @@ back as the width the window is supposed to have."
           (should (equal (window-margins (selected-window)) '(1 . 1)))
           (let ((other (split-window)))
             (window-box--refresh)
+            ;; the box's own width rides along with the save
             (should (equal (window-parameter other 'window-box--saved-margins)
-                           (list left-margin-width right-margin-width)))
+                           (list left-margin-width right-margin-width
+                                 (window-box--width))))
             (window-box-mode -1)
             (window-box--refresh)
             (should (equal (window-margins other) '(nil)))
@@ -667,31 +680,12 @@ window does, and the padding is the columns between it and the text."
       (window-box-mode 1)
       (should (equal (window-margins (selected-window)) '(4 . 4)))
       ;; the side first on the left and last on the right
-      (let ((prefix (window-box--prefix (selected-window))))
+      (let ((prefix (window-box--prefix)))
         (should (string-match-p "\\`│   "
                                 (cadr (get-text-property 0 'display prefix))))
         (should (string-match-p "   │\\'"
                                 (cadr (get-text-property 1 'display prefix)))))
       (window-box-mode -1))))
-
-(ert-deftest window-box-test-a-side-is-one-pixel-of-image ()
-  "A graphic side is one inked pixel column at the margin\='s outer edge.
-The image spans the whole margin and the whole line: the padding is
-its blank part, and its explicit height tiles into one unbroken line
-whatever the font draws or leaves bare.  The image is the margin\='s
-display itself — a display property on a string\='s characters is a
-nested one, which redisplay does not read."
-  (cl-letf (((symbol-function 'window-default-line-height)
-             (lambda (&rest _) 3))
-            ((symbol-function 'frame-char-width) (lambda (&rest _) 2)))
-    (let* ((window-box-padding 0)
-           (left (window-box--side-image (selected-window) 'left))
-           (right (window-box--side-image (selected-window) 'right)))
-      (should (eq (car left) 'image))
-      (should (equal (plist-get (cdr left) :data) "P1\n2 3\n101010"))
-      (should (equal (plist-get (cdr right) :data) "P1\n2 3\n010101"))
-      (should (equal (plist-get (cdr left) :foreground)
-                     (window-box--color))))))
 
 (ert-deftest window-box-test-the-row-end-reaches-past-margin-and-fringe ()
   "A dressed row\='s stretch counts the fringe as well as the margin.
@@ -714,6 +708,26 @@ row and be clipped away."
       ;; 10 of margin + 8 of fringe - 1 of the end itself.
       (should (equal spec '(space :align-to (+ right (17))))))))
 
+(ert-deftest window-box-test-a-list-shaped-stretch-is-moved-in-too ()
+  "A display property that is a LIST of specs is indented like a bare one.
+A mode line that aligns its own tail to `right\=' with
+\((space :align-to (- right ...))) fills the row to its very end when
+the spec slips through unmoved, and the box\='s end lands past the row,
+where it is clipped — in a terminal, into the separator column."
+  (let* ((drawn (concat (propertize " " 'display
+                                    '((space :align-to
+                                             (- right (- 0 right-margin) 13))))
+                        "tail"))
+         (row (cl-letf (((symbol-function 'format-mode-line)
+                         (lambda (&rest _) drawn)))
+                (window-box--fitted "irrelevant")))
+         (pos (text-property-not-all 0 (length row) 'display nil row))
+         (spec (get-text-property pos 'display row)))
+    (should (equal spec
+                   (if (display-graphic-p)
+                       '((space :align-to (- (- right (1)) (- 0 right-margin) 13)))
+                     '((space :align-to (- (- right 2) (- 0 right-margin) 13))))))))
+
 (ert-deftest window-box-test-a-row-too-wide-is-cut-for-the-end ()
   "A drawn row wider than its window is cut, so the end survives.
 The default mode line fills the window, and a row that reaches the
@@ -727,10 +741,11 @@ loses nothing that was shown."
   (let ((content '("not" "a" "string")))
     (should (eq (window-box--trimmed content 40) content))))
 
-(ert-deftest window-box-test-owned-margins-move-the-sides-to-the-fringes ()
-  "A buffer that keeps its margins gets fringe sides, not none.
-The bitmaps sit at the outermost pixel of each fringe and repeat over
-the line, and the buffer\='s margin content sits inside the box."
+(ert-deftest window-box-test-graphic-sides-ride-the-fringes ()
+  "The graphic sides are periodic fringe bitmaps, one pixel each.
+A bitmap repeats over every line's full height, however tall the
+line; a margin image is one default line tall and dashed on taller
+ones, and one taller than the line grows every line to its height."
   (let ((prefix (window-box--fringe-prefix)))
     (should (equal (get-text-property 0 'display prefix)
                    '(left-fringe window-box--left-side window-box)))
