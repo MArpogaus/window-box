@@ -693,6 +693,27 @@ nested one, which redisplay does not read."
       (should (equal (plist-get (cdr left) :foreground)
                      (window-box--color))))))
 
+(ert-deftest window-box-test-the-row-end-reaches-past-margin-and-fringe ()
+  "A dressed row\='s stretch counts the fringe as well as the margin.
+`right\=' in a row\='s display spec is the right edge of the text area,
+and both the margin and the fringe lie between it and the row\='s end.
+A stretch that counts only the margin parks the box\='s end a fringe
+short of the side below it — the header\='s right edge sat seven pixels
+left of the side.  The reach is less the end\='s own pixel: a glyph
+aligned to the row\='s very last pixel boundary would start outside the
+row and be clipped away."
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
+            ((symbol-function 'window-margins) (lambda (&rest _) '(1 . 1)))
+            ((symbol-function 'window-fringes) (lambda (&rest _) '(8 8 nil t)))
+            ((symbol-function 'frame-char-width) (lambda (&rest _) 10))
+            ((symbol-function 'window-box--content) (lambda (&rest _) ""))
+            ((symbol-function 'window-box--fitted) (lambda (content) content)))
+    (let* ((row (window-box--row 'header-line-format))
+           (stretch (nth 2 row))
+           (spec (get-text-property 0 'display stretch)))
+      ;; 10 of margin + 8 of fringe - 1 of the end itself.
+      (should (equal spec '(space :align-to (+ right (17))))))))
+
 (ert-deftest window-box-test-owned-margins-move-the-sides-to-the-fringes ()
   "A buffer that keeps its margins gets fringe sides, not none.
 The bitmaps sit at the outermost pixel of each fringe and repeat over
