@@ -497,7 +497,15 @@ redisplayed is the selected one and its buffer is current."
           ;; not count it, and an end placed by it lands in it.
           (propertize " " 'display
                       (if (display-graphic-p)
-                          '(space :align-to right)
+                          ;; `right' is the right edge of the text
+                          ;; area, and a margin of the buffer's own
+                          ;; lies outside it.  The row spans the
+                          ;; margin, so the end of the box has to
+                          ;; reach past it, in pixels.
+                          `(space :align-to
+                                  (+ right
+                                     (,(* (or (cdr (window-margins)) 0)
+                                          (frame-char-width)))))
                         ;; `right' is the right edge of the text area,
                         ;; which is where the row ends in the window
                         ;; at the frame's edge and not in one left of
