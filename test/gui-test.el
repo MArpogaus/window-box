@@ -25,10 +25,9 @@
                         "Liberation Mono"))))
   (when font (set-frame-font (format "%s 13" font) nil t)))
 
-;; How much of its cell a character covers is the font's business, and
-;; the default pair is a thin line only where the font draws it that
-;; way.  The measurement takes the solid column instead, so that a gap
-;; in a side is the package's fault and not the font's.
+;; The default draws the sides as a column of the margin, which every
+;; font gives whole.  The measurement asks for the default, so a gap in
+;; a side is the package's fault.
 (setq window-box-side-characters nil)
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
