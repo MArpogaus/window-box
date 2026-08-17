@@ -714,6 +714,19 @@ row and be clipped away."
       ;; 10 of margin + 8 of fringe - 1 of the end itself.
       (should (equal spec '(space :align-to (+ right (17))))))))
 
+(ert-deftest window-box-test-a-row-too-wide-is-cut-for-the-end ()
+  "A drawn row wider than its window is cut, so the end survives.
+The default mode line fills the window, and a row that reaches the
+edge pushes the stretch and the end of the box past it, where they
+are clipped away — the box had a one row hole at its right edge.
+Stock redisplay clips such a row at the window\='s edge, so the cut
+loses nothing that was shown."
+  (should (equal (window-box--trimmed (make-string 50 ?x) 40)
+                 (make-string 40 ?x)))
+  (should (equal (window-box--trimmed "short" 40) "short"))
+  (let ((content '("not" "a" "string")))
+    (should (eq (window-box--trimmed content 40) content))))
+
 (ert-deftest window-box-test-owned-margins-move-the-sides-to-the-fringes ()
   "A buffer that keeps its margins gets fringe sides, not none.
 The bitmaps sit at the outermost pixel of each fringe and repeat over

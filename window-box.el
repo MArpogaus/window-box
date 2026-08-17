@@ -560,6 +560,31 @@ A mode line has one for the selected window and one for the others."
       '(mode-line-active mode-line-inactive)
     (list (window-box--row-part parameter :name))))
 
+(defun window-box--trimmed (row limit)
+  "Return ROW cut to LIMIT columns, where it is a drawn string.
+A row wider than its window pushes everything after it off the edge,
+the end of the box with it — the default mode line does it in any
+window narrower than its text.  Stock redisplay clips such a row at
+the window\='s edge, so the cut loses nothing that was shown, and the
+stretch that follows the content fills what it opens."
+  (if (and (stringp row) (> (string-width row) limit))
+      (truncate-string-to-width row limit)
+    row))
+
+(defun window-box--row-limit (window)
+  "Return the columns of WINDOW\='s rows that its content may fill.
+The row spans the window up to the divider, and the box\='s two ends
+must survive at its sides: one column covers them both on a graphic
+display, where they are a pixel each, and exactly on a terminal,
+where they are a column each."
+  (if (display-graphic-p (window-frame window))
+      (1- (/ (- (window-pixel-width window)
+                (window-right-divider-width window))
+             (frame-char-width)))
+    (let ((margins (window-margins window)))
+      (+ (window-body-width window)
+         (or (car margins) 0) (or (cdr margins) 0) -2))))
+
 (defun window-box--row (parameter)
   "Return the row PARAMETER names with the box\='s ends on it.
 Called from the window parameter the box sets, so the window being
@@ -567,7 +592,9 @@ redisplayed is the selected one and its buffer is current."
   (let* ((window (selected-window))
          (corners (window-box--corners window parameter)))
     (list (window-box--cap (nth 0 corners))
-          (window-box--fitted (window-box--content window parameter))
+          (window-box--trimmed
+           (window-box--fitted (window-box--content window parameter))
+           (window-box--row-limit window))
           ;; The stretch reaches the last column, or the last pixel,
           ;; and the end goes after it — where the side edge of the
           ;; text below it runs.  In a terminal that column is counted
