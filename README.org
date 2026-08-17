@@ -123,15 +123,13 @@ The package has few options:
 | =window-box-color=            | one color for the box, buffer-local if you set it so |
 | =window-box-encloses=         | the rows that are inside the box                     |
 | =window-box-padding=          | columns between a side and the text                  |
-| =window-box-side-characters=  | the two characters of the sides on a graphic display |
-| =window-box-attached-edges=   | edges on the rows you have, or rows of their own     |
+| =window-box-side-characters=  | a pair of characters for the sides, or nil for a column |
 | =window-box-characters=       | the characters of the box in a terminal              |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
 
-The horizontal edges are one pixel.  An overline cannot be thicker.
-A side is one column of margin, and how much of that column it fills
-is the character it is drawn with: the default pair is a line at the
-edge of its own cell.
+The horizontal edges are one pixel.  An overline cannot be thicker.  A
+side is one column of the margin, which the box fills with the color
+of the box.
 
 Give a buffer more air:
 
@@ -180,11 +178,11 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 ** Known Limits
 
-- A side is a character in a margin, and how much of its cell a
-  character covers is the font's business.  A font whose block
-  characters are shorter than a line draws the sides with a gap at
-  each line.  Set =window-box-side-characters= to nil for a solid
-  column, which every font gives you.
+- A side is one column of the margin.  Two characters in
+  =window-box-side-characters= draw a hairline instead, and how much
+  of its cell a character covers is then the font's business: a font
+  whose block characters are shorter than a line draws the sides with
+  a gap at each line.
 - The box takes one column of the window on each side, and
   =window-box-padding= more.  A buffer that uses its margins for its
   own text keeps them and gets the horizontal edges alone.

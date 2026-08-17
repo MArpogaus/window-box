@@ -525,8 +525,8 @@ free and leaves the closing to the row that ends the box."
                      window-box--header-row-format))
       (let ((row (window-box--row 'header-line-format)))
         (should (equal (nth 1 row) " header "))
-        (should (equal (nth 0 row) (window-box--cap 4 'left)))
-        (should (equal (nth 3 row) (window-box--cap 4 'right))))
+        (should (equal (nth 0 row) (window-box--cap 4)))
+        (should (equal (nth 3 row) (window-box--cap 4))))
       (window-box--clear window)
       (should-not (window-parameter window 'header-line-format)))))
 

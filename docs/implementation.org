@@ -26,10 +26,10 @@ A margin holds one character of the frame's font, and how much of
 that cell the character covers is the font's business:
 
 - =window-box-characters= gives the character in a terminal.
-- =window-box-side-characters= gives the pair on a graphic display,
-  where the default is a line at the edge of its own cell.  Nil draws
-  a space in the box color instead, which fills the whole cell for
-  every line, whatever the font does.
+- On a graphic display the default is a space in the box color, which
+  fills the whole cell for each line whatever the font does.  Two
+  characters in =window-box-side-characters= draw a hairline instead,
+  at the edge of their own cell, where the font draws them that way.
 
 The horizontal edges differ by display, because a terminal has no
 overline and no underline:
