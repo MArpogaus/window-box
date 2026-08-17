@@ -152,6 +152,12 @@ TABS non-nil gives it a tab line of its own."
                                                  '(tab-line header-line
                                                             mode-line)
                                                  t))
+    ;; A buffer that keeps a margin of its own, as magit's log does:
+    ;; the row spans that margin, and the end of the box has to reach
+    ;; past it.
+    (with-current-buffer (window-buffer third)
+      (setq-local right-margin-width 10)
+      (set-window-buffer third (current-buffer)))
     ;; One of them split, so a window that is not at the frame's right
     ;; edge is measured too: an end placed by the row's own right edge
     ;; can land in what separates the two.
