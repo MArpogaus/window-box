@@ -25,10 +25,10 @@
                         "Liberation Mono"))))
   (when font (set-frame-font (format "%s 13" font) nil t)))
 
-;; The default draws the sides as a column of the margin, which every
-;; font gives whole.  The measurement asks for the default, so a gap in
-;; a side is the package's fault.
-(setq window-box-side-characters nil)
+;; The default asks the font for a hairline and falls back to a column
+;; of the margin where the font draws the character shorter than a
+;; line.  The fonts here are of the second kind, so the measurement
+;; sees the column, and a gap in a side is the package's fault.
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.
