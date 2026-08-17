@@ -17,31 +17,34 @@ The text uses these terms:
 
 * The two displays
 
-The sides are the same on both displays.  They are a character in the
-outermost column of the margin, and `window-box-padding' holds the
-columns between that character and the text.  The fringes are not
-touched, so their indicators stay legible.
+The sides live in the margins on both displays.  A terminal draws the
+vertical edge of =window-box-characters= in the outermost column, with
+`window-box-padding' columns of nothing inside it.  A graphic display
+draws one image per margin: as wide as the whole margin, as tall as
+the line, with only the outermost pixel column inked — the padding is
+the blank part of the same image.  The fringes are not touched, so
+their indicators stay legible.
 
-A margin holds one character of the frame's font, and how much of
-that cell the character covers is the font's business:
+The image is the margin's display itself, never a display property on
+a string's characters: that would be a nested display property, which
+redisplay does not read.  And it is an image because nothing else is
+one pixel and unbroken: a character's ink height is the font's
+business — FiraCode draws a block character over the whole line, Noto
+Sans Mono four pixels short, and =font-get-glyphs= cannot tell the two
+apart in advance — while a filled margin column is unbroken but ten
+pixels wide against horizontal edges of one.  An image's height is
+explicit, so the sides tile line to line whatever the font does.
 
-- =window-box-characters= gives the character in a terminal.
-- =window-box-side-characters= gives the pair on a graphic display.
-  Each is a hairline at the edge of its own cell, which is one pixel,
-  as the horizontal edges are.
-
-How tall the ink of that character is, is the font\='s business.  A font
-that draws it over the whole line gives an unbroken side; one that
-draws it shorter leaves the pixels between the lines bare.  Nil in the
-option fills the cell with the color of the box instead, which is
-unbroken in any font.
-
-The font cannot be asked in advance.  =font-get-glyphs= reports the
-ascent and the descent of the glyph, and a font whose sum covers the
-line can still leave a pixel bare at each line, or four: measured on
-two machines, the numbers agreed with the drawing on one and not on
-the other.  So the choice is the reader\='s, and the pixel rig measures
-the column, where a gap is the package\='s fault and never the font\='s.
+A buffer that keeps text in its own margins — magit's log holds its
+dates in a thirty column one — keeps them.  Its sides move to the
+fringes: a one pixel periodic bitmap at the outermost pixel of each
+fringe, repeating over every line's height.  Such a window keeps the
+default order, fringes outside the margins, so the side sits at the
+window's edge and the dates sit inside the box.  A line whose fringe
+shows an indicator of its own shows that instead of the side.  A
+terminal has no fringes and draws such a window's horizontal edges
+alone.  The pixel rig measures the side column either way, where a
+gap is the package's fault and never the font's.
 
 The horizontal edges differ by display, because a terminal has no
 overline and no underline:

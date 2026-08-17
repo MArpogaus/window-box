@@ -89,7 +89,7 @@ one column too long loses its last corner off the end."
 
 (ert-deftest window-box-test-prefix ()
   "The line prefix puts one vertical edge into each margin."
-  (let ((prefix (window-box--prefix)))
+  (let ((prefix (window-box--prefix (selected-window))))
     (should (equal (car (get-text-property 0 'display prefix))
                    '(margin left-margin)))
     (should (equal (car (get-text-property 1 'display prefix))
@@ -246,7 +246,7 @@ instead of naming the option behind it."
         (should (equal (window-box--characters) default))
         ;; and the drawing gets through with it
         (should (stringp (window-box--edge 0 1)))
-        (should (stringp (window-box--prefix)))))
+        (should (stringp (window-box--prefix (selected-window))))))
     ;; six of them, whatever they are, are the user's business
     (let ((window-box-characters "++++|-"))
       (should (equal (window-box--characters) "++++|-"))
@@ -667,32 +667,41 @@ window does, and the padding is the columns between it and the text."
       (window-box-mode 1)
       (should (equal (window-margins (selected-window)) '(4 . 4)))
       ;; the side first on the left and last on the right
-      (let ((prefix (window-box--prefix)))
+      (let ((prefix (window-box--prefix (selected-window))))
         (should (string-match-p "\\`│   "
                                 (cadr (get-text-property 0 'display prefix))))
         (should (string-match-p "   │\\'"
                                 (cadr (get-text-property 1 'display prefix)))))
       (window-box-mode -1))))
 
-(ert-deftest window-box-test-a-side-is-a-character-or-a-column ()
-  "A side is the character of the pair, or a column where there is none.
-A block character is one pixel at the edge of its cell, which is what
-the box draws everywhere else.  Nil fills the whole cell with the
-color of the box instead, for a font that draws the character shorter
-than a line."
-  (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t)))
-    (let ((window-box-side-characters "▏▕"))
-      (should (equal (substring-no-properties (window-box--side 'left)) "▏"))
-      (should (equal (substring-no-properties (window-box--side 'right)) "▕"))
-      (should (equal (plist-get (get-text-property 0 'face
-                                                   (window-box--side 'left))
-                                :foreground)
-                     (window-box--color))))
-    (dolist (value '(nil "" "▏▕▏"))
-      (let ((window-box-side-characters value))
-        (should (equal (substring-no-properties (window-box--side 'left)) " "))
-        (should (plist-get (get-text-property 0 'face (window-box--side 'left))
-                           :background))))))
+(ert-deftest window-box-test-a-side-is-one-pixel-of-image ()
+  "A graphic side is one inked pixel column at the margin\='s outer edge.
+The image spans the whole margin and the whole line: the padding is
+its blank part, and its explicit height tiles into one unbroken line
+whatever the font draws or leaves bare.  The image is the margin\='s
+display itself — a display property on a string\='s characters is a
+nested one, which redisplay does not read."
+  (cl-letf (((symbol-function 'window-default-line-height)
+             (lambda (&rest _) 3))
+            ((symbol-function 'frame-char-width) (lambda (&rest _) 2)))
+    (let* ((window-box-padding 0)
+           (left (window-box--side-image (selected-window) 'left))
+           (right (window-box--side-image (selected-window) 'right)))
+      (should (eq (car left) 'image))
+      (should (equal (plist-get (cdr left) :data) "P1\n2 3\n101010"))
+      (should (equal (plist-get (cdr right) :data) "P1\n2 3\n010101"))
+      (should (equal (plist-get (cdr left) :foreground)
+                     (window-box--color))))))
+
+(ert-deftest window-box-test-owned-margins-move-the-sides-to-the-fringes ()
+  "A buffer that keeps its margins gets fringe sides, not none.
+The bitmaps sit at the outermost pixel of each fringe and repeat over
+the line, and the buffer\='s margin content sits inside the box."
+  (let ((prefix (window-box--fringe-prefix)))
+    (should (equal (get-text-property 0 'display prefix)
+                   '(left-fringe window-box--left-side window-box)))
+    (should (equal (get-text-property 1 'display prefix)
+                   '(right-fringe window-box--right-side window-box)))))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
