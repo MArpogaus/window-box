@@ -25,10 +25,13 @@
                         "Liberation Mono"))))
   (when font (set-frame-font (format "%s 13" font) nil t)))
 
-;; The default asks the font for a hairline and falls back to a column
-;; of the margin where the font draws the character shorter than a
-;; line.  The fonts here are of the second kind, so the measurement
-;; sees the column, and a gap in a side is the package's fault.
+;; The default draws each side as a hairline, which is a character, and
+;; how tall its ink is, is the font's business: the fonts on a runner
+;; are not the fonts on a desk.  The measurement asks for the column
+;; instead, so that a gap in a side is the package's fault and never
+;; the font's.  `window-box-test-a-side-is-a-character-or-a-column'
+;; covers the choice itself.
+(setq window-box-side-characters nil)
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.

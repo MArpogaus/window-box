@@ -131,12 +131,15 @@ The box is one pixel on every side.  The horizontal edges are one
 pixel because an overline cannot be thicker, and a side is a hairline
 at the edge of its column of margin.
 
-The hairline is a character, and how tall its ink is, is the font's
-business.  Where a font draws it shorter than a line, the pixels
-between the lines would stay bare, so the box asks the font and fills
-the whole column with its color instead.  Nothing to configure: the
-box is a hairline where the font can carry one and an unbroken column
-where it cannot.
+That hairline is a character of your font.  A font that draws its
+block characters over the whole line gives an unbroken line; one that
+draws them shorter leaves the pixels between the lines bare, and the
+side reads as dashed.  Set the option to nil for a column of the
+margin in the color of the box, which is unbroken in any font:
+
+#+begin_src emacs-lisp
+  (setq window-box-side-characters nil)
+#+end_src
 
 Give a buffer more air:
 
@@ -185,11 +188,12 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 ** Known Limits
 
-- A hairline side is a character, so a font that draws its block
-  characters one pixel short of the line leaves one bare pixel at each
-  line.  Where a font is shorter than that, the box draws the whole
-  column instead of a dashed line.  Set
-  =window-box-side-characters= to nil for the column always.
+- A hairline side is a character of your font, so a font that draws
+  its block characters shorter than a line leaves bare pixels between
+  the lines.  Measured at the same size: FiraCode draws it over the
+  whole line, Noto Sans Mono four pixels short.  Set
+  =window-box-side-characters= to nil for a column of the margin,
+  which is unbroken in any font.
 - The box takes one column of the window on each side, and
   =window-box-padding= more.  A buffer that uses its margins for its
   own text keeps them and gets the horizontal edges alone.

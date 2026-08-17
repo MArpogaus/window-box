@@ -136,13 +136,14 @@ pair is a character that is a hairline at the edge of its own cell.
 The default pair lands on the outermost pixel of the window, where the
 horizontal edges end, and the box is one pixel on every side.
 
-How tall the ink of a character is, is the font\='s business.  Where it
-is shorter than a line, the pixels between the lines stay bare and the
-side reads as a dashed line, so the box asks the font and draws a
-column of the margin in the box color instead.  A column is one
-unbroken line whatever the font does.
+How tall the ink of a character is, is the font\='s business, and a
+font that draws it shorter than a line leaves the pixels between the
+lines bare: the side then reads as a dashed line.  Measured at the
+same size, FiraCode draws the hairline over the whole line and Noto
+Sans Mono four pixels short of it.
 
-Nil asks for that column from the start.  A value that is neither nil
+Nil draws a column of the margin in the box color instead, which is
+one unbroken line whatever the font does.  A value that is neither nil
 nor exactly two characters long is ignored and the default drawn
 instead, for the reason `window-box-characters\=' gives."
   :type '(choice (const :tag "A column of the margin" nil)
@@ -226,30 +227,12 @@ are exact."
   "Return the bottom edge of the box."
   (window-box--edge 2 3))
 
-(defun window-box--covers-line-p (character)
-  "Return non-nil when CHARACTER is drawn over a whole line in this frame.
-The sides are one character of a margin, and a block character is a
-hairline at the edge of its cell — one pixel, which is what the box
-draws everywhere else.  How tall its ink is, is the font\='s business:
-where it is shorter than the line, the pixels between the lines stay
-bare and the side reads as a dashed line.  The font is asked, so that
-the box does not need a setting for it.
-
-Measured with three fonts at the same size: FiraCode draws the
-hairline 23 pixels tall on a line of 23, Noto Sans Mono 22 on a line
-of 26."
-  (when-let* ((font (car-safe (internal-char-font nil character)))
-              (glyphs (font-get-glyphs font 0 1 (string character)))
-              (glyph (and (> (length glyphs) 0) (aref glyphs 0))))
-    (>= (+ (aref glyph 7) (aref glyph 8)) (default-line-height))))
-
 (defun window-box--side (side)
   "Return the string that draws SIDE of the box, `left\=' or `right\='.
 A terminal draws the vertical edge from `window-box-characters\='.  A
-graphic display draws the pair in `window-box-side-characters\=', where
-the font draws them over a whole line, and a space in the box color
-where it does not: a face fills the whole cell for each line, whatever
-the font does with a character."
+graphic display draws the pair in `window-box-side-characters\=', and a
+space in the box color where that option is nil: a face fills the
+whole cell for each line, whatever the font does with a character."
   (let* ((pair (and (stringp window-box-side-characters)
                     (= (length window-box-side-characters) 2)
                     window-box-side-characters))
@@ -258,7 +241,7 @@ the font does with a character."
      ((not (display-graphic-p))
       (propertize (string (aref (window-box--characters) 4))
                   'face (list :foreground (window-box--color))))
-     ((and character (window-box--covers-line-p character))
+     (character
       (propertize (string character)
                   'face (list :foreground (window-box--color))))
      (t (propertize " " 'face (list :background (window-box--color)))))))
