@@ -17,24 +17,29 @@ The text uses these terms:
 
 * The two displays
 
-On a graphic display the box is one pixel wide:
+The sides are the same on both displays.  They are a character in the
+outermost column of the margin, and `window-box-padding' holds the
+columns between that character and the text.  The fringes are not
+touched, so their indicators stay legible.
 
-- The side edges are fringes of one pixel.  A fringe runs the full
-  height of the window.
-- A horizontal edge is an overline, an underline, or a row of one
-  pixel that the box draws itself.
+A margin holds one character of the frame's font, and how much of
+that cell the character covers is the font's business:
 
-An overline is always one pixel, so the other edges keep to that
-width.
+- =window-box-characters= gives the character in a terminal.
+- =window-box-side-characters= gives the pair on a graphic display,
+  where the default is a line at the edge of its own cell.  Nil draws
+  a space in the box color instead, which fills the whole cell for
+  every line, whatever the font does.
 
-In a terminal the box is made of characters:
+The horizontal edges differ by display, because a terminal has no
+overline and no underline:
 
-- The side edges are characters in margins of one column.
-- A horizontal edge is a row of characters.
+- On a graphic display an edge is an overline, an underline, or a row
+  of one pixel that the box draws itself.
+- In a terminal an edge is a row of characters.
 
-=window-box-characters= holds the six characters.  The package drops
-a value that is not six characters long, because an error in a
-redisplay is hard to find.
+The package drops a value of either option that is not the length it
+needs, because an error in a redisplay is hard to find.
 
 * Where a horizontal edge goes
 
@@ -127,17 +132,19 @@ the fringes.  The mark that says these widths belong to the box must
 travel with them.  Without the mark, a window that comes back from a
 saved state keeps the widths of a box that is no longer there.
 
-** Fringes and margins
+** Margins
 
-On a graphic display the box sets the fringes of the window to one
-pixel.  It saves the old widths in a window parameter.
+The box sets the margins of the window to one column for the side and
+`window-box-padding' more, and puts a character into each margin.  It
+saves the old widths in a window parameter.
 
-A window that comes from a split of a boxed window has the fringes of
-the box already.  The box saves the widths of the frame for such a
+A window that comes from a split of a boxed window has the margins of
+the box already.  The box saves the widths of the buffer for such a
 window, because these are the widths that Emacs would give it.
 
-In a terminal the box sets the margins of the window to one column
-and puts a character into each margin.
+The fringes are the window's own.  The box neither reads nor writes
+them, so a fringe keeps its width and draws its indicators where you
+can read them.
 
 A buffer can use its margins for its own text.  The log of magit
 writes the author and the date into a right margin of thirty columns.
@@ -152,8 +159,8 @@ and steps aside at that time.
 
 ** The line prefix
 
-In a terminal the side characters hang on the =line-prefix= and the
-=wrap-prefix= of the buffer.  A prefix has two advantages over an
+The side characters hang on the =line-prefix= and the =wrap-prefix=
+of the buffer, on both displays.  A prefix has two advantages over an
 overlay:
 
 - A prefix reaches the rows below the last line of text.  An overlay
@@ -166,8 +173,8 @@ last boxed window of that buffer loses its box.
 
 ** Face remaps
 
-The box remaps the =fringe= face for the color of the side edges.  It
-remaps the row faces for an overline or an underline.
+The box remaps the row faces for an overline or an underline.  The
+sides need no remap: they are characters in the =window-box= face.
 
 A face remap belongs to the buffer.  It would reach each window that
 shows the buffer, and =window-box-window-predicate= exists for the
@@ -243,6 +250,11 @@ asserts three things:
 
 The check leaves out the first pixel column of a window that has a
 neighbour on its left.  Emacs draws its own border there.
+
+A side is one column of margin wide, so the check asks each side for
+a pixel of the box color somewhere in that column.  It measures with
+`window-box-side-characters\=' at nil, which draws a solid column: a
+gap in a side is then the package\='s fault and not the font\='s.
 
 ** =make tty=
 
