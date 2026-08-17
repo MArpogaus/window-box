@@ -648,5 +648,58 @@ without the box."
                          window-box--bottom-format))
       (window-box--clear window))))
 
+(ert-deftest window-box-test-a-row-inside-keeps-its-look ()
+  "A row inside the box looks the same wherever the edge is.
+The underline and the border a theme draws sit where the box draws,
+and the box hides them.  It used to hide them only while the row
+carried the edge: a tab line that took the edge over gave the theme
+its underline back, under a header inside the box."
+  (window-box-test--with-buffer
+    (setq-local header-line-format " header ")
+    (let ((window-box-encloses '(tab-line header-line mode-line))
+          (window (selected-window)))
+      (window-box--apply window)
+      (let ((spec (nth 2 (assq 'header-line window-box--cookies))))
+        (should spec)
+        (should (equal (plist-get spec :underline) nil))
+        (should (equal (plist-get spec :box) nil)))
+      ;; tabs, which take the edge of the box over
+      (setq-local tab-line-format " tabs ")
+      (window-box--apply window)
+      (let ((spec (nth 2 (assq 'header-line window-box--cookies))))
+        (should spec)
+        (should (equal (plist-get spec :underline) nil))
+        (should (equal (plist-get spec :box) nil)))
+      ;; and a row the box leaves outside keeps what its theme drew
+      (let ((window-box-encloses nil))
+        (window-box--apply window)
+        (should-not (assq 'header-line window-box--cookies)))
+      (window-box--clear window))))
+
+(ert-deftest window-box-test-the-box-has-the-last-word-on-a-row ()
+  "A rule that writes the row parameter does not undress the box.
+A display rule can write the same window parameters, and whoever runs
+last wins.  The box listens for the state change that the redisplay
+runs, after everything in the cycle has had its say."
+  (window-box-test--with-buffer
+    (setq-local header-line-format " header ")
+    (let ((window-box-encloses '(header-line))
+          (window (selected-window)))
+      (window-box-mode 1)
+      (should (member #'window-box--refresh window-state-change-functions))
+      (should (equal (window-parameter window 'header-line-format)
+                     window-box--header-row-format))
+      ;; a display rule sets its own header, as `auto-side-windows' does
+      (set-window-parameter window 'header-line-format " from a rule ")
+      (window-box--refresh)
+      (should (equal (window-parameter window 'header-line-format)
+                     window-box--header-row-format))
+      (should (equal (window-box--content window 'header-line-format)
+                     " from a rule "))
+      (window-box-mode -1)
+      (should (equal (window-parameter window 'header-line-format)
+                     " from a rule "))
+      (set-window-parameter window 'header-line-format nil))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here

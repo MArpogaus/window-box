@@ -49,8 +49,11 @@ On a graphic display the box uses the row itself:
   on the baseline.
 
 The box keeps the content, the fonts and the colors of the row.  It
-removes only the underline and the border of that row, because these
-would be at the same place as the edge.
+removes the underline and the border of a row that is inside it,
+because both are drawn where the box draws.  It removes them from
+each row inside the box and not only from the one that carries the
+edge, or a row would change its look when the edge moves to the row
+above it.
 
 Where no row is at the boundary, the box draws a row of its own.  A
 window without a mode line gets such a row at the bottom.  A window
@@ -174,11 +177,18 @@ applies in the windows with a box, and nowhere else.
 Other packages also dress windows.  A rule for a side window can set
 its parameters each time it shows a buffer, and this removes the box.
 
-The mode adds =window-box--refresh= to three hooks:
+The mode adds =window-box--refresh= to four hooks:
 
 - =window-buffer-change-functions=
 - =window-configuration-change-hook=
 - =after-change-major-mode-hook=
+- =window-state-change-functions=
+
+The last one gives the box the last word.  A display rule can write
+the same window parameters that the box writes, and
+=auto-side-windows= does this on each display of the buffer.  Whoever
+runs last wins.  This hook runs from the redisplay, after everything
+in the cycle has had its say.
 
 A theme change is not a window change, and it changes the color of
 the box.  The mode therefore also adds =window-box--refresh-frames=

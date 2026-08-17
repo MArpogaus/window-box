@@ -474,6 +474,13 @@ its keymap and its face."
         (setq pos end)))
     (or row content)))
 
+(defun window-box--row-faces (parameter)
+  "Return the faces that draw the row PARAMETER names.
+A mode line has one for the selected window and one for the others."
+  (if (eq parameter 'mode-line-format)
+      '(mode-line-active mode-line-inactive)
+    (list (window-box--row-part parameter :name))))
+
 (defun window-box--row (parameter)
   "Return the row PARAMETER names with the box\='s ends on it.
 Called from the window parameter the box sets, so the window being
@@ -582,15 +589,21 @@ Call it with the window's buffer current."
     (pcase-dolist (`(,edge . ,parameter) (delq nil (list (and (consp top) top)
                                                          (and (consp bottom)
                                                               bottom))))
-      (dolist (face (if (eq parameter 'mode-line-format)
-                        '(mode-line-active mode-line-inactive)
-                      (list (window-box--row-part parameter :name))))
+      (dolist (face (window-box--row-faces parameter))
         (push (cons face
                     (if (eq edge 'overline)
                         (list :overline color :underline nil :box nil)
                       (list :underline (list :color color :position 0)
                             :overline nil :box nil)))
               wanted)))
+    ;; A row that is inside the box gives up the underline and the
+    ;; border of its own face, wherever the edge of the box happens to
+    ;; be.  Both are drawn where the box draws, and a row must not
+    ;; change its look because the edge moved to the row above it.
+    (dolist (parameter dressed)
+      (dolist (face (window-box--row-faces parameter))
+        (unless (assq face wanted)
+          (push (cons face (list :underline nil :box nil)) wanted))))
     ;; A row of the box's own, where a row is free for one.
     (dolist (parameter '(tab-line-format mode-line-format))
       (let ((own (and (eq (if (eq parameter 'tab-line-format) top bottom) 'own)
@@ -798,6 +811,13 @@ two sides.  See the commentary for how the box is built."
         ;; permanent-local, so the box is drawn again from scratch —
         ;; which is what the cleared cookies ask for.
         (add-hook 'after-change-major-mode-hook #'window-box--refresh)
+        ;; The last word.  A display rule can write the same window
+        ;; parameters the box writes — `auto-side-windows' does, on
+        ;; each display of the buffer — and whoever runs last wins.
+        ;; This hook runs from the redisplay, after everything in the
+        ;; cycle has had its say, so the box dresses the row again
+        ;; before the frame is drawn.
+        (add-hook 'window-state-change-functions #'window-box--refresh)
         ;; A theme change is not a window change, and the color of the
         ;; box comes from a face.
         (add-hook 'enable-theme-functions #'window-box--refresh-frames)
