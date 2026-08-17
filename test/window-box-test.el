@@ -674,28 +674,25 @@ window does, and the padding is the columns between it and the text."
                                 (cadr (get-text-property 1 'display prefix)))))
       (window-box-mode -1))))
 
-(ert-deftest window-box-test-a-side-asks-the-font ()
-  "A side is a hairline where the font draws one, a column where not.
+(ert-deftest window-box-test-a-side-is-a-character-or-a-column ()
+  "A side is the character of the pair, or a column where there is none.
 A block character is one pixel at the edge of its cell, which is what
-the box draws everywhere else, and how tall its ink is, is the font\='s
-business.  Where the ink is shorter than a line the pixels between the
-lines stay bare, so the box asks and falls back to a column of its own
-color."
+the box draws everywhere else.  Nil fills the whole cell with the
+color of the box instead, for a font that draws the character shorter
+than a line."
   (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t)))
     (let ((window-box-side-characters "▏▕"))
-      (cl-letf (((symbol-function 'window-box--covers-line-p)
-                 (lambda (&rest _) t)))
-        (should (equal (substring-no-properties (window-box--side 'left)) "▏"))
-        (should (equal (substring-no-properties (window-box--side 'right)) "▕")))
-      (cl-letf (((symbol-function 'window-box--covers-line-p) #'ignore))
+      (should (equal (substring-no-properties (window-box--side 'left)) "▏"))
+      (should (equal (substring-no-properties (window-box--side 'right)) "▕"))
+      (should (equal (plist-get (get-text-property 0 'face
+                                                   (window-box--side 'left))
+                                :foreground)
+                     (window-box--color))))
+    (dolist (value '(nil "" "▏▕▏"))
+      (let ((window-box-side-characters value))
         (should (equal (substring-no-properties (window-box--side 'left)) " "))
         (should (plist-get (get-text-property 0 'face (window-box--side 'left))
-                           :background))))
-    ;; and nil asks for the column from the start
-    (let ((window-box-side-characters nil))
-      (cl-letf (((symbol-function 'window-box--covers-line-p)
-                 (lambda (&rest _) (error "the font was asked for nothing"))))
-        (should (equal (substring-no-properties (window-box--side 'left)) " "))))))
+                           :background))))))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
