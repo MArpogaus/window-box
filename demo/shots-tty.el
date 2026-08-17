@@ -5,6 +5,10 @@
 (require 'window-box)
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
 (menu-bar-mode -1)
+;; The color every picture in the README draws the box in.  A
+;; terminal of 256 colors has no #5e81ac; Emacs sends the nearest,
+;; #5f87af, which the eye cannot tell from it.
+(setq-default window-box-color "#5e81ac")
 
 (defun shots-tty--buffer (name encloses text)
   "Return a buffer NAME showing TEXT, with ENCLOSES set in it."
