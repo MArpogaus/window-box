@@ -18,19 +18,24 @@ import time
 import pyte
 from PIL import Image, ImageDraw, ImageFont
 
-COLS, ROWS = 84, 26
+WIDTH, ROWS = 852, 26
 # In order of preference, among the fonts that have the box drawing
 # characters — a font without them draws the box as nothing at all.
 FONTS = ["Source Code Pro", "DejaVu Sans Mono", "Liberation Mono"]
 SIZE = 15
 PAD = 10
-BACKGROUND = (28, 31, 38)
-FOREGROUND = (216, 222, 233)
+# The palette of the graphic screenshots: white ground, near black
+# text, the grey of a GUI mode line for reverse video, and "blue" as
+# the #5e81ac the graphic pictures draw the box in.  One theme for
+# every picture in the README.
+BACKGROUND = (255, 255, 255)
+FOREGROUND = (26, 26, 26)
+REVERSE = (229, 229, 229)
 NAMED = {
-    "black": (28, 31, 38), "red": (191, 97, 106), "green": (163, 190, 140),
-    "brown": (235, 203, 139), "blue": (94, 129, 172),
-    "magenta": (180, 142, 173), "cyan": (136, 192, 208),
-    "white": (216, 222, 233), "default": None,
+    "black": (26, 26, 26), "red": (150, 75, 85), "green": (90, 120, 60),
+    "brown": (146, 110, 42), "blue": (94, 129, 172),
+    "magenta": (140, 100, 133), "cyan": (70, 120, 135),
+    "white": (250, 250, 250), "default": None,
 }
 
 
@@ -50,12 +55,12 @@ def find_font():
     raise SystemExit("no font with box drawing characters found")
 
 
-def capture(script):
+def capture(script, cols):
     """Return the pyte screen after Emacs has drawn SCRIPT's session."""
-    screen = pyte.Screen(COLS, ROWS)
+    screen = pyte.Screen(cols, ROWS)
     stream = pyte.ByteStream(screen)
     env = dict(os.environ, TERM="xterm-256color",
-               COLUMNS=str(COLS), LINES=str(ROWS))
+               COLUMNS=str(cols), LINES=str(ROWS))
     emacs = env.get("EMACS", "emacs")
     pid, handle = pty.fork()
     if pid == 0:
@@ -85,23 +90,35 @@ def color(name, fallback):
         return fallback
 
 
-def paint(screen, path):
-    """Draw SCREEN into PATH."""
+def geometry(font):
+    """Return the columns and the left padding for the fixed WIDTH."""
+    width = font.getlength("M")
+    cols = int((WIDTH - 2 * PAD) // width)
+    pad = (WIDTH - int(width * cols)) // 2
+    return cols, pad
+
+
+def paint(screen, cols, pad, path):
+    """Draw SCREEN into PATH, on a canvas of exactly WIDTH pixels."""
     font = ImageFont.truetype(find_font(), SIZE)
     ascent, descent = font.getmetrics()
     width = font.getlength("M")
     height = ascent + descent
-    image = Image.new("RGB", (int(width * COLS) + 2 * PAD,
-                              height * ROWS + 2 * PAD), BACKGROUND)
+    image = Image.new("RGB", (WIDTH, height * ROWS + 2 * PAD), BACKGROUND)
     draw = ImageDraw.Draw(image)
     for row in range(ROWS):
-        for column in range(COLS):
+        for column in range(cols):
             cell = screen.buffer[row][column]
             foreground = color(cell.fg, FOREGROUND)
             background = color(cell.bg, BACKGROUND)
             if cell.reverse:
-                foreground, background = background, foreground
-            x, y = PAD + column * width, PAD + row * height
+                # A terminal shows reverse video; the theme of these
+                # pictures shows the grey of a GUI mode line.
+                if background == BACKGROUND:
+                    background = REVERSE
+                else:
+                    foreground, background = background, foreground
+            x, y = pad + column * width, PAD + row * height
             if background != BACKGROUND:
                 draw.rectangle([x, y, x + width, y + height], fill=background)
             if cell.data.strip():
@@ -112,7 +129,9 @@ def paint(screen, path):
 
 def main():
     script, target = sys.argv[1], sys.argv[2]
-    paint(capture(script), target)
+    font = ImageFont.truetype(find_font(), SIZE)
+    cols, pad = geometry(font)
+    paint(capture(script, cols), cols, pad, target)
     print(f"wrote {target}")
     return 0
 

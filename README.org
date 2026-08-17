@@ -41,8 +41,8 @@ the box and the text.
 
 [[file:img/demo.gif]]
 
-The picture below shows two side windows with a box.  The frame comes
-from =make gui=, which also measures the box.
+The picture below shows two side windows with a box.  The main
+window keeps its own dressing.
 
 [[file:img/screenshot.png]]
 

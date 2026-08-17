@@ -108,11 +108,45 @@ mode-line)\nthe whole window, which is the default\n"
     (setq window-box-window-predicate nil)
     (delete-other-windows)))
 
+(defun shots-screenshot ()
+  "Two side windows boxed, the main window plain."
+  (set-frame-size (selected-frame) 840 520 t)
+  ;; The resize is an X round trip; drawing before it lands would
+  ;; export the frame at the last scene's height.
+  (sit-for 0.3)
+  (let ((main (get-buffer-create "*main*")))
+    (with-current-buffer main
+      (erase-buffer)
+      (insert "The main window keeps its own dressing.\n")
+      (goto-char (point-min))
+      (setq-local mode-line-format " *main* "))
+    (switch-to-buffer main)
+    (delete-other-windows)
+    (dolist (spec '(("*top*" top "The top side window is boxed.\n")
+                    ("*bottom*" bottom "The bottom side window is boxed.\n")))
+      (let ((buffer (get-buffer-create (car spec))))
+        (with-current-buffer buffer
+          (erase-buffer)
+          (insert (nth 2 spec))
+          (goto-char (point-min))
+          (setq-local header-line-format (format " %s " (car spec))
+                      mode-line-format nil)
+          (window-box-mode 1))
+        (display-buffer-in-side-window
+         buffer `((side . ,(nth 1 spec)) (window-height . 6)))))
+    (window-box--refresh)
+    (force-mode-line-update t)
+    (shots--write "screenshot.png")
+    (dolist (name '("*top*" "*bottom*"))
+      (with-current-buffer name (window-box-mode -1)))
+    (delete-other-windows)))
+
 (run-with-timer
  1.0 nil
  (lambda ()
    (condition-case err
-       (progn (shots-encloses) (shots-windows) (kill-emacs 0))
+       (progn (shots-encloses) (shots-windows) (shots-screenshot)
+              (kill-emacs 0))
      (error (write-region (format "shots: %S\n" err) nil
                           "/tmp/window-box-shots-error.txt" nil 'quiet)
             (kill-emacs 1)))))
