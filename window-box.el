@@ -137,23 +137,25 @@ go the row that closes the box carries the corners instead."
               (const :tag "Mode line" mode-line))
   :local t)
 
-(defcustom window-box-side-characters "▏▕"
+(defcustom window-box-side-characters nil
   "How the sides are drawn on a graphic display.
-Two characters, in order the left side and the right side.  A margin
-holds one character of the frame\='s font, which is wider than a line,
-so the pair is a character that is a line at the edge of its own
-cell.  The default pair lands on the outermost pixel of the window,
-where the horizontal edges end.
+Nil draws a column of margin in the box color.  A face fills the whole
+cell, and it fills it for each line, so the sides are one unbroken
+line whatever the font does.
 
-How much of its cell a character covers is the font\='s business.  A
-font whose block characters are shorter than a line draws the sides
-with a gap at each line.  Nil draws a solid column in the box color
-instead, which every font gives you.
+A string of two characters draws those instead, in order the left side
+and the right side.  A pair such as \"▏▕\" is a hairline at the edge of
+its own cell, which lands on the outermost pixel of the window where
+the horizontal edges end.  How much of its cell a character covers is
+the font\='s business, though: a font whose block characters are
+shorter than a line draws the sides with a gap at each line, and the
+box then reads as a dashed line.  Measured in one frame, the pair left
+139 rows of gap where the column left none.
 
 A value that is neither nil nor exactly two characters long is
 ignored and the default drawn instead, for the reason
 `window-box-characters\=' gives."
-  :type '(choice (const :tag "A solid column" nil)
+  :type '(choice (const :tag "A column of the margin" nil)
                  (string :tag "Two characters, in the order ▏ ▕")))
 
 (defcustom window-box-padding 0
