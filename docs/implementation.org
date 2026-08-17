@@ -105,12 +105,18 @@ the row itself:
   continues below or above the row.
 
 The box aligns the end at the right with a computed position, and not
-with the right edge of the text area.  A margin of the buffer\='s own
-lies outside that edge, and the row spans the margin: a graphic
-display counts the width of the margin in pixels, and a terminal
-counts it in columns.  A terminal spends one column of a
-window on the separator to the window at its right.  That column is
-not part of the text area.
+with the right edge of the text area.  The margin and the fringe both
+lie outside that edge, and the row spans the two of them: a graphic
+display counts their widths in pixels, less the end\='s own pixel, and
+a terminal counts the margins in columns.  A terminal spends one
+column of a window on the separator to the window at its right.  That
+column is not part of the text area.
+
+A row can also be wider than its window: the default mode line fills
+it and more.  Content that reaches the edge pushes the stretch and
+the end past it, where redisplay clips them away, so the drawn
+content is cut a column short of the row.  Stock redisplay clips such
+a row at the window\='s edge, so the cut loses nothing that was shown.
 
 The content of the row can align something to the right edge itself.
 A header line with a button at its right hand end does this, and that
