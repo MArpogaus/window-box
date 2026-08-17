@@ -4,10 +4,8 @@
                                                 load-file-name)))
 (require 'window-box)
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
-;; One pixel fringes from the start: the box narrows the fringes to
-;; its own width, and with the default eight the text would shift by
-;; seven pixels the moment a box appears.
-(fringe-mode 1)
+;; The fringes stay as they are: the box draws its sides in the
+;; margins and leaves the fringes to their indicators.
 (menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
 (blink-cursor-mode -1)
 (setq-default cursor-type 'bar)

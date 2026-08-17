@@ -525,8 +525,8 @@ free and leaves the closing to the row that ends the box."
                      window-box--header-row-format))
       (let ((row (window-box--row 'header-line-format)))
         (should (equal (nth 1 row) " header "))
-        (should (equal (nth 0 row) (window-box--cap 4)))
-        (should (equal (nth 3 row) (window-box--cap 4))))
+        (should (equal (nth 0 row) (window-box--cap 4 'left)))
+        (should (equal (nth 3 row) (window-box--cap 4 'right))))
       (window-box--clear window)
       (should-not (window-parameter window 'header-line-format)))))
 
@@ -581,72 +581,23 @@ the entry remains.  The next round adds another one on top."
 
 (ert-deftest window-box-test-a-theme-change-renews-the-color ()
   "The box takes the color of the theme that is on now.
-The color of the fringes lives in a face remap, and a remap is made
-when a window is dressed.  A theme change dresses no window, so the
-box would keep the color of the old theme until something else did."
+The horizontal edges live in face remaps, and a remap is made when a
+window is dressed.  A theme change dresses no window, so the box
+would keep the color of the old theme until something else did.  The
+sides read the `window-box\=' face where they are drawn, so they follow
+a theme by themselves."
   (window-box-test--with-buffer
-    (let ((window-box-color nil))
-      (set-face-foreground 'window-box "#111111")
-      (window-box-mode 1)
-      (should (member #'window-box--refresh-frames enable-theme-functions))
-      (should (equal (nth 2 (assq 'fringe window-box--cookies))
-                     '(:background "#111111")))
-      ;; a theme change, and the box follows it
-      (set-face-foreground 'window-box "#eeeeee")
+    (window-box-mode 1)
+    (should (member #'window-box--refresh-frames enable-theme-functions))
+    (window-box-mode -1))
+  ;; each frame, since a theme change reaches them all
+  (let (seen)
+    (cl-letf (((symbol-function 'frame-list) (lambda () '(one two)))
+              ((symbol-function 'window-box--refresh)
+               (lambda (&optional frame) (push frame seen))))
       (window-box--refresh-frames 'a-theme)
-      (should (equal (nth 2 (assq 'fringe window-box--cookies))
-                     '(:background "#eeeeee")))
-      (window-box-mode -1)
-      (set-face-foreground 'window-box 'unspecified))
-    ;; and each frame, since a theme change reaches them all
-    (let (seen)
-      (cl-letf (((symbol-function 'frame-list) (lambda () '(one two)))
-                ((symbol-function 'window-box--refresh)
-                 (lambda (&optional frame) (push frame seen))))
-        (window-box--refresh-frames 'a-theme)
-        ;; the window hooks fire in here as well, so ask for the two
-        ;; frames rather than for the whole list
-        (should (memq 'one seen))
-        (should (memq 'two seen))))))
-
-(ert-deftest window-box-test-a-row-leaves-room-for-the-end ()
-  "What a row aligns to its right edge stops before the box\='s end.
-A header line with a button at its right hand end aligns that button
-to `right\=', which is the column the box puts its own end in.  The
-alignments of the content are therefore moved in by one."
-  (should (equal (window-box--indented 'right) '(- right 1)))
-  (should (equal (window-box--indented '(space :align-to right))
-                 '(space :align-to (- right 1))))
-  ;; an alignment that already counts back from the right counts back
-  ;; from the new one
-  (should (equal (window-box--indented '(space :align-to (- right 2)))
-                 '(space :align-to (- (- right 1) 2))))
-  ;; a width, and anything else the content brought, is left alone
-  (should (equal (window-box--indented '(space :width (1)))
-                 '(space :width (1))))
-  ;; a session that draws nothing gives the content back as it came
-  (should (equal (window-box--fitted " header ") " header ")))
-
-(ert-deftest window-box-test-a-row-the-buffer-gains-is-given-back ()
-  "A buffer that gains a mode line gets the row back from the box.
-The box draws a row of its own where the window shows none.  The
-buffer can set its own format later, and the row is the buffer\='s
-then.  One question answers this: what does the window show there
-without the box."
-  (window-box-test--with-buffer
-    (setq-local mode-line-format nil)
-    (let ((window (selected-window)))
-      (window-box--apply window)
-      (should (equal (window-parameter window 'mode-line-format)
-                     window-box--bottom-format))
-      (should-not (window-box--line-visible-p window 'mode-line-format))
-      ;; the buffer speaks up
-      (setq-local mode-line-format "mine")
-      (should (window-box--line-visible-p window 'mode-line-format))
-      (window-box--apply window)
-      (should-not (equal (window-parameter window 'mode-line-format)
-                         window-box--bottom-format))
-      (window-box--clear window))))
+      (should (memq 'one seen))
+      (should (memq 'two seen)))))
 
 (ert-deftest window-box-test-a-row-inside-keeps-its-look ()
   "A row inside the box looks the same wherever the edge is.
@@ -700,6 +651,28 @@ runs, after everything in the cycle has had its say."
       (should (equal (window-parameter window 'header-line-format)
                      " from a rule "))
       (set-window-parameter window 'header-line-format nil))))
+
+(ert-deftest window-box-test-the-sides-take-a-margin-and-the-padding ()
+  "The box takes one column for a side and `window-box-padding\=' more.
+The side goes in the outermost column, so the box ends where the
+window does, and the padding is the columns between it and the text."
+  (window-box-test--with-buffer
+    (let ((window-box-padding 0))
+      (should (= (window-box--width) 1))
+      (window-box-mode 1)
+      (should (equal (window-margins (selected-window)) '(1 . 1)))
+      (window-box-mode -1))
+    (let ((window-box-padding 3))
+      (should (= (window-box--width) 4))
+      (window-box-mode 1)
+      (should (equal (window-margins (selected-window)) '(4 . 4)))
+      ;; the side first on the left and last on the right
+      (let ((prefix (window-box--prefix)))
+        (should (string-match-p "\\`│   "
+                                (cadr (get-text-property 0 'display prefix))))
+        (should (string-match-p "   │\\'"
+                                (cadr (get-text-property 1 'display prefix)))))
+      (window-box-mode -1))))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here

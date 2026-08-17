@@ -24,7 +24,11 @@
      (set-window-buffer right (get-buffer-create "*beside*"))
      (with-current-buffer "*beside*"
        (insert "boxed beside it\n")
-       (setq-local mode-line-format nil)
+       (setq-local mode-line-format nil
+                   ;; and with padding: the box takes a column for its
+                   ;; side and two more for air, and the side stays at
+                   ;; the window's edge
+                   window-box-padding 2)
        (window-box-mode 1)))
    ;; A window with rows of its own, and the box drawn around them:
    ;; the top edge takes the free tab line row, and the mode line

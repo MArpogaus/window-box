@@ -68,6 +68,15 @@ for number, line in enumerate(lines):
                             f"never closes: {line!r}")
 if "boxed in the terminal" not in "\n".join(lines):
     failures.append("buffer text missing")
+# The padded window: the side stays at the window's edge and the text
+# starts two columns further in.
+padded = [l for l in lines if "boxed beside it" in l]
+if not padded:
+    failures.append("the padded window is not on the screen")
+else:
+    piece = padded[0].split("|")[-1]
+    if not piece.startswith("│  boxed"):
+        failures.append(f"the padding is not between side and text: {piece!r}")
 # The window that keeps its own rows: the box takes them in, so its
 # header line rides between the sides and its mode line closes the
 # box, a terminal having no row below one.

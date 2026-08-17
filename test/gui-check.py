@@ -17,6 +17,7 @@ ENCLOSES_GEOMETRY = "/tmp/window-box-encloses.txt"
 WIDTH = 1                      # window-box draws one pixel lines
 BOX = (127, 127, 127)          # the `shadow' foreground of the default theme
 PAPER = (255, 255, 255)        # the default background, where no line is
+CELL = 12                      # the widest character cell the rig's font uses
 
 
 def close(pixel, want, tolerance=40):
@@ -66,10 +67,17 @@ def check(image, windows):
         if len(rows) < 2:
             failures.append(f"window at {left},{top}: want a top and a bottom "
                             f"edge, found {[r[0] for r in rows]}")
-        for run in columns + rows:
+        for run in rows:
             if len(run) != WIDTH:
-                failures.append(f"window at {left},{top}: an edge is "
-                                f"{len(run)} pixels, want {WIDTH}")
+                failures.append(f"window at {left},{top}: a horizontal edge "
+                                f"is {len(run)} pixels, want {WIDTH}")
+        # A side is a character or a colored space in the outermost
+        # column of the margin, so it is as wide as the font's cell at
+        # most, and as narrow as a hairline at least.
+        for run in columns:
+            if not 1 <= len(run) <= CELL:
+                failures.append(f"window at {left},{top}: a side is "
+                                f"{len(run)} pixels, want 1 to {CELL}")
     return failures, found
 
 
@@ -82,30 +90,35 @@ def check_encloses(image, windows):
     row it takes in.
     """
     failures, found = [], []
-    for left, top, right, bottom, want_top, want_bottom in windows:
+    for left, top, right, bottom, want_top, want_bottom, sides in windows:
         edges = [y for y in range(top, bottom)
                  if sum(1 for x in range(left, right)
                         if close(image.getpixel((x, y)), BOX))
                  > (right - left) * 0.9]
         found.append(((left, top), edges, (want_top, want_bottom),
-                      "both sides" if left == 0 else "right side only, "
-                      "the left one is Emacs's window border"))
+                      "no sides, the buffer keeps its margins" if not sides
+                      else "both sides" if left == 0
+                      else "right side only, the left one is Emacs's border"))
         if want_top not in edges:
             failures.append(f"window at {left},{top}: no top edge at "
                             f"y={want_top}, edges at {edges}")
         if want_bottom not in edges:
             failures.append(f"window at {left},{top}: no bottom edge at "
                             f"y={want_bottom}, edges at {edges}")
-        # The first pixel column of a window that has a neighbour on
-        # its left belongs to Emacs: it draws its own border between
-        # the two there, over the box's fringe, in the frame's colour
-        # and only down to the last full row of text.  That column is
-        # not the box's to answer for, so only the right one is
-        # measured for such a window.
-        columns = [right - 1] if left else [left, right - 1]
-        gaps = [y for y in range(want_top, want_bottom + 1)
-                if not all(close(image.getpixel((x, y)), BOX)
-                           for x in columns)]
+        # The sides are a character in the outermost column of the
+        # margin, and how much of that cell the character covers is
+        # the font's business.  So the check asks each side for a
+        # pixel of the box's colour somewhere in that column.
+        #
+        # The first column of a window that has a neighbour on its
+        # left belongs to Emacs: it draws its own border there, in the
+        # frame's colour.  That column is not the box's to answer for.
+        cells = [range(left, left + CELL)] if not left else []
+        cells.append(range(right - CELL, right))
+        gaps = [] if not sides else [
+            y for y in range(want_top, want_bottom + 1)
+            if not all(any(close(image.getpixel((x, y)), BOX) for x in cell)
+                       for cell in cells)]
         if gaps:
             failures.append(f"window at {left},{top}: the sides break at "
                             f"y={gaps[:5]}{' and on' if len(gaps) > 5 else ''}")

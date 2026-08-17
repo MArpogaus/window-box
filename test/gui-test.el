@@ -17,6 +17,20 @@
 
 (require 'window-box)
 
+;; The sides are a character in a margin, and how much of its cell a
+;; character covers is the font's business.  The measurement needs a
+;; font whose side character is a line down the whole cell.
+(let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
+                      '("Noto Sans Mono" "DejaVu Sans Mono"
+                        "Liberation Mono"))))
+  (when font (set-frame-font (format "%s 13" font) nil t)))
+
+;; How much of its cell a character covers is the font's business, and
+;; the default pair is a thin line only where the font draws it that
+;; way.  The measurement takes the solid column instead, so that a gap
+;; in a side is the package's fault and not the font's.
+(setq window-box-side-characters nil)
+
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.
 (menu-bar-mode -1)
@@ -137,7 +151,7 @@ TABS non-nil gives it a tab line of its own."
 (defun gui-test--encloses ()
   "Export a frame with one window per `window-box-encloses\=' setting."
   ;; Four windows with a header, a mode line and room to see them.
-  (set-frame-size (selected-frame) 700 760 t)
+  (set-frame-size (selected-frame) 700 900 t)
   (switch-to-buffer (gui-test--example "*text*" nil nil))
   (delete-other-windows)
   (let* ((first (selected-window))
@@ -148,6 +162,10 @@ TABS non-nil gives it a tab line of its own."
     (set-window-buffer second (gui-test--example "*header*" '(header-line) nil))
     (set-window-buffer third (gui-test--example "*header and mode*"
                                                 '(header-line mode-line) nil))
+    ;; and one with padding: the box takes a column for its side and
+    ;; two more for air, and the side stays at the window's edge.
+    (with-current-buffer (window-buffer second)
+      (setq-local window-box-padding 2))
     (set-window-buffer fourth (gui-test--example "*everything*"
                                                  '(tab-line header-line
                                                             mode-line)
@@ -180,7 +198,19 @@ TABS non-nil gives it a tab line of its own."
                            " ")
                           (string-join
                            (mapcar #'number-to-string
-                                   (gui-test--wanted window))
+                                   (append (gui-test--wanted window)
+                                           ;; whether the box draws
+                                           ;; sides here at all: a
+                                           ;; buffer that keeps its
+                                           ;; own margins gets none
+                                           ;; asked in the window's
+                                           ;; own buffer, because the
+                                           ;; padding is the buffer's
+                                           (list (if (with-current-buffer
+                                                         (window-buffer window)
+                                                       (window-box--wide-margins-p
+                                                        window))
+                                                     0 1))))
                            " ")))
                 windows "")
      nil gui-test-encloses-geometry nil 'quiet)

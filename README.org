@@ -25,11 +25,14 @@
 ** About The Project
 
 =window-box-mode= draws a box around each window that shows the
-buffer.  On a graphic display the box is one pixel wide.  In a
-terminal the box is made of box drawing characters.
+buffer.  The sides are drawn in the margins of the window, on a
+graphic display as in a terminal.  The horizontal edges are drawn on
+the rows the window has.
 
-The mode does not change what your header line and your mode line
-show.  It draws its edges around them, or between them and the text.
+The mode leaves the fringes alone, so their indicators stay where you
+can read them.  It does not change what your header line and your
+mode line show, and =window-box-padding= buys air between the box and
+the text.
 
 [[file:img/demo.gif]]
 
@@ -117,12 +120,22 @@ The package has few options:
 | =window-box=                  | the face of the box; its foreground is the color     |
 | =window-box-color=            | one color for the box, buffer-local if you set it so |
 | =window-box-encloses=         | the rows that are inside the box                     |
+| =window-box-padding=          | columns between a side and the text                  |
+| =window-box-side-characters=  | the two characters of the sides on a graphic display |
 | =window-box-attached-edges=   | edges on the rows you have, or rows of their own     |
 | =window-box-characters=       | the characters of the box in a terminal              |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
 
-The box is always one pixel wide.  An overline cannot be thicker, and
-the other edges keep to that width.
+The horizontal edges are one pixel.  An overline cannot be thicker.
+A side is one column of margin, and how much of that column it fills
+is the character it is drawn with: the default pair is a line at the
+edge of its own cell.
+
+Give a buffer more air:
+
+#+begin_src emacs-lisp
+  (setq-local window-box-padding 2)
+#+end_src
 
 Give one buffer its own color:
 
@@ -165,9 +178,14 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 ** Known Limits
 
-- In a terminal the side edges are characters on the lines of text.
-  They stop where the buffer ends.  On a graphic display the side
-  edges are fringes, and fringes run the full height of the window.
+- A side is a character in a margin, and how much of its cell a
+  character covers is the font's business.  A font whose block
+  characters are shorter than a line draws the sides with a gap at
+  each line.  Set =window-box-side-characters= to nil for a solid
+  column, which every font gives you.
+- The box takes one column of the window on each side, and
+  =window-box-padding= more.  A buffer that uses its margins for its
+  own text keeps them and gets the horizontal edges alone.
 - In a terminal an edge needs a row of its own, and a window has only
   so many rows.  The top edge uses the tab line row if the window
   shows no tabs.  There is no row below the mode line.  The box has
@@ -178,22 +196,18 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   row that fills its full width loses the last column to the edge.
 - On a graphic display Emacs draws its own border in the first pixel
   column of a window that has a neighbour on its left.  This border
-  covers the fringe of the box.  A line is there in each case, but it
-  has the color of the frame and not the color of the box.
-- The color of the fringes belongs to the buffer, because a face
-  remap does.  Fringe indicators such as continuation arrows get the
-  color of the box.
+  covers the side of the box there.  A line is there in each case,
+  but it has the color of the frame and not the color of the box.
 - A window that shows its own tab line keeps it.  In a terminal the
   tabs use the row of the top edge.  The box then has three edges,
   and the tab line closes it at the top.
-- A scroll bar is outside the fringe, and the right edge of the box
+- A scroll bar is outside the margin, and the right side of the box
   is then inside the scroll bar.  Turn the scroll bar off for a clean
   box.
-- The box makes the fringes of the window one pixel wide.  With the
-  default fringes of eight pixels the text moves by seven pixels.
-  =(fringe-mode 1)= keeps the text where it is.
 - An edge on a row takes one pixel from the height of that row.  The
   text moves down by one pixel when the box appears.
+- The sides are drawn along the lines of the buffer, so a window whose
+  buffer is empty gets the horizontal edges and no sides.
 
 ** Comparison with buffer-box
 
@@ -204,9 +218,8 @@ There are four differences:
 - buffer-box replaces the header line and the mode line with its own.
   window-box keeps what they show.
 - buffer-box draws the side edges with overlays, which stop at the
-  end of the text.  window-box uses the =line-prefix= of the buffer
-  in a terminal, and the fringes on a graphic display.  Both reach
-  the rows below the last line of text.
+  end of the text.  window-box uses the =line-prefix= of the buffer,
+  which reaches the rows below the last line of text as well.
 - buffer-box sets the fringes of the frame to zero, and gives advice
   to =set-window-margins= and =set-window-fringes=.  window-box
   changes nothing global.
