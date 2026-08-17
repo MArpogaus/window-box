@@ -221,10 +221,41 @@ TABS non-nil gives it a tab line of its own."
       (with-current-buffer (window-buffer window) (window-box-mode -1)))
     (delete-other-windows)))
 
+(defun gui-test--order ()
+  "Check that the box puts the margins outside the fringes.
+The sides are drawn in the margins, and with the fringes outside them
+a side sits between the fringe and the text.  A window keeps that
+order, so one that another package left the other way round, or an
+older version of this package, says so.  Only a graphic display has
+fringes, so this is checked here and not in the batch suite."
+  (set-frame-size (selected-frame) 700 520 t)
+  (let ((buffer (get-buffer-create "*order*")))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert "fringes outside the margins\n"))
+    (switch-to-buffer buffer)
+    (delete-other-windows)
+    (let ((window (selected-window)))
+      (set-window-fringes window 8 8 t)
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (when (nth 2 (window-fringes window))
+        (error "The box left the fringes outside the margins"))
+      (unless (equal (seq-take (window-fringes window) 2) '(8 8))
+        (error "The box changed the fringe widths: %S"
+               (seq-take (window-fringes window) 2)))
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (unless (nth 2 (window-fringes window))
+        (error "The box kept the order it turned around")))
+    (delete-other-windows)
+    (kill-buffer buffer)))
+
 (defun gui-test--run ()
   "Box two side windows, export the frame and exit."
   (set-frame-size (selected-frame) 700 520 t)
   (gui-test--fringes)
+  (gui-test--order)
   (switch-to-buffer (get-buffer-create "*main*"))
   (delete-other-windows)
   (insert "The main window keeps its own dressing.\n")

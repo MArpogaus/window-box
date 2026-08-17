@@ -142,9 +142,18 @@ A window that comes from a split of a boxed window has the margins of
 the box already.  The box saves the widths of the buffer for such a
 window, because these are the widths that Emacs would give it.
 
-The fringes are the window's own.  The box neither reads nor writes
-them, so a fringe keeps its width and draws its indicators where you
-can read them.
+The widths of the fringes are the window's own.  The box does not
+change them, so a fringe keeps its width and draws its indicators
+where you can read them.
+
+The box does set the order of the two areas.  A window keeps whether
+its fringes are outside its margins, and the box needs them inside:
+the sides are in the margins, and with the fringes outside them a side
+sits between the fringe and the text while the horizontal edges, which
+span the row, reach past it.  The box turns that order around and
+gives it back when it goes.  A window that another package left the
+other way round, or that an older version of this package narrowed
+the fringes in, therefore comes right on the next refresh.
 
 A buffer can use its margins for its own text.  The log of magit
 writes the author and the date into a right margin of thirty columns.

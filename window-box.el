@@ -614,6 +614,23 @@ variables are killed again.")
       (kill-local-variable 'wrap-prefix))
     (setq window-box--saved-prefix nil)))
 
+(defun window-box--order (window)
+  "Put the margins of WINDOW outside its fringes.
+The sides are drawn in the margins, and the box wants them at the
+edge of the window.  With the fringes outside the margins a side sits
+between the fringe and the text, and the horizontal edges, which span
+the row, then reach past it.
+
+Emacs keeps this order in the window, so a window that another
+package left with the fringes outside its margins says so, and an
+older version of this package set it that way itself.  The widths are
+not touched, only the order, and the window gets its order back when
+the box goes."
+  (let ((fringes (window-fringes window)))
+    (when (nth 2 fringes)
+      (set-window-parameter window 'window-box--saved-fringes t)
+      (set-window-fringes window (nth 0 fringes) (nth 1 fringes) nil t))))
+
 (defun window-box--wide-margins-p (window)
   "Return non-nil when WINDOW has margins of its own to keep.
 The box needs `window-box--width\=' columns for a side and its
@@ -726,6 +743,7 @@ Call it with the window's buffer current."
     ;; as they stand, not what they were when the box went up, so a
     ;; buffer that sets them later is noticed on the next change and
     ;; the sides give way then.
+    (window-box--order window)
     (let ((width (window-box--width)))
       (if (window-box--wide-margins-p window)
           (progn
@@ -777,6 +795,11 @@ The face remaps are the buffer's and go when the mode turns off."
     (when (member (window-parameter window parameter)
                   (window-box--own-values parameter))
       (window-box--undress window parameter)))
+  ;; The order of margins and fringes, where the box turned it around.
+  (when (window-parameter window 'window-box--saved-fringes)
+    (let ((fringes (window-fringes window)))
+      (set-window-fringes window (nth 0 fringes) (nth 1 fringes) t t))
+    (set-window-parameter window 'window-box--saved-fringes nil))
   (window-box--restore window 'window-box--saved-margins
                        #'set-window-margins)
   (with-current-buffer (window-buffer window)
@@ -804,6 +827,7 @@ can hold a closure, which such a state cannot.  Those travel within
 the session only."
   (dolist (entry '((window-box . writable)
                    (window-box--saved-margins . writable)
+                   (window-box--saved-fringes . writable)
                    (window-box--saved-tab-line . t)
                    (window-box--saved-header-line . t)
                    (window-box--saved-mode-line . t)))
