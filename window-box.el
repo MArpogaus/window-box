@@ -295,41 +295,54 @@ made anew."
   "The mode line format that puts the box\='s ends on the mode line.")
 
 (defconst window-box--rows
-  '((tab-line-format tab-line window-box--saved-tab-line
-                     window-box--tab-row-format window-box--top-format)
-    (header-line-format header-line window-box--saved-header-line
-                        window-box--header-row-format)
-    (mode-line-format mode-line window-box--saved-mode-line
-                      window-box--mode-row-format window-box--bottom-format))
+  '((tab-line-format
+     :name tab-line
+     :saved window-box--saved-tab-line
+     :dressed window-box--tab-row-format
+     :own window-box--top-format)
+    (header-line-format
+     :name header-line
+     :saved window-box--saved-header-line
+     :dressed window-box--header-row-format)
+    (mode-line-format
+     :name mode-line
+     :saved window-box--saved-mode-line
+     :dressed window-box--mode-row-format
+     :own window-box--bottom-format))
   "The three rows a window can show besides its text.
-Each entry is the window parameter, the name the option
-`window-box-encloses\=' knows it by, the parameter the old value is
-kept in, the format that dresses the row with the box\='s ends, and,
-where the box can have the row to itself, the format of its own
-edge.")
+Each entry is a window parameter and a plist:
+
+  :name     what the option `window-box-encloses\=' calls the row,
+            which is also the name of its face
+  :saved    the parameter that keeps the value the row had
+  :dressed  the format that puts the box\='s ends on the row
+  :own      the format of an edge row of the box\='s own, where the
+            box can have the row to itself")
 
 (defun window-box--row-part (parameter part)
   "Return PART of the `window-box--rows\=' entry for PARAMETER.
-PART counts from zero at the name the option knows the row by."
-  (nth part (cdr (assq parameter window-box--rows))))
+PART is one of :name, :saved, :dressed and :own."
+  (plist-get (cdr (assq parameter window-box--rows)) part))
 
 (defun window-box--own-format (parameter)
   "Return the format of the box\='s own edge row in PARAMETER, or nil."
-  (when-let* ((symbol (window-box--row-part parameter 3)))
+  (when-let* ((symbol (window-box--row-part parameter :own)))
     (symbol-value symbol)))
 
 (defun window-box--dressed-format (parameter)
   "Return the format that puts the box\='s ends on the row PARAMETER."
-  (symbol-value (window-box--row-part parameter 2)))
+  (symbol-value (window-box--row-part parameter :dressed)))
 
 (defun window-box--saved-parameter (parameter)
   "Return the parameter the value PARAMETER had is kept in."
-  (window-box--row-part parameter 1))
+  (window-box--row-part parameter :saved))
 
 (defun window-box--content (window parameter)
   "Return what WINDOW shows in the row PARAMETER names, box aside.
 The window parameter wins over the buffer\='s variable, as it does in
-redisplay, and the box keeps the one it took over."
+redisplay.  A value of the box\='s own is not the window\='s, so the one
+the box put away answers in its place.  The answer can be `none\=',
+which is how a window says it hides the row."
   (let ((param (window-parameter window parameter)))
     (if (or (null param) (member param (window-box--own-values parameter)))
         (or (window-parameter window (window-box--saved-parameter parameter))
@@ -343,27 +356,14 @@ redisplay, and the box keeps the one it took over."
 
 (defun window-box--line-visible-p (window parameter)
   "Return non-nil when WINDOW shows the line PARAMETER names.
-The window parameter wins: `none\=' hides the line, any other non-nil
-value is a format of its own.  A value of the box\='s own is not a line
-the window brought along — except where the box only put its ends on
-the row, and what shows is the window\='s own row still."
-  (let ((param (window-parameter window parameter)))
-    (cond ((eq param 'none) nil)
-          ((null param) (buffer-local-value parameter (window-buffer window)))
-          ((equal param (window-box--own-format parameter)) nil)
-          ((equal param (window-box--dressed-format parameter))
-           (let ((saved (window-parameter window
-                                          (window-box--saved-parameter
-                                           parameter))))
-             (if (and saved (not (eq saved 'none)))
-                 t
-               (buffer-local-value parameter (window-buffer window)))))
-          (param t)
-          (t (buffer-local-value parameter (window-buffer window))))))
+The one question this asks is what the window shows there without the
+box, which `window-box--content\=' answers."
+  (let ((content (window-box--content window parameter)))
+    (and content (not (eq content 'none)))))
 
 (defun window-box--enclosed-p (parameter)
   "Return non-nil when `window-box-encloses\=' takes in the row PARAMETER."
-  (memq (window-box--row-part parameter 0) window-box-encloses))
+  (memq (window-box--row-part parameter :name) window-box-encloses))
 
 (defun window-box--above (window)
   "Return the rows WINDOW shows above its text, top to bottom."
@@ -584,7 +584,7 @@ Call it with the window's buffer current."
                                                               bottom))))
       (dolist (face (if (eq parameter 'mode-line-format)
                         '(mode-line-active mode-line-inactive)
-                      (list (window-box--row-part parameter 0))))
+                      (list (window-box--row-part parameter :name))))
         (push (cons face
                     (if (eq edge 'overline)
                         (list :overline color :underline nil :box nil)
@@ -774,9 +774,10 @@ windows also get theirs back here."
 ;;;###autoload
 (define-minor-mode window-box-mode
   "Draw a rectangular box around every window that shows this buffer.
-The mode line and the header line stay untouched: the box only adds
-the edges the window does not have.  See the commentary for how the
-box is built."
+What your header line and your mode line show stays yours, and
+`window-box-encloses\=' says which of the rows around the text are
+inside the box.  A row that is inside gets the ends of the box at its
+two sides.  See the commentary for how the box is built."
   :lighter ""
   (if window-box-mode
       (progn

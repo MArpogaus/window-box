@@ -627,5 +627,26 @@ alignments of the content are therefore moved in by one."
   ;; a session that draws nothing gives the content back as it came
   (should (equal (window-box--fitted " header ") " header ")))
 
+(ert-deftest window-box-test-a-row-the-buffer-gains-is-given-back ()
+  "A buffer that gains a mode line gets the row back from the box.
+The box draws a row of its own where the window shows none.  The
+buffer can set its own format later, and the row is the buffer\='s
+then.  One question answers this: what does the window show there
+without the box."
+  (window-box-test--with-buffer
+    (setq-local mode-line-format nil)
+    (let ((window (selected-window)))
+      (window-box--apply window)
+      (should (equal (window-parameter window 'mode-line-format)
+                     window-box--bottom-format))
+      (should-not (window-box--line-visible-p window 'mode-line-format))
+      ;; the buffer speaks up
+      (setq-local mode-line-format "mine")
+      (should (window-box--line-visible-p window 'mode-line-format))
+      (window-box--apply window)
+      (should-not (equal (window-parameter window 'mode-line-format)
+                         window-box--bottom-format))
+      (window-box--clear window))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
