@@ -34,17 +34,17 @@
 ;; The sides are drawn in the margins, on both displays, and the
 ;; horizontal edges on the rows the window has: a row of the box's own
 ;; where there is a free one, an overline above a row that is inside
-;; the box, an underline below one that is not.  The fringes are left
-;; alone, so their indicators stay legible, and `window-box-padding'
+;; the box, an underline below one that is not.  The fringes keep their
+;; width, so their indicators stay legible, and `window-box-padding'
 ;; buys air between a side and the text.
 ;;
 ;; Only window dressing is used:
 ;;
-;; - The sides are a character in the outermost column of the margin,
-;;   hung on the buffer's `line-prefix'.  A prefix reaches the rows
-;;   below the last line of text, where an overlay would stop, and a
-;;   character bound for a margin stays invisible in a window without
-;;   one.
+;; - The sides are the outermost column of the margin, hung on the
+;;   buffer's `line-prefix'.  A prefix reaches the rows below the last
+;;   line of text, where an overlay would stop, and a string bound for
+;;   a margin stays invisible in a window without one.  The box puts
+;;   the margins outside the fringes, which is where its sides belong.
 ;; - A row of the box's own lives in the window's tab line or mode
 ;;   line, set through the window parameter, so the buffer's own
 ;;   `tab-line-format' and `mode-line-format' are not touched — and
@@ -74,7 +74,9 @@ color per buffer.")
 (defcustom window-box-characters "┌┐└┘│─"
   "The six characters the box is drawn with in a terminal.
 In order: the four corners, the vertical edge, the horizontal edge.
-A graphic display draws one pixel lines instead.
+A graphic display draws its horizontal edges as lines of one pixel and
+its sides as a column of the margin; see
+`window-box-side-characters\='.
 
 A value that is not exactly six characters long is ignored and the
 default drawn instead.  The box is drawn from a `:eval\' in the tab
@@ -104,17 +106,6 @@ how a configuration says which places:
         (lambda (window) (window-parameter window \='window-side)))"
   :type '(choice (const :tag "Every window showing the buffer" nil)
                  function))
-
-(defcustom window-box-attached-edges t
-  "Where the horizontal edges go on a graphic display.
-Non-nil attaches them to the lines the window already has: the top
-edge becomes an overline on the header line, the bottom edge an
-overline on the mode line.  Nil, and wherever those lines are
-missing, the edge is a thin bar row of its own.  A terminal has no
-overline: there the top edge is always a row of its own, from
-`window-box-characters', and a mode line is the bottom boundary
-itself."
-  :type 'boolean)
 
 (defcustom window-box-encloses '(tab-line header-line mode-line)
   "Which of a window\='s own rows the box encloses.
@@ -236,43 +227,30 @@ are exact."
   "Return the bottom edge of the box."
   (window-box--edge 2 3))
 
-(defun window-box--sides ()
-  "Return the two characters the sides are drawn with.
-A terminal draws them from `window-box-characters\=', where the same
-character serves both sides.  A graphic display draws a margin cell
-of the frame\='s font, which is wider than a line, so it takes the
-pair from `window-box-side-characters\=' instead: each of those is a
-line at the edge of its own cell, and the line lands where the
-horizontal edges end."
-  (if (display-graphic-p)
-      (cond ((null window-box-side-characters) nil)
-            ((and (stringp window-box-side-characters)
-                  (= (length window-box-side-characters) 2))
-             (cons (aref window-box-side-characters 0)
-                   (aref window-box-side-characters 1)))
-            (t (let ((characters
-                      (eval (car (get 'window-box-side-characters
-                                      'standard-value))
-                            t)))
-                 (cons (aref characters 0) (aref characters 1)))))
-    (let ((bar (aref (window-box--characters) 4)))
-      (cons bar bar))))
-
 (defun window-box--side (side)
   "Return the string that draws SIDE of the box, `left\=' or `right\='.
-A character where `window-box-side-characters\=' names one, and a space
-in the box color where it does not: a face fills the whole cell, and
-it fills it for every line, whatever the font does with a character."
-  (let ((sides (window-box--sides)))
-    (if sides
-        (propertize (string (if (eq side 'left) (car sides) (cdr sides)))
-                    'face 'window-box)
-      (propertize " " 'face (list :background (window-box--color))))))
+A terminal draws the vertical edge from `window-box-characters\='.  A
+graphic display draws a cell of the frame\='s font, which is wider than
+a line: `window-box-side-characters\=' names a pair of characters for
+it, and where it names none the cell is a space in the box color,
+which fills it for each line whatever the font does."
+  (let ((characters (and (display-graphic-p) window-box-side-characters)))
+    (cond
+     ((not (display-graphic-p))
+      (propertize (string (aref (window-box--characters) 4))
+                  'face 'window-box))
+     ((and (stringp characters) (= (length characters) 2))
+      (propertize (string (aref characters (if (eq side 'left) 0 1)))
+                  'face 'window-box))
+     ;; A value of the wrong length is dropped, as a wrong set of
+     ;; terminal characters is, and here the default is a color rather
+     ;; than a character.
+     (t (propertize " " 'face (list :background (window-box--color)))))))
 
 (defun window-box--width ()
   "Return the margin the box needs on each side, in columns.
 One column for the side itself and `window-box-padding\=' for air."
-  (1+ (max 0 (if (natnump window-box-padding) window-box-padding 0))))
+  (1+ (if (natnump window-box-padding) window-box-padding 0)))
 
 (defun window-box--prefix ()
   "Return the line prefix that draws the sides.
@@ -287,13 +265,11 @@ padding is the columns between it and the text."
      (propertize " " 'display `((margin right-margin)
                                 ,(concat padding right))))))
 
-(defun window-box--cap (corner side)
-  "Return the box\='s end for one SIDE of a row it encloses.
-SIDE is `left\=' or `right\=', which a terminal does not need: there the
-character is CORNER, an index into `window-box-characters\=' — the
-vertical edge where the box goes on past this row, a corner where the
-row is the one that closes it."
-  (ignore side)
+(defun window-box--cap (corner)
+  "Return the box\='s end for one side of a row it encloses.
+CORNER is an index into `window-box-characters\=', which a terminal
+draws: the vertical edge where the box goes on past this row, a corner
+where the row is the one that closes it."
   (if (display-graphic-p)
       ;; A row is not a margin: a bar of one pixel lands on the
       ;; outermost pixel of the window, which is where the side below
@@ -461,8 +437,9 @@ The edge lands where the inside of the box stops: above the topmost
 row `window-box-encloses\=' takes in, and below the last row it leaves
 out."
   (let* ((above (window-box--above window))
-         (attach (and (display-graphic-p (window-frame window))
-                      window-box-attached-edges))
+         ;; A terminal has neither an overline nor an underline, so an
+         ;; edge there needs a row of its own.
+         (attach (display-graphic-p (window-frame window)))
          (inside (seq-drop-while (lambda (parameter)
                                    (not (window-box--enclosed-p parameter)))
                                  above)))
@@ -488,8 +465,7 @@ out."
 Like `window-box--top-edge\=', for the mode line: below it where
 `window-box-encloses\=' takes it in, above it where it does not, and a
 row of the box\='s own where the window shows no mode line."
-  (let ((attach (and (display-graphic-p (window-frame window))
-                     window-box-attached-edges)))
+  (let ((attach (display-graphic-p (window-frame window))))
     (cond
      ((not (window-box--line-visible-p window 'mode-line-format)) 'own)
      ((not attach) nil)
@@ -566,7 +542,7 @@ Called from the window parameter the box sets, so the window being
 redisplayed is the selected one and its buffer is current."
   (let* ((window (selected-window))
          (corners (window-box--corners window parameter)))
-    (list (window-box--cap (nth 0 corners) 'left)
+    (list (window-box--cap (nth 0 corners))
           (window-box--fitted (window-box--content window parameter))
           ;; The stretch reaches the last column, or the last pixel,
           ;; and the end goes after it — where the side edge of the
@@ -598,7 +574,7 @@ redisplayed is the selected one and its buffer is current."
                           `(space :align-to
                                   ,(+ (window-body-width)
                                       (or (cdr margins) 0) -1)))))
-          (window-box--cap (nth 1 corners) 'right))))
+          (window-box--cap (nth 1 corners)))))
 
 (defvar-local window-box--saved-prefix nil
   "What the buffer's line and wrap prefix were before the box.
@@ -781,14 +757,6 @@ Call it with the window's buffer current."
           (setq-local line-prefix prefix
                       wrap-prefix prefix))))))
 
-(defun window-box--restore (window parameter setter)
-  "Give WINDOW the dressing it had before the box.
-The old widths sit in the window PARAMETER as a list (LEFT RIGHT),
-where nil stands for the default; SETTER applies them."
-  (when-let* ((saved (window-parameter window parameter)))
-    (funcall setter window (nth 0 saved) (nth 1 saved))
-    (set-window-parameter window parameter nil)))
-
 (defun window-box--clear (window)
   "Remove the box from WINDOW.
 The face remaps are the buffer's and go when the mode turns off."
@@ -802,8 +770,10 @@ The face remaps are the buffer's and go when the mode turns off."
     (let ((fringes (window-fringes window)))
       (set-window-fringes window (nth 0 fringes) (nth 1 fringes) t t))
     (set-window-parameter window 'window-box--saved-fringes nil))
-  (window-box--restore window 'window-box--saved-margins
-                       #'set-window-margins)
+  ;; The margins the window had, where the box took them.
+  (when-let* ((saved (window-parameter window 'window-box--saved-margins)))
+    (set-window-margins window (nth 0 saved) (nth 1 saved))
+    (set-window-parameter window 'window-box--saved-margins nil))
   (with-current-buffer (window-buffer window)
     ;; The terminal sides hang on the buffer's own prefix, so they
     ;; serve every boxed window at once.  Taking it back while another
@@ -817,15 +787,16 @@ The face remaps are the buffer's and go when the mode turns off."
 
 (defun window-box--persist ()
   "Let the box\='s window parameters travel with a saved window state.
-`window-state-get\=' saves the margins and the fringes, so the box\='s own
-widths travel with a hidden side window — the mark that says they are
-the box\='s does not, unless it is named here.  Turn the mode off while
-such a window is away, and it comes back wearing the box\='s widths
-with no box and nothing that knows to take them off again.
+`window-state-get\=' saves the margins and the order of the margins and
+the fringes, so what the box set travels with a hidden side window.
+The marks that say those settings are the box\='s do not, unless they
+are named here.  Turn the mode off while such a window is away, and it
+comes back wearing the box\='s margins with no box, and nothing left
+that knows to take them off again.
 
-The widths and the mark are numbers and t, which a state written to a
-file can hold; the rows the box took over are formats, and a format
-can hold a closure, which such a state cannot.  Those travel within
+The widths and the marks are numbers and t, which a state written to a
+file can hold.  The rows the box took over are formats, and a format
+can hold a closure, which such a state cannot, so those travel within
 the session only."
   (dolist (entry '((window-box . writable)
                    (window-box--saved-margins . writable)
