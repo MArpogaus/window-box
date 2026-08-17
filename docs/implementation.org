@@ -26,10 +26,19 @@ A margin holds one character of the frame's font, and how much of
 that cell the character covers is the font's business:
 
 - =window-box-characters= gives the character in a terminal.
-- On a graphic display the default is a space in the box color, which
-  fills the whole cell for each line whatever the font does.  Two
-  characters in =window-box-side-characters= draw a hairline instead,
-  at the edge of their own cell, where the font draws them that way.
+- =window-box-side-characters= gives the pair on a graphic display.
+  Each is a hairline at the edge of its own cell, which is one pixel,
+  as the horizontal edges are.
+
+The box asks the font whether it draws the hairline over a whole line.
+=window-box--covers-line-p= reads the ink of the glyph from the font
+that draws it, with =internal-char-font= and =font-get-glyphs=, and
+compares the sum of its ascent and its descent with
+=default-line-height=.  Where the ink is shorter, the pixels between
+the lines stay bare and the side reads as a dashed line, so the box
+fills the whole cell with its color instead.  Measured at the same
+size: FiraCode draws the hairline 23 pixels tall on a line of 23, Noto
+Sans Mono 22 on a line of 26.
 
 The horizontal edges differ by display, because a terminal has no
 overline and no underline:

@@ -128,24 +128,23 @@ go the row that closes the box carries the corners instead."
               (const :tag "Mode line" mode-line))
   :local t)
 
-(defcustom window-box-side-characters nil
-  "How the sides are drawn on a graphic display.
-Nil draws a column of margin in the box color.  A face fills the whole
-cell, and it fills it for each line, so the sides are one unbroken
-line whatever the font does.
+(defcustom window-box-side-characters "▏▕"
+  "The two characters the sides are drawn with on a graphic display.
+In order: the left side and the right side.  A margin holds one
+character of the frame\='s font, which is wider than a line, so the
+pair is a character that is a hairline at the edge of its own cell.
+The default pair lands on the outermost pixel of the window, where the
+horizontal edges end, and the box is one pixel on every side.
 
-A string of two characters draws those instead, in order the left side
-and the right side.  A pair such as \"▏▕\" is a hairline at the edge of
-its own cell, which lands on the outermost pixel of the window where
-the horizontal edges end.  How much of its cell a character covers is
-the font\='s business, though: a font whose block characters are
-shorter than a line draws the sides with a gap at each line, and the
-box then reads as a dashed line.  Measured in one frame, the pair left
-139 rows of gap where the column left none.
+How tall the ink of a character is, is the font\='s business.  Where it
+is shorter than a line, the pixels between the lines stay bare and the
+side reads as a dashed line, so the box asks the font and draws a
+column of the margin in the box color instead.  A column is one
+unbroken line whatever the font does.
 
-A value that is neither nil nor exactly two characters long is
-ignored and the default drawn instead, for the reason
-`window-box-characters\=' gives."
+Nil asks for that column from the start.  A value that is neither nil
+nor exactly two characters long is ignored and the default drawn
+instead, for the reason `window-box-characters\=' gives."
   :type '(choice (const :tag "A column of the margin" nil)
                  (string :tag "Two characters, in the order ▏ ▕")))
 
@@ -217,7 +216,7 @@ are exact."
          (concat (string (aref characters left))
                  (make-string (max 0 (- width 2)) (aref characters 5))
                  (string (aref characters right))))
-       'face 'window-box))))
+       'face (list :foreground (window-box--color))))))
 
 (defun window-box--top ()
   "Return the top edge of the box."
@@ -227,24 +226,41 @@ are exact."
   "Return the bottom edge of the box."
   (window-box--edge 2 3))
 
+(defun window-box--covers-line-p (character)
+  "Return non-nil when CHARACTER is drawn over a whole line in this frame.
+The sides are one character of a margin, and a block character is a
+hairline at the edge of its cell — one pixel, which is what the box
+draws everywhere else.  How tall its ink is, is the font\='s business:
+where it is shorter than the line, the pixels between the lines stay
+bare and the side reads as a dashed line.  The font is asked, so that
+the box does not need a setting for it.
+
+Measured with three fonts at the same size: FiraCode draws the
+hairline 23 pixels tall on a line of 23, Noto Sans Mono 22 on a line
+of 26."
+  (when-let* ((font (car-safe (internal-char-font nil character)))
+              (glyphs (font-get-glyphs font 0 1 (string character)))
+              (glyph (and (> (length glyphs) 0) (aref glyphs 0))))
+    (>= (+ (aref glyph 7) (aref glyph 8)) (default-line-height))))
+
 (defun window-box--side (side)
   "Return the string that draws SIDE of the box, `left\=' or `right\='.
 A terminal draws the vertical edge from `window-box-characters\='.  A
-graphic display draws a cell of the frame\='s font, which is wider than
-a line: `window-box-side-characters\=' names a pair of characters for
-it, and where it names none the cell is a space in the box color,
-which fills it for each line whatever the font does."
-  (let ((characters (and (display-graphic-p) window-box-side-characters)))
+graphic display draws the pair in `window-box-side-characters\=', where
+the font draws them over a whole line, and a space in the box color
+where it does not: a face fills the whole cell for each line, whatever
+the font does with a character."
+  (let* ((pair (and (stringp window-box-side-characters)
+                    (= (length window-box-side-characters) 2)
+                    window-box-side-characters))
+         (character (and pair (aref pair (if (eq side 'left) 0 1)))))
     (cond
      ((not (display-graphic-p))
       (propertize (string (aref (window-box--characters) 4))
-                  'face 'window-box))
-     ((and (stringp characters) (= (length characters) 2))
-      (propertize (string (aref characters (if (eq side 'left) 0 1)))
-                  'face 'window-box))
-     ;; A value of the wrong length is dropped, as a wrong set of
-     ;; terminal characters is, and here the default is a color rather
-     ;; than a character.
+                  'face (list :foreground (window-box--color))))
+     ((and character (window-box--covers-line-p character))
+      (propertize (string character)
+                  'face (list :foreground (window-box--color))))
      (t (propertize " " 'face (list :background (window-box--color)))))))
 
 (defun window-box--width ()
@@ -277,7 +293,7 @@ where the row is the one that closes it."
       (propertize " " 'face (list :background (window-box--color))
                   'display '(space :width (1)))
     (propertize (string (aref (window-box--characters) corner))
-                'face 'window-box)))
+                'face (list :foreground (window-box--color)))))
 
 ;;;; Boxing and unboxing windows
 

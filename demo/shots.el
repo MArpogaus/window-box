@@ -10,8 +10,8 @@
 (blink-cursor-mode -1)
 (setq-default cursor-type 'bar)
 (let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
-                      '("Source Code Pro" "DejaVu Sans Mono"
-                        "Noto Sans Mono" "Liberation Mono"))))
+                      '("FiraCode Nerd Font" "Source Code Pro"
+                        "DejaVu Sans Mono" "Noto Sans Mono"))))
   (when font (set-frame-font (format "%s 13" font) nil t)))
 
 
