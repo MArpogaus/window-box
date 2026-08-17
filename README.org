@@ -29,8 +29,10 @@ buffer.  The sides are drawn in the margins of the window, on a
 graphic display as in a terminal.  The horizontal edges are drawn on
 the rows the window has.
 
-The mode leaves the fringes alone, so their indicators stay where you
-can read them.  It does not change what your header line and your
+The mode keeps the width of the fringes, so their indicators stay
+where you can read them.  It puts the margins outside them, because
+that is where the sides of the box belong, and it gives that order
+back when it goes.  It does not change what your header line and your
 mode line show, and =window-box-padding= buys air between the box and
 the text.
 
