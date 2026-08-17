@@ -25,16 +25,19 @@
 ** About The Project
 
 =window-box-mode= draws a box around each window that shows the
-buffer.  The sides are drawn in the margins of the window, on a
-graphic display as in a terminal.  The horizontal edges are drawn on
-the rows the window has.
+buffer.  The sides live in the margins of the window: one pixel of
+image at the outermost edge on a graphic display, a character in a
+terminal.  The horizontal edges are drawn on the rows the window has.
 
 The mode keeps the width of the fringes, so their indicators stay
 where you can read them.  It puts the margins outside them, because
 that is where the sides of the box belong, and it gives that order
-back when it goes.  It does not change what your header line and your
-mode line show, and =window-box-padding= buys air between the box and
-the text.
+back when it goes.  A buffer that keeps text in its margins — magit's
+log holds its dates in one — keeps them; its sides move to the
+fringes, one pixel at their outermost edge, and the margin content
+sits inside the box.  The mode does not change what your header line
+and your mode line show, and =window-box-padding= buys air between
+the box and the text.
 
 [[file:img/demo.gif]]
 
@@ -123,23 +126,15 @@ The package has few options:
 | =window-box-color=            | one color for the box, buffer-local if you set it so |
 | =window-box-encloses=         | the rows that are inside the box                     |
 | =window-box-padding=          | columns between a side and the text                  |
-| =window-box-side-characters=  | the two characters of the sides on a graphic display  |
 | =window-box-characters=       | the characters of the box in a terminal              |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
 
 The box is one pixel on every side.  The horizontal edges are one
-pixel because an overline cannot be thicker, and a side is a hairline
-at the edge of its column of margin.
-
-That hairline is a character of your font.  A font that draws its
-block characters over the whole line gives an unbroken line; one that
-draws them shorter leaves the pixels between the lines bare, and the
-side reads as dashed.  Set the option to nil for a column of the
-margin in the color of the box, which is unbroken in any font:
-
-#+begin_src emacs-lisp
-  (setq window-box-side-characters nil)
-#+end_src
+pixel because an overline cannot be thicker.  A side is a one pixel
+image exactly as tall as the line, so it tiles into one unbroken line
+in any font — a character's ink height is the font's business, and an
+option for it turned out to be a choice between dashes and pillars,
+so there is none.
 
 Give a buffer more air:
 
@@ -188,15 +183,13 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 ** Known Limits
 
-- A hairline side is a character of your font, so a font that draws
-  its block characters shorter than a line leaves bare pixels between
-  the lines.  Measured at the same size: FiraCode draws it over the
-  whole line, Noto Sans Mono four pixels short.  Set
-  =window-box-side-characters= to nil for a column of the margin,
-  which is unbroken in any font.
 - The box takes one column of the window on each side, and
   =window-box-padding= more.  A buffer that uses its margins for its
-  own text keeps them and gets the horizontal edges alone.
+  own text keeps them; on a graphic display its sides move to the
+  fringes, and a line whose fringe shows an indicator of its own —
+  magit's section arrows, a continuation arrow — shows that instead
+  of the side there.  A terminal has no fringes to move to and draws
+  such a window's horizontal edges alone.
 - In a terminal an edge needs a row of its own, and a window has only
   so many rows.  The top edge uses the tab line row if the window
   shows no tabs.  There is no row below the mode line.  The box has
