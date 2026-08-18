@@ -657,6 +657,37 @@ the user saw."
         (should-not (window-parameter window 'mode-line-format))
         (window-box--clear window)))))
 
+(ert-deftest window-box-test-an-arc-is-as-tall-as-its-row ()
+  "A row the box dresses gets arcs the height of that row.
+An image is placed against its row\='s baseline and not against the
+row\='s edge, so an arc shorter than its row lands beside the line it
+bends from.  An arc as tall as the row fills it, and there is nowhere
+else for it to go — which is why the box measures the rows where it
+dresses the window and hands the height to the drawing."
+  (window-box-test--with-buffer
+    (let ((window (selected-window)))
+      (window-box--measure window)
+      (should (equal (window-box--row-height window 'mode-line-format)
+                     (window-mode-line-height window)))
+      (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t)))
+        (let* ((window-box-radius 8)
+               (arc (window-box--cap 0 24))
+               (spec (get-text-property 0 'display arc)))
+          (should (eq (car spec) 'image))
+          (should (string-prefix-p "P1\n8 24\n"
+                                   (plist-get (cdr spec) :data)))
+          ;; a row of the box's own is the radius tall and anchored to
+          ;; its own bottom, a row the window brought is centred
+          (should (eq (plist-get (cdr (get-text-property
+                                      0 'display (window-box--cap 0 8)))
+                                 :ascent)
+                      100))
+          (should (eq (plist-get (cdr spec) :ascent) 'center))
+          ;; and with no height taken yet, the square end fits any row
+          (should (equal (get-text-property 0 'display
+                                           (window-box--cap 0 nil))
+                         '(space :width (1)))))))))
+
 (ert-deftest window-box-test-a-row-keeps-what-it-showed ()
   "A row the box draws its ends on shows the window\='s own row between them."
   (window-box-test--with-buffer

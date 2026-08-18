@@ -156,11 +156,9 @@ margin image is one line tall, so neither survives every buffer; the
 bitmap does, and there is no option for the look of the sides.
 
 Round the corners — pixels on a graphic display, ╭ ╮ ╰ ╯ in a
-terminal.  On a graphic display the corners bend on the rows the box
-draws itself, the edge rows it writes into a row your window leaves
-free; the ends on a row your window brought stay square, because an
-image cannot be pinned to such a row's edge —
-[[file:docs/implementation.org][docs/implementation.org]] has the measurements:
+terminal.  Every row the box puts its ends on bends: its own edge rows,
+and your tab line, header line or mode line where the box takes one of
+them in:
 
 #+begin_src emacs-lisp
   (setopt window-box-radius 8)
