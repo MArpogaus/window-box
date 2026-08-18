@@ -124,6 +124,7 @@ The package has few options:
 | =window-box-color=            | one color for the box, buffer-local if you set it so |
 | =window-box-encloses=         | the rows that are inside the box                     |
 | =window-box-padding=          | columns between a side and the text                  |
+| =window-box-radius=           | corner radius in pixels, zero for right angles       |
 | =window-box-characters=       | the characters of the box in a terminal              |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
 
@@ -134,6 +135,13 @@ height — an ordinary text line, a banner drawn from images, a formula
 preview.  A character's ink height is the font's business and a
 margin image is one line tall, so neither survives every buffer; the
 bitmap does, and there is no option for the look of the sides.
+
+Round the corners — pixels on a graphic display, ╭ ╮ ╰ ╯ in a
+terminal:
+
+#+begin_src emacs-lisp
+  (setopt window-box-radius 8)
+#+end_src
 
 Give a buffer more air:
 

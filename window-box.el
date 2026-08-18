@@ -155,6 +155,22 @@ draws that window\='s horizontal edges alone."
   :type 'natnum
   :local t)
 
+(defcustom window-box-radius 0
+  "Radius of the box\='s corners in pixels, or zero for right angles.
+A graphic display rounds each corner the box owns a glyph for: the
+ends of a row of the box\='s own, and the ends of a row the box has
+taken in that carries an edge.  An edge drawn on a row outside the
+box — the underline below a header the box leaves out — keeps its
+right angle, since the box holds no glyph there to bend.
+
+A terminal rounds by character: any radius above zero draws the
+default corners as ╭ ╮ ╰ ╯, and an explicit `window-box-characters\='
+is respected as it is.
+
+Set it buffer-locally for a buffer of its own roundness."
+  :type 'natnum
+  :local t)
+
 ;;;; Drawing
 
 (defun window-box--color ()
@@ -167,39 +183,71 @@ no overline at all, and an invalid `:background nil'."
       (frame-parameter nil 'foreground-color)
       "grey50"))
 
+(defun window-box--radius ()
+  "Return the corner radius the box is drawn with."
+  (if (natnump window-box-radius) window-box-radius 0))
+
 (defun window-box--characters ()
   "Return the six characters the box is drawn with.
 `window-box-characters' can be set to anything — `setq\' asks no
 `:type\' — and a shorter string would signal from inside redisplay,
 where an error repaints as one instead of naming the option that
 caused it.  Such a value is dropped for the default."
-  (if (and (stringp window-box-characters)
-           (= (length window-box-characters) 6))
-      window-box-characters
-    (eval (car (get 'window-box-characters 'standard-value)) t)))
+  (let ((default (eval (car (get 'window-box-characters 'standard-value)) t))
+        (chars (and (stringp window-box-characters)
+                    (= (length window-box-characters) 6)
+                    window-box-characters)))
+    (cond ((and chars (not (equal chars default))) chars)
+          ;; The radius rounds the default corners; an explicit choice
+          ;; above is the user's and stays.
+          ((> (window-box--radius) 0) "╭╮╰╯│─")
+          (t default))))
 
 (defun window-box--edge (left right)
-  "Return one horizontal edge of the box.
-On a graphic display that is a thin bar across the whole row, and
-LEFT and RIGHT are unused.  In a terminal it runs from corner LEFT to
-corner RIGHT, indices into `window-box-characters', and the columns
-are exact."
+  "Return one horizontal edge of the box, from corner LEFT to corner RIGHT.
+The corners are indices into `window-box-characters\='.  A graphic
+display draws a thin bar across the whole row — with a radius, a row
+as tall as the arcs at its ends.  A terminal draws characters, and
+the columns are exact."
   (if (display-graphic-p)
-      ;; The row's height comes from the display spec alone.  A face
-      ;; `:height' below one in a side window's mode line sends Emacs
-      ;; into an endless measuring recursion and it dies of a stack
-      ;; overflow; the display spec has no such effect.
-      (propertize " "
-                  ;; Background and overline both: a one pixel row of
-                  ;; the box's own takes the background in a tab line
-                  ;; but not in a mode line, where the line's own face
-                  ;; wins — the overline paints that pixel either way.
-                  'face (let ((color (window-box--color)))
-                          (list :background color :overline color))
-                  ;; Larger than any row is long: the fill stops at the
-                  ;; row's end, fringes and margins included, which is
-                  ;; where the side edges are.
-                  'display '(space :align-to 10000 :height (1)))
+      (let ((radius (window-box--radius))
+            (color (window-box--color)))
+        (if (zerop radius)
+            ;; The row's height comes from the display spec alone.  A
+            ;; face `:height' below one in a side window's mode line
+            ;; sends Emacs into an endless measuring recursion and it
+            ;; dies of a stack overflow; the display spec has none.
+            (propertize " "
+                        ;; Background and overline both: a one pixel
+                        ;; row of the box's own takes the background in
+                        ;; a tab line but not in a mode line, where the
+                        ;; line's own face wins — the overline paints
+                        ;; that pixel either way.
+                        'face (list :background color :overline color)
+                        ;; Larger than any row is long: the fill stops
+                        ;; at the row's end, fringes and margins
+                        ;; included, which is where the side edges are.
+                        'display '(space :align-to 10000 :height (1)))
+          ;; A radius needs room to bend: the row is as tall as the
+          ;; arc, the line sits on the row's outer pixel row — the
+          ;; overline of a top row, the underline of a bottom one —
+          ;; and an arc closes each end.
+          (concat
+           (window-box--cap left radius)
+           (propertize " "
+                       'face (if (< left 2)
+                                 (list :overline color)
+                               (list :underline
+                                     (list :color color :position 0)))
+                       'display `(space :align-to
+                                        (+ right
+                                           (,(+ (* (or (cdr (window-margins))
+                                                       0)
+                                                   (frame-char-width))
+                                                (cadr (window-fringes))
+                                                (- radius))))
+                                        :height (,radius)))
+           (window-box--cap right radius))))
     ;; The body and the margins, not `window-total-width': that counts
     ;; the column a terminal puts between two windows side by side, and
     ;; an edge one column too long loses its last corner off the end.
@@ -268,17 +316,62 @@ window does; the padding is the rest of the margin."
    (propertize " " 'display '(left-fringe window-box--left-side window-box))
    (propertize " " 'display '(right-fringe window-box--right-side window-box))))
 
-(defun window-box--cap (corner)
+(defun window-box--arc-image (corner height)
+  "Return the image of one rounded CORNER, HEIGHT pixels tall.
+CORNER is an index as in `window-box-characters\=': 0 and 1 the top
+corners, 2 and 3 the bottom ones.  The image is `window-box--radius\='
+wide; the arc fills its corner quarter with a one pixel stroke, and
+the side\='s column carries on through the rest of the height, down to
+the row\='s edge, where the fringe bitmap takes over."
+  (let* ((radius (min (window-box--radius) height))
+         (r (1- radius))
+         (rows (let (rows) (dotimes (_ height)
+                             (push (make-string radius ?0) rows))
+                    (vconcat rows)))
+         (top (memq corner '(0 1)))
+         (left (memq corner '(0 2)))
+         (dot (lambda (x y)
+                ;; The canonical arc is the top right corner; the
+                ;; others are its mirror images.
+                (let ((px (if left (- r x) x))
+                      (py (if top y (- height 1 y))))
+                  (aset (aref rows py) px ?1)))))
+    ;; The quarter circle, walked along both axes so a steep stretch
+    ;; leaves no gap.
+    (dotimes (y radius)
+      (funcall dot (round (sqrt (- (* r r) (* (- r y) (- r y))))) y))
+    (dotimes (x radius)
+      (funcall dot x (- r (round (sqrt (- (* r r) (* x x)))))))
+    ;; The side's column, from the arc to the row's other edge — in
+    ;; canonical coordinates, like the arc: the mirror is the dot's.
+    (dotimes (i (- height radius))
+      (funcall dot r (+ radius i)))
+    `(image :type pbm
+            :data ,(format "P1\n%d %d\n%s" radius height
+                           (mapconcat #'identity rows))
+            :foreground ,(window-box--color)
+            :ascent center
+            :scale 1)))
+
+(defun window-box--cap (corner &optional height)
   "Return the box\='s end for one side of a row it encloses.
 CORNER is an index into `window-box-characters\=', which a terminal
 draws: the vertical edge where the box goes on past this row, a corner
-where the row is the one that closes it."
+where the row is the one that closes it.  A graphic display draws a
+bar of one pixel — or, for a corner with a radius, the arc of
+`window-box--arc-image\=', HEIGHT pixels tall."
   (if (display-graphic-p)
-      ;; A row spans no fringes: a bar of one pixel lands on the
-      ;; outermost pixel of the window, which is where the fringe
-      ;; below it draws the side.
-      (propertize " " 'face (list :background (window-box--color))
-                  'display '(space :width (1)))
+      (if (and (< corner 4) (> (window-box--radius) 0)
+               (natnump height) (> height 0))
+          ;; The row's own edge must not cross the arc: the remap that
+          ;; draws it reaches every glyph of the row, this one opts out.
+          (propertize " " 'face '(:overline nil :underline nil)
+                      'display (window-box--arc-image corner height))
+        ;; A row spans no fringes: a bar of one pixel lands on the
+        ;; outermost pixel of the window, which is where the fringe
+        ;; below it draws the side.
+        (propertize " " 'face (list :background (window-box--color))
+                    'display '(space :width (1))))
     (propertize (string (aref (window-box--characters) corner))
                 'face (list :foreground (window-box--color)))))
 
@@ -508,7 +601,10 @@ window left of another spends its last column on the separator, and a
 tail that compensates for the margin — the reason this function
 exists — otherwise ends exactly on the cap\='s column.  A stretch fills
 whatever the move leaves open."
-  (cond ((eq spec 'right) (if (display-graphic-p) '(- right (1)) '(- right 2)))
+  (cond ((eq spec 'right)
+         (if (display-graphic-p)
+             `(- right (,(max 1 (window-box--radius))))
+           '(- right 2)))
         ((consp spec) (mapcar #'window-box--indented spec))
         (t spec)))
 
@@ -567,19 +663,52 @@ display, where they are a pixel each, and exactly on a terminal,
 where they are a column each."
   (if (display-graphic-p (window-frame window))
       (1- (/ (- (window-pixel-width window)
-                (window-right-divider-width window))
+                (window-right-divider-width window)
+                (* 2 (window-box--radius)))
              (frame-char-width)))
     (let ((margins (window-margins window)))
       (+ (window-body-width window)
          (or (car margins) 0) (or (cdr margins) 0) -2))))
+
+(defun window-box--row-height (window parameter)
+  "Return the pixel height of the row PARAMETER names in WINDOW.
+Zero before the row was ever drawn; the next redisplay settles it."
+  (pcase parameter
+    ('tab-line-format (window-tab-line-height window))
+    ('header-line-format (window-header-line-height window))
+    ('mode-line-format (window-mode-line-height window))))
+
+(defun window-box--row-corners (window parameter)
+  "Return the corner indices for the ends of PARAMETER in WINDOW, graphic.
+A row that carries the box\='s top edge as its overline gets the top
+corners, one that carries the bottom edge as its underline the bottom
+ones — those are the corners a radius can bend.  Any other row is
+passed through by the sides."
+  (cond ((equal (window-box--top-edge window) (cons 'overline parameter))
+         '(0 1))
+        ((and (eq parameter 'mode-line-format)
+              (equal (window-box--bottom-edge window)
+                     (cons 'underline parameter)))
+         '(2 3))
+        (t '(4 4))))
 
 (defun window-box--row (parameter)
   "Return the row PARAMETER names with the box\='s ends on it.
 Called from the window parameter the box sets, so the window being
 redisplayed is the selected one and its buffer is current."
   (let* ((window (selected-window))
-         (corners (window-box--corners window parameter)))
-    (list (window-box--cap (nth 0 corners))
+         (graphic (display-graphic-p))
+         (corners (if graphic
+                      (window-box--row-corners window parameter)
+                    (window-box--corners window parameter)))
+         (height (and graphic (window-box--row-height window parameter)))
+         ;; The width of the end the stretch leaves room for: an arc
+         ;; is as wide as the radius, a bar one pixel.
+         (end (if (and graphic (< (nth 1 corners) 4)
+                       (> (window-box--radius) 0))
+                  (window-box--radius)
+                1)))
+    (list (window-box--cap (nth 0 corners) height)
           (window-box--trimmed
            (window-box--fitted (window-box--content window parameter))
            (window-box--row-limit window))
@@ -590,20 +719,21 @@ redisplayed is the selected one and its buffer is current."
           ;; column of its own width on the separator, `right' does
           ;; not count it, and an end placed by it lands in it.
           (propertize " " 'display
-                      (if (display-graphic-p)
+                      (if graphic
                           ;; `right' is the right edge of the text
                           ;; area, and the margin and the fringe both
                           ;; lie outside it.  The row spans the two of
                           ;; them, so the end of the box reaches past
-                          ;; both, in pixels, less its own pixel: a
-                          ;; glyph aligned to the row's very end would
-                          ;; start outside the row and be clipped away.
+                          ;; both, in pixels, less the end's own width:
+                          ;; a glyph aligned to the row's very end
+                          ;; would start outside the row and be
+                          ;; clipped away.
                           `(space :align-to
                                   (+ right
                                      (,(+ (* (or (cdr (window-margins)) 0)
                                              (frame-char-width))
                                           (cadr (window-fringes))
-                                          -1))))
+                                          (- end)))))
                         ;; `right' is the right edge of the text area,
                         ;; which is where the row ends in the window
                         ;; at the frame's edge and not in one left of
@@ -617,7 +747,7 @@ redisplayed is the selected one and its buffer is current."
                           `(space :align-to
                                   ,(+ (window-body-width)
                                       (or (cdr margins) 0) -1)))))
-          (window-box--cap (nth 1 corners)))))
+          (window-box--cap (nth 1 corners) height))))
 
 (defvar-local window-box--prefix-overlay nil
   "The overlay that carries the sides over lines with prefixes of their own.
@@ -740,12 +870,23 @@ Call it with the window's buffer current."
       (dolist (face (window-box--row-faces parameter))
         (unless (assq face wanted)
           (push (cons face (list :underline nil :box nil)) wanted))))
-    ;; A row of the box's own, where a row is free for one.
+    ;; A row of the box's own, where a row is free for one.  With a
+    ;; radius the row is as tall as the arc, and the row's face — the
+    ;; tab line's grey, most themes — would show as a band behind the
+    ;; line: the box paints it in the buffer's own background instead.
     (dolist (parameter '(tab-line-format mode-line-format))
       (let ((own (and (eq (if (eq parameter 'tab-line-format) top bottom) 'own)
                       (window-box--own-format parameter))))
         (cond
-         (own (window-box--dress window parameter own))
+         (own (window-box--dress window parameter own)
+              (when (> (window-box--radius) 0)
+                (dolist (face (window-box--row-faces parameter))
+                  (unless (assq face wanted)
+                    (push (cons face
+                                (list :background
+                                      (face-background 'default nil 'default)
+                                      :box nil))
+                          wanted)))))
          ((equal (window-parameter window parameter)
                  (window-box--own-format parameter))
           (window-box--undress window parameter)))))
@@ -883,10 +1024,10 @@ The face remaps are the buffer's and go when the mode turns off."
 (defun window-box--persist ()
   "Let the box\='s window parameters travel with a saved window state.
 `window-state-get\=' saves the margins, so what the box set travels
-with a hidden side window.
-The marks that say those settings are the box\='s do not, unless they
-are named here.  Turn the mode off while such a window is away, and it
-comes back wearing the box\='s margins with no box, and nothing left
+with a hidden side window.  The marks that say those settings are the
+box\='s do not, unless they are named here.  Turn the mode off while
+such a window is away, and it comes back wearing the box\='s margins
+with no box, and nothing left
 that knows to take them off again.
 
 The widths and the marks are numbers and t, which a state written to a

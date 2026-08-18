@@ -53,7 +53,30 @@ the box frames it instead:
 #+end_src
 
 A continuation arrow goes with `visual-line-mode', which most
-configurations that wrap prose already use.  A terminal has no
+configurations that wrap prose already use.
+
+* The corners and the radius
+
+=window-box-radius= bends the corners the box owns a glyph for.  On a
+graphic display an arc is a small PBM image: a quarter circle with a
+one pixel stroke in its corner quarter, and the side's column carried
+on through the rest of the row's height, down to where the fringe
+bitmap takes over.  The arcs replace the one pixel ends of a row that
+carries an edge — the overline of the topmost row inside the box, the
+underline of an enclosed mode line — and the arc's face turns that
+overline or underline off over itself, so the straight line stops
+where the bend begins.  A row of the box's own grows from one pixel
+to the radius, carries its line on the outer pixel row of the
+stretch, and closes with the same arcs; the row's face would show as
+a band behind it, so the box paints it in the buffer's background.
+
+An edge on a row outside the box — the underline below a header that
+=window-box-encloses= leaves out — keeps its right angle: the box owns
+no glyph on that row to bend.
+
+A terminal has no pixels to bend.  Any radius above zero draws the
+default corners as ╭ ╮ ╰ ╯; a customized =window-box-characters= is
+the user's and stays.  A terminal has no
 fringes: it draws the vertical edge of =window-box-characters= in the
 outermost column of each margin, the padding inside it, and a
 terminal window whose buffer owns the margins gets the horizontal
