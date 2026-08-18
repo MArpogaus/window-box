@@ -33,9 +33,11 @@
     (write-region (x-export-frames nil 'png) nil
                   (expand-file-name name shots-directory) nil 'quiet)))
 
-(defun shots--buffer (name encloses text &optional tabs)
-  "Return a buffer NAME showing TEXT, with ENCLOSES set in it.
-TABS non-nil gives it a tab line of its own as well."
+(defun shots--buffer (name top mode-line text &optional tabs)
+  "Return a buffer NAME showing TEXT, with the enclose options set.
+TOP is `window-box-enclose-top\=', MODE-LINE is
+`window-box-enclose-mode-line\=', TABS non-nil gives it a tab line of
+its own as well."
   (let ((buffer (get-buffer-create name)))
     (with-current-buffer buffer
       (erase-buffer)
@@ -43,17 +45,18 @@ TABS non-nil gives it a tab line of its own as well."
       (goto-char (point-min))
       (setq-local header-line-format " a header line of my own "
                   mode-line-format " a mode line of my own "
-                  window-box-encloses encloses)
+                  window-box-enclose-top top
+                  window-box-enclose-mode-line mode-line)
       (when tabs (setq-local tab-line-format " a tab line of my own "))
       (window-box-mode 1))
     buffer))
 
 (defun shots-encloses ()
-  "One window per `window-box-encloses' setting, boxed."
+  "One window per enclose shape, boxed."
   (set-frame-size (selected-frame) 840 520 t)
   (switch-to-buffer
-   (shots--buffer "*text*" nil
-                  "window-box-encloses nil\nthe text alone\n"))
+   (shots--buffer "*text*" nil nil
+                  "enclose nothing\nthe text alone\n"))
   (delete-other-windows)
   ;; A share of the frame each, taken from the top: splitting in half
   ;; and in half again leaves the last window too small to split.
@@ -63,17 +66,17 @@ TABS non-nil gives it a tab line of its own as well."
          (third (split-window second share 'below))
          (fourth (split-window third share 'below)))
     (set-window-buffer
-     second (shots--buffer "*header*" '(header-line)
-                           "window-box-encloses '(header-line)\n\
+     second (shots--buffer "*header*" 'header-line nil
+                           "enclose-top 'header-line\n\
 the header inside, the mode line out\n"))
     (set-window-buffer
-     third (shots--buffer "*header and mode*" '(header-line mode-line)
-                          "window-box-encloses '(header-line mode-line)\n\
+     third (shots--buffer "*header and mode*" 'header-line t
+                          "enclose-top 'header-line, mode line in\n\
 both inside\n"))
     (set-window-buffer
-     fourth (shots--buffer "*everything*" '(tab-line header-line mode-line)
-                           "window-box-encloses '(tab-line header-line \
-mode-line)\nthe whole window, which is the default\n"
+     fourth (shots--buffer "*everything*" 'tab-line t
+                           "enclose-top 'tab-line, mode line in\n\
+the whole window, which is the default\n"
                            t))
     (window-box--refresh)
     (force-mode-line-update t)

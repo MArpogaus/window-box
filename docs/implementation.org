@@ -71,7 +71,7 @@ stretch, and closes with the same arcs; the row's face would show as
 a band behind it, so the box paints it in the buffer's background.
 
 An edge on a row outside the box — the underline below a header that
-=window-box-encloses= leaves out — keeps its right angle: the box owns
+the box leaves out — keeps its right angle: the box owns
 no glyph on that row to bend.
 
 A terminal has no pixels to bend.  Any radius above zero draws the
@@ -102,8 +102,10 @@ needs, because an error in a redisplay is hard to find.
 
 * Where a horizontal edge goes
 
-=window-box-encloses= lists the rows that are inside the box.  The
-box puts a horizontal edge where the inside stops.
+=window-box-enclose-top= and =window-box-enclose-mode-line= say which
+rows are inside the box, and the inside is always one unbroken stack
+around the text: enclosing the tab line encloses the header line with
+it.  The box puts a horizontal edge where the inside stops.
 
 On a graphic display the box uses the row itself:
 
@@ -316,8 +318,8 @@ PNG files.  =test/gui-check.py= reads the pixels back with pillow.
 The first frame has two boxed side windows.  The check asserts that
 each edge is one pixel wide and sits on the edge of the window.
 
-The second frame has one window for each =window-box-encloses=
-setting, and a split window.  The elisp side computes the two rows
+The second frame has one window for each enclose shape, and a split
+window.  The elisp side computes the two rows
 that the edges must use.  It computes them from the row heights that
 Emacs reports, and not from the code that draws the box.  The check
 asserts three things:

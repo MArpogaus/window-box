@@ -28,8 +28,10 @@
 
 ;; `window-box-mode' draws a rectangular box around every window that
 ;; shows the buffer.  Nothing more: what your header line and your
-;; mode line say stays yours, and `window-box-encloses' says whether
-;; they are inside the box or outside it.
+;; mode line say stays yours, and `window-box-enclose-top' and
+;; `window-box-enclose-mode-line' say whether they are inside the box
+;; or outside it.  The inside is always one unbroken stack of rows
+;; around the text.
 ;;
 ;; The sides are one pixel at the window's very edge: on a graphic
 ;; display a periodic bitmap at the outermost pixel of each fringe,
@@ -112,25 +114,36 @@ how a configuration says which places:
   :type '(choice (const :tag "Every window showing the buffer" nil)
                  function))
 
-(defcustom window-box-encloses '(tab-line header-line mode-line)
-  "Which of a window\='s own rows the box encloses.
-A list of `tab-line\=', `header-line\=' and `mode-line\='.  The text is
-always inside; a row named here is inside with it, and a row left out
-stays outside the box.  Nil draws a box around the text alone.
+(defcustom window-box-enclose-top 'tab-line
+  "The topmost of the window\='s rows that is inside the box.
+The rows above the text sit in a fixed order — tab line, then header
+line — and the inside of the box is one unbroken stack, so the choice
+is where the stack starts: `tab-line\=' encloses the tab line and the
+header line with the text, `header-line\=' the header line alone — a
+tab line, where the window shows one, stays outside — and nil draws
+the top edge right above the text.  A row the window does not show is
+skipped, and the edge lands on the topmost row it does.
 
-The rows sit in a fixed order — tab line, header line, text, mode line
-— so the box is drawn around the text and whatever of them is next to
-it, and its edges land where the inside stops.
+A graphic display draws the edge as the overline of the topmost row
+inside, or as the underline of the last row outside.  A terminal
+draws with characters and can only use a row it is given: where the
+tab line row is free the box draws its own edge row there, and where
+it is not, the topmost row inside carries the corners.
 
-A graphic display draws every combination: the edge above a row is
-that row\='s overline, the edge below it its underline, both one pixel
-at the row\='s very edge.  A terminal draws with characters and can
-only use a row it is given: the top edge needs the tab line row free,
-there is no row below the mode line, and where an edge has nowhere to
-go the row that closes the box carries the corners instead."
-  :type '(set (const :tag "Tab line" tab-line)
-              (const :tag "Header line" header-line)
-              (const :tag "Mode line" mode-line))
+Set it buffer-locally for a box of its own shape."
+  :type '(choice (const :tag "Tab line and header line" tab-line)
+                 (const :tag "Header line" header-line)
+                 (const :tag "The text alone" nil))
+  :local t)
+
+(defcustom window-box-enclose-mode-line t
+  "Whether the box encloses the mode line with the text.
+The edge is the mode line\='s underline where it does, its overline
+where it does not; a terminal, which has neither, gives the mode line
+the box\='s corners or draws its own row below the text.
+
+Set it buffer-locally for a box of its own shape."
+  :type 'boolean
   :local t)
 
 ;; There is no option for the look of the graphic sides.  A character
@@ -463,8 +476,7 @@ made anew."
   "The three rows a window can show besides its text.
 Each entry is a window parameter and a plist:
 
-  :name     what the option `window-box-encloses\=' calls the row,
-            which is also the name of its face
+  :name     the row\='s everyday name, which is also its face\='s
   :saved    the parameter that keeps the value the row had
   :dressed  the format that puts the box\='s ends on the row
   :own      the format of an edge row of the box\='s own, where the
@@ -513,8 +525,16 @@ box, which `window-box--content\=' answers."
     (and content (not (eq content 'none)))))
 
 (defun window-box--enclosed-p (parameter)
-  "Return non-nil when `window-box-encloses\=' takes in the row PARAMETER."
-  (memq (window-box--row-part parameter :name) window-box-encloses))
+  "Return non-nil when the box encloses the row PARAMETER.
+`window-box-enclose-top\=' rules the rows above the text and
+`window-box-enclose-mode-line\=' the one below; enclosing the tab line
+encloses the header line with it, so the inside is one unbroken
+stack."
+  (pcase parameter
+    ('tab-line-format (eq window-box-enclose-top 'tab-line))
+    ('header-line-format
+     (memq window-box-enclose-top '(tab-line header-line)))
+    ('mode-line-format (and window-box-enclose-mode-line t))))
 
 (defun window-box--above (window)
   "Return the rows WINDOW shows above its text, top to bottom."
@@ -530,8 +550,8 @@ box\='s own in the free tab line row, or nil where the display has
 nowhere to draw it — then the row below closes the box with corners.
 
 The edge lands where the inside of the box stops: above the topmost
-row `window-box-encloses\=' takes in, and below the last row it leaves
-out."
+row `window-box-enclose-top\=' takes in, and below the last row it
+leaves out."
   (let* ((above (window-box--above window))
          ;; A terminal has neither an overline nor an underline, so an
          ;; edge there needs a row of its own.
@@ -559,8 +579,9 @@ out."
 (defun window-box--bottom-edge (window)
   "Return where the bottom edge of the box goes in WINDOW.
 Like `window-box--top-edge\=', for the mode line: below it where
-`window-box-encloses\=' takes it in, above it where it does not, and a
-row of the box\='s own where the window shows no mode line."
+`window-box-enclose-mode-line\=' takes it in, above it where it does
+not, and a row of the box\='s own where the window shows no mode
+line."
   (let ((attach (display-graphic-p (window-frame window))))
     (cond
      ((not (window-box--line-visible-p window 'mode-line-format)) 'own)
@@ -703,10 +724,13 @@ redisplayed is the selected one and its buffer is current."
                     (window-box--corners window parameter)))
          (height (and graphic (window-box--row-height window parameter)))
          ;; The width of the end the stretch leaves room for: an arc
-         ;; is as wide as the radius, a bar one pixel.
+         ;; is as wide as the radius — clamped to the row, exactly as
+         ;; the image clamps itself, or the arc's column would land
+         ;; short of the row's end and the overline run on past it.
          (end (if (and graphic (< (nth 1 corners) 4)
-                       (> (window-box--radius) 0))
-                  (window-box--radius)
+                       (> (window-box--radius) 0)
+                       (natnump height) (> height 0))
+                  (min (window-box--radius) height)
                 1)))
     (list (window-box--cap (nth 0 corners) height)
           (window-box--trimmed
@@ -850,7 +874,7 @@ Call it with the window's buffer current."
     ;; The horizontal edges: an overline sits at the top of a row and
     ;; an underline, asked for the bottom position, at its very last
     ;; pixel — so the same row can be inside the box or outside it,
-    ;; whichever `window-box-encloses' says.  The row's own underline
+    ;; whichever the enclose options say.  The row's own underline
     ;; and box give way to the edge; content, fonts and colors stay.
     (pcase-dolist (`(,edge . ,parameter) (delq nil (list (and (consp top) top)
                                                          (and (consp bottom)
@@ -1085,10 +1109,11 @@ windows also get theirs back here."
 ;;;###autoload
 (define-minor-mode window-box-mode
   "Draw a rectangular box around every window that shows this buffer.
-What your header line and your mode line show stays yours, and
-`window-box-encloses\=' says which of the rows around the text are
-inside the box.  A row that is inside gets the ends of the box at its
-two sides.  See the commentary for how the box is built."
+What your header line and your mode line show stays yours;
+`window-box-enclose-top\=' and `window-box-enclose-mode-line\=' say
+which of the rows around the text are inside the box.  A row that is
+inside gets the ends of the box at its two sides.  See the commentary
+for how the box is built."
   :lighter ""
   (if window-box-mode
       (progn

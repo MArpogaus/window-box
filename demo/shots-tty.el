@@ -10,8 +10,8 @@
 ;; #5f87af, which the eye cannot tell from it.
 (setq-default window-box-color "#5e81ac")
 
-(defun shots-tty--buffer (name encloses text)
-  "Return a buffer NAME showing TEXT, with ENCLOSES set in it."
+(defun shots-tty--buffer (name top mode-line text)
+  "Return a buffer NAME showing TEXT, with the enclose options set."
   (let ((buffer (get-buffer-create name)))
     (with-current-buffer buffer
       (erase-buffer)
@@ -19,7 +19,8 @@
       (goto-char (point-min))
       (setq-local header-line-format " a header line of my own "
                   mode-line-format " a mode line of my own "
-                  window-box-encloses encloses)
+                  window-box-enclose-top top
+                  window-box-enclose-mode-line mode-line)
       (window-box-mode 1))
     buffer))
 
@@ -27,16 +28,16 @@
  0.5 nil
  (lambda ()
    (switch-to-buffer
-    (shots-tty--buffer "*everything*" '(header-line mode-line)
-                       "window-box-encloses '(header-line mode-line)\n\
+    (shots-tty--buffer "*everything*" 'header-line t
+                       "enclose-top 'header-line, mode line in\n\
 the whole window: the top edge takes the free tab line row,\n\
 and the mode line closes the box, a terminal having no row below it\n"))
    (delete-other-windows)
    (let ((below (split-window (frame-root-window) -12 'below)))
      (set-window-buffer
       below (shots-tty--buffer
-             "*text*" nil
-             "window-box-encloses nil\n\
+             "*text*" nil nil
+             "enclose nothing\n\
 the text alone: the rows the window brought stay outside, and a\n\
 terminal has no row to draw an edge between them and the text\n")))
    (window-box--refresh)

@@ -49,22 +49,29 @@ window keeps its own dressing.
 A window is a stack of rows.  From top to bottom these rows are the
 tab line, the header line, the text and the mode line.
 
-=window-box-encloses= lists the rows that are inside the box.  The
-text is always inside.  The default value lists all three rows, and
-the box encloses the whole window.
+The inside of the box is one unbroken stack of rows around the text.
+Two options say where it starts and where it ends:
+=window-box-enclose-top= names the topmost row inside — =tab-line=
+encloses the tab line and the header line, =header-line= the header
+line alone, nil the text alone — and =window-box-enclose-mode-line=
+says whether the mode line is inside.  The default encloses the whole
+window.  A row the window does not show is skipped.
 
 #+begin_src emacs-lisp
   ;; the whole window, which is the default
-  (setq window-box-encloses '(tab-line header-line mode-line))
+  (setq window-box-enclose-top 'tab-line
+        window-box-enclose-mode-line t)
 
   ;; the text alone
-  (setq window-box-encloses nil)
+  (setq window-box-enclose-top nil
+        window-box-enclose-mode-line nil)
 
   ;; the header line inside, the mode line outside
-  (setq window-box-encloses '(header-line))
+  (setq window-box-enclose-top 'header-line
+        window-box-enclose-mode-line nil)
 #+end_src
 
-Set the option buffer-locally to give each buffer its own box.
+Set the options buffer-locally to give each buffer its own box.
 
 [[file:img/encloses-gui.png]]
 
@@ -122,7 +129,8 @@ The package has few options:
 |-------------------------------+------------------------------------------------------|
 | =window-box=                  | the face of the box; its foreground is the color     |
 | =window-box-color=            | one color for the box, buffer-local if you set it so |
-| =window-box-encloses=         | the rows that are inside the box                     |
+| =window-box-enclose-top=      | the topmost row inside the box                       |
+| =window-box-enclose-mode-line= | whether the mode line is inside                     |
 | =window-box-padding=          | columns between a side and the text                  |
 | =window-box-radius=           | corner radius in pixels, zero for right angles       |
 | =window-box-characters=       | the characters of the box in a terminal              |
