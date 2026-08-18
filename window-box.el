@@ -167,9 +167,9 @@ Set it buffer-locally for a box of its own shape."
 Set it buffer-locally for a buffer that wants more air than the
 others.
 
-A buffer that uses its margins for its own text keeps them and gets
-no padding; a terminal, whose sides live in the margins too, then
-draws that window\='s horizontal edges alone."
+A buffer that uses its margins for its own text keeps them: the box
+asks for its columns beside the buffer\='s, so the sides sit outside
+whatever the buffer draws there."
   :type 'natnum
   :local t)
 
@@ -852,26 +852,25 @@ gets its order back when the box goes."
       (set-window-parameter window 'window-box--saved-order t)
       (set-window-fringes window (nth 0 fringes) (nth 1 fringes) t t))))
 
-(defun window-box--wide-margins-p (window)
-  "Return non-nil when WINDOW has margins of its own to keep.
-The box needs `window-box--width\=' columns of margin; anything wider
-was put there by whoever dressed the window, and holds something the
-box must not drop.
-
-The buffer is asked as well as the window, and any width it asks for
-counts.  Emacs applies `left-margin-width' when the buffer is
-displayed, so a buffer that asks for a margin later — as
-`outline-minor-mode' does when it draws its buttons there — would
-never be seen: the box has written its own width into the window by
-then.  One column is enough for a fold arrow, so the box gives way to
-any width at all rather than to a wider one."
-  (let ((margins (window-margins window))
-        (width (window-box--width)))
-    (or (> (or (car margins) 0) width)
-        (> (or (cdr margins) 0) width)
-        (with-current-buffer (window-buffer window)
-          (or (> (or left-margin-width 0) 0)
-              (> (or right-margin-width 0) 0))))))
+(defun window-box--own-margins (window width)
+  "Return the margins WINDOW would wear without the box, as (LEFT RIGHT).
+Either can be nil, which is how a window says the buffer\='s own
+`left-margin-width\=' and `right-margin-width\=' decide.  The answer is
+saved the first time the box takes the margins, so the box never adds
+its own WIDTH columns to columns of its own — and a window split off a
+boxed one, which arrives wearing them, is recognised by them."
+  (or (window-parameter window 'window-box--saved-margins)
+      (let* ((margins (window-margins window))
+             (buffer (window-buffer window))
+             (own (list (buffer-local-value 'left-margin-width buffer)
+                        (buffer-local-value 'right-margin-width buffer)))
+             (mine (cons (+ (or (nth 0 own) 0) width)
+                         (+ (or (nth 1 own) 0) width)))
+             (theirs (if (and (> width 0) (equal margins mine))
+                         '(nil nil)
+                       (list (car margins) (cdr margins)))))
+        (set-window-parameter window 'window-box--saved-margins theirs)
+        theirs)))
 
 (defun window-box--dress (window parameter format)
   "Give WINDOW the row FORMAT for PARAMETER and keep what was there.
@@ -997,57 +996,30 @@ Call it with the window's buffer current."
     ;; margins carry only the padding there.  A terminal has no
     ;; fringes and draws the sides in the margins.
     ;;
-    ;; A buffer that keeps something in its margins needs them more
-    ;; than the box does: magit's log writes the author and the date
-    ;; into a thirty column right margin, and writing the padding over
-    ;; that column drops it without a word.  Such a window keeps its
-    ;; margins — the box puts the fringes outside them, so the sides
-    ;; still frame them — and a terminal, whose sides live in the
-    ;; margins, draws that window's horizontal edges alone.  The test
-    ;; is the margins as they stand, not what they were when the box
-    ;; went up, so a buffer that sets them later is noticed on the
-    ;; next change.
+    ;; A buffer that keeps something in its margins keeps it: magit's
+    ;; log writes the author and the date into a thirty column right
+    ;; margin, and `diff-hl-margin-mode' marks every changed line of
+    ;; every file in two columns on the left.  The box asks for its own
+    ;; columns beside those, not instead of them — the margin grows by
+    ;; the width the box needs, the box's side goes on the line prefix,
+    ;; which a row shows before anything the buffer puts in the margin,
+    ;; and the buffer's own marks sit inside the side.  A terminal drew
+    ;; no sides at all in such a window before, which left the
+    ;; horizontal edges hanging on nothing.
     (let* ((width (window-box--width))
            (graphic (display-graphic-p (window-frame window)))
-           (theirs (or (zerop width) (window-box--wide-margins-p window))))
-      (if theirs
-          ;; Give back what the box took, if it took anything: the
-          ;; buffer's own widths, which Emacs applies when it displays
-          ;; a buffer and which the box has been writing over since.
-          ;; A window dressed by someone else, magit's log among them,
-          ;; is left as it stands.
-          (when-let* ((saved (window-parameter window
-                                               'window-box--saved-margins)))
-            ;; only the box's own width — kept with the save — and
-            ;; never a width someone else has set since
-            (when (equal (window-margins window)
-                         (cons (nth 2 saved) (nth 2 saved)))
-              (set-window-margins window left-margin-width
-                                  right-margin-width))
-            (set-window-parameter window 'window-box--saved-margins nil))
-        (unless (window-parameter window 'window-box--saved-margins)
-          (let ((margins (window-margins window)))
-            (set-window-parameter
-             window 'window-box--saved-margins
-             ;; A window split off from a boxed one arrives with the
-             ;; box's own margins, and saving those would give them
-             ;; back for good.  The buffer's widths are what Emacs
-             ;; would have given such a window.  The box's width rides
-             ;; along, so the give-back can tell its own margins from
-             ;; someone else's after the width has changed.
-             (if (equal margins (cons width width))
-                 (list left-margin-width right-margin-width width)
-               (list (car margins) (cdr margins) width)))))
-        (unless (equal (window-margins window) (cons width width))
-          (set-window-margins window width width)))
-      (cond (graphic
-             (window-box--order window)
-             (window-box--wear (window-box--fringe-prefix)))
-            ((and theirs (not (zerop width)))
-             ;; A terminal window whose buffer owns the margins has
-             ;; nowhere to draw sides.
-             (window-box--shed))
-            (t (window-box--wear (window-box--prefix)))))))
+           (own (window-box--own-margins window width))
+           (left (+ (or (nth 0 own) left-margin-width 0) width))
+           (right (+ (or (nth 1 own) right-margin-width 0) width)))
+      (unless (or (zerop width)
+                  (equal (window-margins window) (cons left right)))
+        (set-window-margins window left right))
+      (if graphic
+          (progn (window-box--order window)
+                 (window-box--wear (window-box--fringe-prefix)))
+        (if (zerop width)
+            (window-box--shed)
+          (window-box--wear (window-box--prefix)))))))
 
 (defun window-box--wear (prefix)
   "Hang PREFIX on the current buffer, on both carriers.
@@ -1088,7 +1060,9 @@ The face remaps are the buffer's and go when the mode turns off."
     (let ((fringes (window-fringes window)))
       (set-window-fringes window (nth 0 fringes) (nth 1 fringes) nil t))
     (set-window-parameter window 'window-box--saved-order nil))
-  ;; The margins the window had, where the box took them.
+  ;; The margins the window wore without the box, nil and all: nil is
+  ;; how a window leaves the width to the buffer, and a number the box
+  ;; wrote over would take that away.
   (when-let* ((saved (window-parameter window 'window-box--saved-margins)))
     (set-window-margins window (nth 0 saved) (nth 1 saved))
     (set-window-parameter window 'window-box--saved-margins nil))

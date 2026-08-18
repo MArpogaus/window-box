@@ -31,9 +31,10 @@ a character in the outermost column of each margin.  The horizontal
 edges are drawn on the rows the window has.
 
 The mode keeps the width of the fringes, so their indicators stay
-where you can read them, and it leaves the margins to their owners: a
-buffer that keeps text in its margins — magit's log holds its dates
-in one — keeps them, inside the box.  The mode does not change what
+where you can read them, and it asks for its own columns of margin
+beside whatever the buffer keeps there: magit's log holds its dates in
+a wide right margin, =diff-hl-margin-mode= marks changed lines on the
+left, and both keep their columns inside the box.  The mode does not change what
 your header line and your mode line show, and =window-box-padding=
 buys air between the box and the text.
 
@@ -218,9 +219,12 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   home in the margins instead, where the box frames them —
   [[file:docs/implementation.org][docs/implementation.org]] has the settings for magit, flymake and
   diff-hl.
-- A terminal draws the sides in one column of margin per side; a
-  buffer that uses its margins for its own text keeps them, and such
-  a window gets the horizontal edges alone there.
+- A terminal draws the sides in one column of margin per side, and
+  asks for that column beside the buffer's own: the side is drawn
+  before what the buffer puts in the margin, so it sits outside it on
+  the left.  In the right margin the order is the same, so a buffer's
+  own content there — magit's dates — sits outside the box's side
+  rather than inside it.
 - While the box is up, its sides outrank a prefix a line brings of
   its own — a shell's indent gutter waits under the box and comes
   back with it gone.
