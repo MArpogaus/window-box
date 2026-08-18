@@ -265,7 +265,7 @@ instead of naming the option behind it."
       (should (string-prefix-p "+" (window-box--edge 0 1))))))
 
 (ert-deftest window-box-test-keeps-margins-a-buffer-uses ()
-  "A window with margins of its own keeps them and loses the sides.
+  "A terminal window with margins of its own keeps them, without sides.
 Magit's log writes the author and the date into a wide right margin,
 and one column is all a side glyph needs, so anything wider was put
 there by the buffer."
@@ -740,6 +740,46 @@ loses nothing that was shown."
   (should (equal (window-box--trimmed "short" 40) "short"))
   (let ((content '("not" "a" "string")))
     (should (eq (window-box--trimmed content 40) content))))
+
+(ert-deftest window-box-test-an-arc-is-a-quarter-circle-and-a-column ()
+  "An arc image bends one corner and carries the side through the row.
+Radius three, a row five pixels tall: the top right corner starts on
+the top edge, bends to the outermost column, and that column runs on
+to the row\='s bottom, where the fringe bitmap takes over.  The other
+corners are its mirror images."
+  (let ((window-box-radius 3))
+    (should (equal (plist-get (cdr (window-box--arc-image 1 5)) :data)
+                   "P1\n3 5\n110001001001001"))
+    (should (equal (plist-get (cdr (window-box--arc-image 0 5)) :data)
+                   "P1\n3 5\n011100100100100"))
+    (should (equal (plist-get (cdr (window-box--arc-image 3 5)) :data)
+                   "P1\n3 5\n001001001001110"))
+    (should (equal (plist-get (cdr (window-box--arc-image 2 5)) :data)
+                   "P1\n3 5\n100100100100011"))))
+
+(ert-deftest window-box-test-a-radius-rounds-the-default-characters ()
+  "A radius above zero draws the default terminal corners rounded.
+An explicit `window-box-characters\=' is the user\='s and stays as it
+is, radius or none."
+  (let ((window-box-radius 4))
+    (should (equal (window-box--characters) "╭╮╰╯│─"))
+    (let ((window-box-characters "++++|-"))
+      (should (equal (window-box--characters) "++++|-"))))
+  (let ((window-box-radius 0))
+    (should (equal (window-box--characters) "┌┐└┘│─"))))
+
+(ert-deftest window-box-test-only-edge-rows-get-the-corners ()
+  "On a graphic display the arcs go where the row carries the edge.
+A row whose overline is the box\='s top edge gets the top corners, the
+mode line whose underline is the bottom edge the bottom ones, and any
+other row is passed through by the sides."
+  (cl-letf (((symbol-function 'window-box--top-edge)
+             (lambda (&rest _) '(overline . header-line-format)))
+            ((symbol-function 'window-box--bottom-edge)
+             (lambda (&rest _) '(underline . mode-line-format))))
+    (should (equal (window-box--row-corners nil 'header-line-format) '(0 1)))
+    (should (equal (window-box--row-corners nil 'mode-line-format) '(2 3)))
+    (should (equal (window-box--row-corners nil 'tab-line-format) '(4 4)))))
 
 (ert-deftest window-box-test-graphic-sides-ride-the-fringes ()
   "The graphic sides are periodic fringe bitmaps, one pixel each.

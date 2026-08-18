@@ -80,6 +80,12 @@
   (window-box-mode 1)
   (force-mode-line-update t)
   (demo--say "and a color of its own, per buffer" 3.0)
+  ;; 4b. round corners
+  (setq-local window-box-radius 8)
+  (window-box--refresh)
+  (force-mode-line-update t)
+  (demo--say "window-box-radius: round corners" 3.0)
+  (setq-local window-box-radius 0)
   ;; 5. off
   (window-box-mode -1)
   (setq window-box-window-predicate nil)
