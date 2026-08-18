@@ -37,7 +37,23 @@ text in them — magit's log holds its dates in a thirty column margin
 the sides still frame that content.  =window-box-padding= only ever
 adds blank margins between the fringe and the text.  A line whose
 fringe shows an indicator of its own shows that instead of the side,
-and a frame without fringes shows no sides.  A terminal has no
+and a frame without fringes shows no sides.
+
+A fringe shows one bitmap per line, so an indicator and a side cannot
+share one.  Every common indicator has a home in the margins, where
+the box frames it instead:
+
+#+begin_src emacs-lisp
+  ;; magit's fold arrows, as margin characters
+  (setopt magit-section-visibility-indicators '((?▹ . ?▿) ("…" . t)))
+  ;; flymake, in the margins (Emacs 30)
+  (setopt flymake-indicator-type 'margins)
+  ;; diff-hl, in the margin
+  (diff-hl-margin-mode)
+#+end_src
+
+A continuation arrow goes with `visual-line-mode', which most
+configurations that wrap prose already use.  A terminal has no
 fringes: it draws the vertical edge of =window-box-characters= in the
 outermost column of each margin, the padding inside it, and a
 terminal window whose buffer owns the margins gets the horizontal

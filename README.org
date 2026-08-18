@@ -184,22 +184,10 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 - On a graphic display the sides live in the fringes, and a fringe
   shows one bitmap per line: a line whose fringe shows an indicator
-  of its own shows that instead of the side, and a frame whose
-  fringes are switched off shows no sides at all.  Every common
-  indicator has a home outside the fringes — that is where the box's
-  margins-stay-yours rule pays off:
-
-  #+begin_src emacs-lisp
-    ;; magit's fold arrows, as margin characters
-    (setopt magit-section-visibility-indicators '((?▹ . ?▿) ("…" . t)))
-    ;; flymake, in the margins (Emacs 30)
-    (setopt flymake-indicator-type 'margins)
-    ;; diff-hl, in the margin
-    (diff-hl-margin-mode)
-  #+end_src
-
-  A continuation arrow goes with `visual-line-mode', which most
-  configurations that wrap prose already use.
+  of its own shows that instead of the side.  Give such indicators a
+  home in the margins instead, where the box frames them —
+  [[file:docs/implementation.org][docs/implementation.org]] has the settings for magit, flymake and
+  diff-hl.
 - A terminal draws the sides in one column of margin per side; a
   buffer that uses its margins for its own text keeps them, and such
   a window gets the horizontal edges alone there.
