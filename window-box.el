@@ -162,30 +162,6 @@ Set it buffer-locally for a box of its own shape."
 ;; line's full height whatever the font and however tall the line, so
 ;; it is the only shape drawn.
 
-(defvar window-box-encloses)
-(make-obsolete-variable
- 'window-box-encloses
- "use `window-box-enclose-top' and `window-box-enclose-mode-line'."
- "0.2")
-
-(defun window-box--carry-over ()
-  "Carry a setting of the old `window-box-encloses\=' over, once.
-The option was one set of rows and is now two, so that the inside of
-the box cannot be asked for in pieces.  A configuration that still
-sets the old name would otherwise be ignored in silence — which is
-exactly what happened to the one this package was written for."
-  (when (and (boundp 'window-box-encloses)
-             (listp window-box-encloses))
-    (let ((rows window-box-encloses))
-      (makunbound 'window-box-encloses)
-      (setq window-box-enclose-top
-            (cond ((memq 'tab-line rows) 'tab-line)
-                  ((memq 'header-line rows) 'header-line))
-            window-box-enclose-mode-line (and (memq 'mode-line rows) t))
-      (message (concat "window-box: `window-box-encloses' is gone; using"
-                       " enclose-top %s and enclose-mode-line %s")
-               window-box-enclose-top window-box-enclose-mode-line))))
-
 (defcustom window-box-padding 0
   "Columns of margin between the sides of the box and the text, per side.
 Set it buffer-locally for a buffer that wants more air than the
@@ -1171,7 +1147,6 @@ which of the rows around the text are inside the box.  A row that is
 inside gets the ends of the box at its two sides.  See the commentary
 for how the box is built."
   :lighter ""
-  (window-box--carry-over)
   (if window-box-mode
       (progn
         ;; Displaying a buffer resets the window's fringes, margins and
