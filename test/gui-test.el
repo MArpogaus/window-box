@@ -63,30 +63,17 @@ against itself.")
                                            :foreground "white")))
            (buttons (concat (propertize "─" 'mouse-face 'highlight)
                             " "
-                            (propertize "✕" 'mouse-face 'highlight)))
-           ;; The box cannot reach this row: fringes and margins stop
-           ;; below it.  So the header closes the box itself, with a
-           ;; one pixel cap at each end, and only while there is a box
-           ;; to close.
-           (cap (if window-box-mode
-                    (propertize " " 'face (list :background
-                                                (face-foreground
-                                                 'window-box nil 'default))
-                                'display '(space :width (1)))
-                  "")))
-      (list cap chip " " (format-mode-line "%b")
+                            (propertize "✕" 'mouse-face 'highlight))))
+      ;; No caps of the row's own: the box dresses the row and puts
+      ;; its ends on it — a cap here would double the vertical line.
+      (list chip " " (format-mode-line "%b")
             (propertize " " 'display
                         `(space :align-to
                                 (- right (,(+ (string-pixel-width
                                                (propertize buttons 'face
                                                            'header-line))
                                               1)))))
-            buttons
-            ;; The cap goes in the last column, not where the
-            ;; measurement lands: a glyph can render a pixel wider
-            ;; than it measures, and the box would miss the corner.
-            (propertize " " 'display '(space :align-to right))
-            cap)))
+            buttons)))
   "A header line that measures itself, as a real one does.")
 
 (defun gui-test--fringes ()

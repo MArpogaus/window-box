@@ -842,6 +842,13 @@ What the buffer wore before is kept once, for the mode to give back."
             (widen)
             ;; Rear-advance, so text added at the end wears it too.
             (make-overlay (point-min) (point-max) nil nil t))))
+  ;; Above every other overlay: a shell that draws an indent gutter
+  ;; puts prefixes on overlays of its own, and a tie between overlays
+  ;; falls whichever way redisplay walks them — the sides went missing
+  ;; a stretch at a time.  While the box is up, its sides outrank a
+  ;; line's own prefix; the buffer gets its gutter back with the box
+  ;; gone.
+  (overlay-put window-box--prefix-overlay 'priority 100)
   (overlay-put window-box--prefix-overlay 'line-prefix prefix)
   (overlay-put window-box--prefix-overlay 'wrap-prefix prefix))
 
