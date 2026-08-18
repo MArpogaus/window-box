@@ -74,6 +74,44 @@ An edge on a row outside the box — the underline below a header that
 the box leaves out — keeps its right angle: the box owns
 no glyph on that row to bend.
 
+A corner bends only where the box owns the pixels the curve needs:
+
+- The curve of a top corner runs from the line downwards, so it needs
+  the pixels *below* the line.  The overline of a row inside the box
+  has them — they are that row's own — and so does a row of the box's
+  own.  The underline of a row the box leaves outside does not: below
+  it lies the text, where the sides are fringe bitmaps of the lines
+  the window happens to show.  Such an edge keeps its right angle.
+- A bottom corner is the mirror: the underline of a row inside the box
+  and a row of the box's own can bend, the overline of a row left
+  outside cannot.
+
+Where the pixels are there, the arc still has to be placed, and an
+image is placed against the baseline of its row, not against the row's
+edge.  A row of the box's own is exactly as tall as its arcs — the
+stretch between them asks for =:ascent 100=, which keeps the font's
+descent out of the row — so the arc fills it and the curve meets the
+line.  That is the only row the box can bend.
+
+A row the window brought cannot be bent, for two measured reasons.
+The distance from such a row's edge to its baseline is not something
+the package can work out: in one mode line the face reported four
+pixels of border where the row had eight, and an arc placed on that
+arithmetic sits beside the line instead of on it.  And the box's own
+glyphs are part of what makes a row as tall as it is, so measuring the
+row in order to decide how to draw it settles into whichever answer it
+started from — a row that came out square stays square, and one that
+came out round stays round.  Those rows keep the square ends, which
+are stretches and fill a row whatever its height, so the box always
+closes.
+
+The drawing never asks a row its height in any case.  Emacs works a
+row's height out by laying the row out, and the layout runs the
+=:eval= the box put in the row: asking there is a recursion Emacs does
+not return from.  It died of a stack overflow with a tab line inside
+the box on a graphic display, which is why the box draws with what it
+knows instead.
+
 A terminal has no pixels to bend.  Any radius above zero draws the
 default corners as ╭ ╮ ╰ ╯; a customized =window-box-characters= is
 the user's and stays.  A terminal has no
@@ -107,6 +145,29 @@ rows are inside the box, and the inside is always one unbroken stack
 around the text: enclosing the tab line encloses the header line with
 it.  The box puts a horizontal edge where the inside stops.
 
+The edge goes on a row the box owns, so that its ends are the box's
+own glyphs and a radius has something to bend:
+
+- The overline of the topmost row inside the box.  It marks the same
+  boundary as the underline of the row above it, and it is a row the
+  box dresses.
+- A row of the box's own, written into the row closest to the text
+  that the window leaves free — below every row the box leaves
+  outside, above every row it takes in.  This is how a row named by
+  =window-box-enclose-top= appears when the window has none.
+- The underline of the last row outside the box, where no row is
+  free.  The box owns no glyph on such a row: its corners stay
+  square.
+
+A terminal draws with characters, and a character needs a row of its
+own.  Where none is free the innermost row the window shows above the
+text carries the top corners, and a mode line it shows carries the
+bottom ones, whatever the options say — a terminal has no row between
+the text and the mode line, and none between the text and a header it
+would leave outside.  The options shape a graphic display's box
+exactly, because an overline and an underline need no row of
+anyone's.
+
 On a graphic display the box uses the row itself:
 
 - An edge above a row is the overline of that row.
@@ -120,6 +181,11 @@ because both are drawn where the box draws.  It removes them from
 each row inside the box and not only from the one that carries the
 edge, or a row would change its look when the edge moves to the row
 above it.
+
+A row the box leaves outside keeps everything: the box borrows the one
+line it needs there and nothing else.  It used to take the border as
+well, which took the padding off a mode line dressed by
+=spacious-padding= and moved the row the box was drawing against.
 
 Where no row is at the boundary, the box draws a row of its own.  A
 window without a mode line gets such a row at the bottom.  A window
