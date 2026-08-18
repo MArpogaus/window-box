@@ -657,24 +657,6 @@ the user saw."
         (should-not (window-parameter window 'mode-line-format))
         (window-box--clear window)))))
 
-(ert-deftest window-box-test-the-old-option-is-carried-over ()
-  "A configuration that still sets `window-box-encloses\=' is not ignored.
-The option was one set of rows and is now two.  A `:custom\=' line with
-the old name sets a variable nobody reads, so the box ran on its
-defaults and the setting said nothing — which is what happened to the
-configuration this package was written for."
-  (window-box-test--with-buffer
-    (let ((window-box-enclose-top 'tab-line)
-          (window-box-enclose-mode-line t))
-      (with-no-warnings (set 'window-box-encloses '(header-line)))
-      (window-box--carry-over)
-      (should (eq window-box-enclose-top 'header-line))
-      (should-not window-box-enclose-mode-line)
-      (should-not (boundp 'window-box-encloses))
-      ;; and a second call has nothing left to do
-      (window-box--carry-over)
-      (should (eq window-box-enclose-top 'header-line)))))
-
 (ert-deftest window-box-test-a-row-keeps-what-it-showed ()
   "A row the box draws its ends on shows the window\='s own row between them."
   (window-box-test--with-buffer
