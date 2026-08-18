@@ -146,7 +146,7 @@ brings as a text property, where the variable loses."
   "A window with a mode line keeps it; one without gets the edge back."
   (window-box-test--with-buffer
     (setq-local mode-line-format "mine")
-    (let ((window-box-encloses nil))
+    (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
       (window-box--apply (selected-window))
       (should-not (window-parameter (selected-window) 'mode-line-format))
       (window-box--clear (selected-window)))
@@ -190,15 +190,16 @@ anew, and the box's top edge went with them."
 
 (ert-deftest window-box-test-a-tab-line-of-your-own-stays ()
   "A window that shows tabs keeps them, whatever the box does with the row.
-Left out of `window-box-encloses\=' the row is not touched at all; taken
+Left outside the box the row is not touched at all; taken
 in, the box puts its ends on it and the tabs show between them."
   (window-box-test--with-buffer
     (setq-local tab-line-format " tabs ")
-    (let ((window-box-encloses nil))
+    (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
       (window-box--apply (selected-window))
       (should-not (window-parameter (selected-window) 'tab-line-format))
       (window-box--clear (selected-window)))
-    (let ((window-box-encloses '(tab-line)))
+    (let ((window-box-enclose-top 'tab-line)
+          (window-box-enclose-mode-line nil))
       (window-box--apply (selected-window))
       (should (equal (window-parameter (selected-window) 'tab-line-format)
                      window-box--tab-row-format))
@@ -492,7 +493,7 @@ line."
     (set-window-parameter (selected-window) 'tab-line-format nil)))
 
 (ert-deftest window-box-test-encloses-moves-the-edges ()
-  "`window-box-encloses\=' says which rows are inside the box.
+  "The enclose options say which rows are inside the box.
 A batch session is a terminal, where an edge needs a row of its own:
 the free tab line row above the text, and none at all below the mode
 line.  So a terminal draws the top edge where the tab line row is
@@ -503,13 +504,14 @@ free and leaves the closing to the row that ends the box."
     (let ((window (selected-window)))
       ;; the text alone: neither row is inside, and a terminal has
       ;; nowhere to draw an edge between them and the text
-      (let ((window-box-encloses nil))
+      (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (should-not (window-box--top-edge window))
         (should-not (window-box--bottom-edge window))
         (should-not (window-box--dressed-rows window)))
       ;; both rows inside: the top edge goes in the free tab line row,
       ;; and the mode line closes the box at the bottom
-      (let ((window-box-encloses '(header-line mode-line)))
+      (let ((window-box-enclose-top 'header-line)
+            (window-box-enclose-mode-line t))
         (should (eq (window-box--top-edge window) 'own))
         (should-not (window-box--bottom-edge window))
         (should (equal (window-box--dressed-rows window)
@@ -522,7 +524,8 @@ free and leaves the closing to the row that ends the box."
                        '(2 3))))
       ;; tabs, which take the row the top edge would have used
       (setq-local tab-line-format " tabs ")
-      (let ((window-box-encloses '(tab-line header-line mode-line)))
+      (let ((window-box-enclose-top 'tab-line)
+            (window-box-enclose-mode-line t))
         (should-not (window-box--top-edge window))
         (should (equal (window-box--corners window 'tab-line-format)
                        '(0 1)))))))
@@ -531,7 +534,8 @@ free and leaves the closing to the row that ends the box."
   "A row the box draws its ends on shows the window\='s own row between them."
   (window-box-test--with-buffer
     (setq-local header-line-format " header ")
-    (let ((window-box-encloses '(header-line))
+    (let ((window-box-enclose-top 'header-line)
+          (window-box-enclose-mode-line nil)
           (window (selected-window)))
       (window-box--apply window)
       (should (equal (window-parameter window 'header-line-format)
@@ -549,7 +553,8 @@ Side window rules hand a window its own header line, and the box has
 to put that one back rather than the one the buffer would show."
   (window-box-test--with-buffer
     (setq-local header-line-format " buffer ")
-    (let ((window-box-encloses '(header-line))
+    (let ((window-box-enclose-top 'header-line)
+          (window-box-enclose-mode-line nil)
           (window (selected-window)))
       (set-window-parameter window 'header-line-format " window ")
       (window-box--apply window)
@@ -620,8 +625,7 @@ carried the edge: a tab line that took the edge over gave the theme
 its underline back, under a header inside the box."
   (window-box-test--with-buffer
     (setq-local header-line-format " header ")
-    (let ((window-box-encloses '(tab-line header-line mode-line))
-          (window (selected-window)))
+    (let ((window (selected-window)))
       (window-box--apply window)
       (let ((spec (nth 2 (assq 'header-line window-box--cookies))))
         (should spec)
@@ -635,7 +639,7 @@ its underline back, under a header inside the box."
         (should (equal (plist-get spec :underline) nil))
         (should (equal (plist-get spec :box) nil)))
       ;; and a row the box leaves outside keeps what its theme drew
-      (let ((window-box-encloses nil))
+      (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (window-box--apply window)
         (should-not (assq 'header-line window-box--cookies)))
       (window-box--clear window))))
@@ -647,7 +651,8 @@ last wins.  The box listens for the state change that the redisplay
 runs, after everything in the cycle has had its say."
   (window-box-test--with-buffer
     (setq-local header-line-format " header ")
-    (let ((window-box-encloses '(header-line))
+    (let ((window-box-enclose-top 'header-line)
+          (window-box-enclose-mode-line nil)
           (window (selected-window)))
       (window-box-mode 1)
       (should (member #'window-box--refresh window-state-change-functions))
