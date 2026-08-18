@@ -107,7 +107,8 @@ column is a margin the box may take; wider is the buffer's own, and
   (window-box-test--with-buffer
     (set-window-margins (selected-window) nil 1)
     (window-box-mode 1)
-    (should (equal (window-margins (selected-window)) '(1 . 1)))
+    ;; the box's column beside the one the window already had
+    (should (equal (window-margins (selected-window)) '(1 . 2)))
     (should (equal (window-parameter (selected-window) 'header-line-format)
                    '(:eval (window-box--top))))
     (should (overlayp window-box--prefix-overlay))
@@ -115,6 +116,8 @@ column is a margin the box may take; wider is the buffer's own, and
     (should (local-variable-p 'line-prefix))
     (window-box-mode -1)
     (should (equal (window-margins (selected-window)) '(nil . 1)))
+    (should-not (window-parameter (selected-window)
+                                  'window-box--saved-margins))
     (should-not (window-parameter (selected-window) 'header-line-format))
     (should-not (window-parameter (selected-window)
                                   'window-box--saved-margins))
@@ -273,11 +276,14 @@ instead of naming the option behind it."
       (should (equal (window-box--characters) "++++|-"))
       (should (string-prefix-p "+" (window-box--edge 0 1))))))
 
-(ert-deftest window-box-test-keeps-margins-a-buffer-uses ()
-  "A terminal window with margins of its own keeps them, without sides.
-Magit's log writes the author and the date into a wide right margin,
-and one column is all a side glyph needs, so anything wider was put
-there by the buffer."
+(ert-deftest window-box-test-asks-beside-margins-a-buffer-uses ()
+  "A window with margins of its own keeps them and gets the sides too.
+Magit\='s log writes the author and the date into a wide right margin,
+and `diff-hl-margin-mode\=' marks changed lines in two columns on the
+left.  The box asks for its own column beside those, so the sides are
+drawn and nothing the buffer keeps there is lost; a terminal window
+used to get no sides at all, which left the horizontal edges hanging
+on nothing."
   (skip-unless (not (display-graphic-p)))
   (let ((buffer (generate-new-buffer "*window-box test*")))
     (unwind-protect
@@ -287,9 +293,9 @@ there by the buffer."
           (set-window-margins (selected-window) 1 30)
           (window-box-mode 1)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(1 . 30)))
-          (should-not window-box--prefix-overlay)
-          ;; and unboxing gives the buffer's own margins back untouched
+          (should (equal (window-margins (selected-window)) '(2 . 31)))
+          (should (overlayp window-box--prefix-overlay))
+          ;; and unboxing gives the window its own margins back
           (window-box-mode -1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 30))))
@@ -297,8 +303,11 @@ there by the buffer."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
-(ert-deftest window-box-test-gives-way-to-a-late-margin ()
-  "A buffer that sets its margins after the box went up gets them."
+(ert-deftest window-box-test-a-late-margin-is-added-to-not-replaced ()
+  "A buffer that sets its margins after the box went up keeps them.
+The box asks for its own column beside them, and the width it asked
+for before is not counted twice: the margins the window wore without
+the box are saved once, the first time the box takes them."
   (skip-unless (not (display-graphic-p)))
   (let ((buffer (generate-new-buffer "*window-box test*")))
     (unwind-protect
@@ -309,10 +318,13 @@ there by the buffer."
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 1)))
           (should (overlayp window-box--prefix-overlay))
-          (set-window-margins (selected-window) 1 30)
+          ;; the buffer asks for two columns of its own now
+          (setq left-margin-width 2)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(1 . 30)))
-          (should-not window-box--prefix-overlay))
+          (should (equal (window-margins (selected-window)) '(3 . 1)))
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(3 . 1)))
+          (should (overlayp window-box--prefix-overlay)))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
@@ -386,9 +398,13 @@ buttons use."
           ;; the buffer asks for two columns of its own
           (setq left-margin-width 2)
           (window-box--refresh)
-          (should-not window-box--prefix-overlay)
-          ;; and the window shows the buffer's width, not the box's
-          (should (equal (window-margins (selected-window)) '(2))))
+          (should (overlayp window-box--prefix-overlay))
+          ;; and the window shows the buffer's width and the box's
+          (should (equal (window-margins (selected-window)) '(3 . 1)))
+          ;; unboxed, the buffer's own width is what is left
+          (window-box-mode -1)
+          (window-box--refresh)
+          (should (equal (window-margins (selected-window)) '(nil))))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
@@ -460,10 +476,11 @@ back as the width the window is supposed to have."
           (should (equal (window-margins (selected-window)) '(1 . 1)))
           (let ((other (split-window)))
             (window-box--refresh)
-            ;; the box's own width rides along with the save
+            ;; a window split off a boxed one arrives wearing the
+            ;; box's columns, and is recognised by them: what it would
+            ;; wear without the box is nothing of its own
             (should (equal (window-parameter other 'window-box--saved-margins)
-                           (list left-margin-width right-margin-width
-                                 (window-box--width))))
+                           '(nil nil)))
             (window-box-mode -1)
             (window-box--refresh)
             (should (equal (window-margins other) '(nil)))

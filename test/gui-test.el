@@ -17,21 +17,11 @@
 
 (require 'window-box)
 
-;; The sides are a character in a margin, and how much of its cell a
-;; character covers is the font's business.  The measurement needs a
-;; font whose side character is a line down the whole cell.
+;; One font, so the rows are the heights the checker works with.
 (let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
                       '("Noto Sans Mono" "DejaVu Sans Mono"
                         "Liberation Mono"))))
   (when font (set-frame-font (format "%s 13" font) nil t)))
-
-;; The default draws each side as a hairline, which is a character, and
-;; how tall its ink is, is the font's business: the fonts on a runner
-;; are not the fonts on a desk.  The measurement asks for the column
-;; instead, so that a gap in a side is the package's fault and never
-;; the font's.  `window-box-test-a-side-is-a-character-or-a-column'
-;; covers the choice itself.
-(setq window-box-side-characters nil)
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.
@@ -188,17 +178,12 @@ line of its own."
                            (mapcar #'number-to-string
                                    (append (gui-test--wanted window)
                                            ;; whether the box draws
-                                           ;; sides here at all: a
-                                           ;; buffer that keeps its
-                                           ;; own margins gets none
-                                           ;; asked in the window's
-                                           ;; own buffer, because the
-                                           ;; padding is the buffer's
-                                           (list (if (with-current-buffer
-                                                         (window-buffer window)
-                                                       (window-box--wide-margins-p
-                                                        window))
-                                                     0 1))))
+                                           ;; sides here at all: every
+                                           ;; boxed window has them now,
+                                           ;; since the box asks for its
+                                           ;; columns beside whatever the
+                                           ;; buffer keeps in the margins
+                                           (list 1)))
                            " ")))
                 windows "")
      nil gui-test-encloses-geometry nil 'quiet)
