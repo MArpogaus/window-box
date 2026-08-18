@@ -128,9 +128,9 @@ A graphic display draws the edge as the overline of the topmost row
 inside, or as the underline of the last row outside.  A terminal
 draws with characters, and a character needs a row: the box writes
 its own edge row into the row closest to the text the window leaves
-free, and where the window leaves none free the innermost row it
-shows carries the corners — so a terminal cannot keep a row it shows
-above the text outside the box.
+free.  Where the window leaves none free — every row above the text
+is shown and this option keeps them outside — a terminal has nothing
+to draw the edge with, and the box is open at the top there.
 
 Set it buffer-locally for a box of its own shape."
   :type '(choice (const :tag "Tab line and header line" tab-line)
@@ -140,11 +140,12 @@ Set it buffer-locally for a box of its own shape."
 
 (defcustom window-box-enclose-mode-line t
   "Whether the box encloses the mode line with the text.
-The edge is the mode line\='s underline where it does, its overline
-where it does not.  A terminal has neither, and no row between the
-text and the mode line either, so a mode line it shows always closes
-the box with the corners; a window without one gets a row of the
-box\='s own below the text on both displays.
+The edge is the mode line\='s underline where the box takes it in, its
+overline where it leaves it out.  A terminal has neither line, and no
+row between the text and the mode line to draw one in: a mode line it
+takes in carries the box\='s corners, and a mode line it leaves out
+leaves the box open at the bottom.  A window without a mode line gets
+a row of the box\='s own below the text, on both displays.
 
 Set it buffer-locally for a box of its own shape."
   :type 'boolean
@@ -645,28 +646,15 @@ corners."
 
 (defun window-box--dressed-rows (window)
   "Return the rows of WINDOW the box draws its ends on, top to bottom.
-The rows inside the box, and in a terminal the rows that have to close
-it: a character box needs a row for every edge, and where the window
-leaves none free the innermost row it shows above the text carries the
-top corners and a mode line it shows carries the bottom ones.  A
-graphic display draws those edges on the rows themselves, as an
-overline and an underline, and needs no row of anyone\='s — so there
-the options shape the box exactly."
-  (let* ((above (window-box--above window))
-         (forced
-          (and (not (display-graphic-p (window-frame window)))
-               (delq nil
-                     (list (and above
-                                (not (window-box--top-edge window))
-                                (car (last above)))
-                           (and (window-box--line-visible-p
-                                 window 'mode-line-format)
-                                'mode-line-format))))))
-    (seq-filter (lambda (parameter)
-                  (and (window-box--line-visible-p window parameter)
-                       (or (window-box--enclosed-p parameter)
-                           (memq parameter forced))))
-                window-box--rows-order)))
+The rows the enclose options take in and the window shows — on both
+displays alike.  A terminal draws with characters and cannot draw a
+line between the text and a row it leaves outside the box, so the box
+has no edge on that side there; it does not take the row in to make
+one."
+  (seq-filter (lambda (parameter)
+                (and (window-box--enclosed-p parameter)
+                     (window-box--line-visible-p window parameter)))
+              window-box--rows-order))
 
 (defun window-box--corners (window parameter)
   "Return the two corner indices for the ends of the row PARAMETER in WINDOW.
@@ -677,8 +665,9 @@ the box goes on past it.
 A graphic display draws the box\='s edge on the row that carries it, so
 that row\='s ends are its corners.  A terminal draws with characters and
 has neither an overline nor an underline: there the row that closes the
-box is the first row the box dresses, where no row above it is free for
-an edge, and the mode line, where there is no row below it."
+box is the first row the box takes in, where no row above it is free
+for an edge of the box\='s own, and the mode line it takes in, where
+there is no row below it."
   (let ((graphic (display-graphic-p (window-frame window)))
         (top (window-box--top-edge window))
         (bottom (window-box--bottom-edge window)))
