@@ -96,29 +96,33 @@ A corner bends only where the box owns the pixels the curve needs:
 
 Where the pixels are there, the arc still has to be placed, and an
 image is placed against the baseline of its row, not against the row's
-edge.  A row of the box's own is exactly as tall as its arcs — the
-stretch between them asks for =:ascent 100=, which keeps the font's
-descent out of the row — so the arc fills it and the curve meets the
-line.  That is the only row the box can bend.
+edge.  So an arc shorter than its row lands beside the line it bends
+from — the distance from a row's edge to its baseline is not something
+the package can work out, and in one mode line the face reported four
+pixels of border where the row had eight.  An arc *as tall as its row*
+has nowhere else to go: it fills the row, and the curve meets the line
+at the row's edge.  That is how every row the box puts its ends on is
+bent, its own edge rows and the rows the window brought alike.
 
-A row the window brought cannot be bent, for two measured reasons.
-The distance from such a row's edge to its baseline is not something
-the package can work out: in one mode line the face reported four
-pixels of border where the row had eight, and an arc placed on that
-arithmetic sits beside the line instead of on it.  And the box's own
-glyphs are part of what makes a row as tall as it is, so measuring the
-row in order to decide how to draw it settles into whichever answer it
-started from — a row that came out square stays square, and one that
-came out round stays round.  Those rows keep the square ends, which
-are stretches and fill a row whatever its height, so the box always
-closes.
+A row of the box's own is the radius tall by construction; the stretch
+between its arcs asks for =:ascent 100=, which keeps the font's descent
+out of the row, so the row is exactly the arcs' height.  For a row the
+window brought the box has to know the height, and it must not ask
+while the row is being drawn: Emacs works a row's height out by laying
+the row out, the layout runs the =:eval= the box put in the row, and
+asking there is a recursion Emacs does not return from — it died of a
+stack overflow with a tab line inside the box on a graphic display.
+The heights are taken where the box dresses the window instead, and the
+drawing reads them.
 
-The drawing never asks a row its height in any case.  Emacs works a
-row's height out by laying the row out, and the layout runs the
-=:eval= the box put in the row: asking there is a recursion Emacs does
-not return from.  It died of a stack overflow with a tab line inside
-the box on a graphic display, which is why the box draws with what it
-knows instead.
+Those heights are one layout behind, which settles in one step.  An arc
+as tall as the row keeps the row that tall, so a row that has been
+measured once stays put; a row whose content is taller than the arc
+reports the taller height at the next dressing, and the arc matches it
+then.  The box dresses a window on every window and state change, so
+the step is not one a reader sees.  Before a height has been taken the
+square end is drawn, which is a stretch and fills a row of any
+height.
 
 A terminal has no pixels to bend.  Any radius above zero draws the
 default corners as ╭ ╮ ╰ ╯; a customized =window-box-characters= is
