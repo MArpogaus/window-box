@@ -55,7 +55,15 @@ Two options say where it starts and where it ends:
 encloses the tab line and the header line, =header-line= the header
 line alone, nil the text alone — and =window-box-enclose-mode-line=
 says whether the mode line is inside.  The default encloses the whole
-window.  A row the window does not show is skipped.
+window.
+
+A row you name that the window does not show appears: the box writes
+its own edge there, so the box closes with its own line rather than
+borrowing another row's.  A terminal draws with characters, and a
+character needs a row, so it cannot keep a row the window shows above
+the text outside the box, and a mode line always closes the box
+there; a graphic display draws those edges on the rows themselves and
+follows the options exactly.
 
 #+begin_src emacs-lisp
   ;; the whole window, which is the default
@@ -145,7 +153,11 @@ margin image is one line tall, so neither survives every buffer; the
 bitmap does, and there is no option for the look of the sides.
 
 Round the corners — pixels on a graphic display, ╭ ╮ ╰ ╯ in a
-terminal:
+terminal.  On a graphic display the corners bend on the rows the box
+draws itself, the edge rows it writes into a row your window leaves
+free; the ends on a row your window brought stay square, because an
+image cannot be pinned to such a row's edge —
+[[file:docs/implementation.org][docs/implementation.org]] has the measurements:
 
 #+begin_src emacs-lisp
   (setopt window-box-radius 8)

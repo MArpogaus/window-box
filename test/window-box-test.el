@@ -108,14 +108,14 @@ column is a margin the box may take; wider is the buffer's own, and
     (set-window-margins (selected-window) nil 1)
     (window-box-mode 1)
     (should (equal (window-margins (selected-window)) '(1 . 1)))
-    (should (equal (window-parameter (selected-window) 'tab-line-format)
+    (should (equal (window-parameter (selected-window) 'header-line-format)
                    '(:eval (window-box--top))))
     (should (overlayp window-box--prefix-overlay))
     (should (stringp (overlay-get window-box--prefix-overlay 'line-prefix)))
     (should (local-variable-p 'line-prefix))
     (window-box-mode -1)
     (should (equal (window-margins (selected-window)) '(nil . 1)))
-    (should-not (window-parameter (selected-window) 'tab-line-format))
+    (should-not (window-parameter (selected-window) 'header-line-format))
     (should-not (window-parameter (selected-window)
                                   'window-box--saved-margins))
     (should-not window-box--prefix-overlay)
@@ -143,13 +143,23 @@ brings as a text property, where the variable loses."
     (should (equal wrap-prefix "| "))))
 
 (ert-deftest window-box-test-mode-line-stays ()
-  "A window with a mode line keeps it; one without gets the edge back."
+  "A window with a mode line keeps it; one without gets the edge back.
+A batch session is a terminal, where a shown mode line closes the box
+whatever `window-box-enclose-mode-line\=' says — there is no row
+between it and the text for an edge — so the box puts its ends on the
+row and the row keeps what it showed between them."
   (window-box-test--with-buffer
     (setq-local mode-line-format "mine")
     (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
       (window-box--apply (selected-window))
-      (should-not (window-parameter (selected-window) 'mode-line-format))
-      (window-box--clear (selected-window)))
+      (should (equal (window-parameter (selected-window) 'mode-line-format)
+                     window-box--mode-row-format))
+      (should (equal (window-box--content (selected-window)
+                                         'mode-line-format)
+                     "mine"))
+      (window-box--clear (selected-window))
+      (should (equal mode-line-format "mine"))
+      (should-not (window-parameter (selected-window) 'mode-line-format)))
     (setq-local mode-line-format nil)
     (set-window-parameter (selected-window) 'mode-line-format 'none)
     (window-box--apply (selected-window))
@@ -162,7 +172,9 @@ brings as a text property, where the variable loses."
 (ert-deftest window-box-test-a-terminal-draws-its-own-top-edge ()
   "A header line carries the top edge only where an overline can be drawn.
 A batch session is a terminal, and a terminal has no overline, so the
-box draws a row of its own above the header instead of nothing."
+box draws a row of its own — above the header where the window shows
+one, and in the header row itself where it shows none, which is the
+row closest to the text the window leaves free."
   (window-box-test--with-buffer
     (setq-local header-line-format " mine ")
     (window-box--apply (selected-window))
@@ -171,7 +183,7 @@ box draws a row of its own above the header instead of nothing."
     (window-box--clear (selected-window))
     (setq-local header-line-format nil)
     (window-box--apply (selected-window))
-    (should (equal (window-parameter (selected-window) 'tab-line-format)
+    (should (equal (window-parameter (selected-window) 'header-line-format)
                    '(:eval (window-box--top))))))
 
 (ert-deftest window-box-test-the-box-puts-itself-back ()
@@ -180,10 +192,10 @@ Displaying a buffer in a side window sets that window's parameters
 anew, and the box's top edge went with them."
   (window-box-test--with-buffer
     (window-box-mode 1)
-    (set-window-parameter (selected-window) 'tab-line-format 'none)
+    (set-window-parameter (selected-window) 'header-line-format 'none)
     (set-window-margins (selected-window) nil nil)
     (window-box--refresh)
-    (should (equal (window-parameter (selected-window) 'tab-line-format)
+    (should (equal (window-parameter (selected-window) 'header-line-format)
                    window-box--top-format))
     (should (equal (window-margins (selected-window)) '(1 . 1)))
     (window-box-mode -1)))
@@ -477,20 +489,26 @@ its mode line."
       (should (equal (nth 1 spec) '(:window window-box t)))
       (should (equal (nth 2 spec) '(:background "red"))))))
 
-(ert-deftest window-box-test-a-hidden-tab-line-stays-hidden ()
-  "A window that had hidden its tab line has it hidden again after.
-The top edge goes in the tab line parameter, so it has to hand back
-what it found there, the same as the bottom edge does with the mode
-line."
+(ert-deftest window-box-test-a-hidden-row-stays-hidden ()
+  "A window that had hidden a row has it hidden again after the box.
+The top edge goes in a row parameter, so it has to hand back what it
+found there, the same as the bottom edge does with the mode line.  A
+hidden row the box does not need is not touched at all: the box takes
+the row closest to the text, and a tab line hidden above it stays as
+it was."
   (window-box-test--with-buffer
     (set-window-parameter (selected-window) 'tab-line-format 'none)
+    (set-window-parameter (selected-window) 'header-line-format 'none)
     (window-box--apply (selected-window))
-    (should (equal (window-parameter (selected-window) 'tab-line-format)
+    (should (equal (window-parameter (selected-window) 'header-line-format)
                    window-box--top-format))
+    (should (eq (window-parameter (selected-window) 'tab-line-format) 'none))
     (window-box--clear (selected-window))
-    (should (eq (window-parameter (selected-window) 'tab-line-format)
+    (should (eq (window-parameter (selected-window) 'header-line-format)
                 'none))
-    (set-window-parameter (selected-window) 'tab-line-format nil)))
+    (should (eq (window-parameter (selected-window) 'tab-line-format) 'none))
+    (set-window-parameter (selected-window) 'tab-line-format nil)
+    (set-window-parameter (selected-window) 'header-line-format nil)))
 
 (ert-deftest window-box-test-encloses-moves-the-edges ()
   "The enclose options say which rows are inside the box.
@@ -502,17 +520,24 @@ free and leaves the closing to the row that ends the box."
     (setq-local header-line-format " header "
                 mode-line-format " mode ")
     (let ((window (selected-window)))
-      ;; the text alone: neither row is inside, and a terminal has
-      ;; nowhere to draw an edge between them and the text
+      ;; the text alone: neither row is inside, and a terminal has no
+      ;; row to draw an edge in between them and the text — so the
+      ;; rows it shows carry the corners instead, and the box closes
       (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (should-not (window-box--top-edge window))
         (should-not (window-box--bottom-edge window))
-        (should-not (window-box--dressed-rows window)))
+        (should (equal (window-box--dressed-rows window)
+                       '(header-line-format mode-line-format)))
+        (should (equal (window-box--corners window 'header-line-format)
+                       '(0 1)))
+        (should (equal (window-box--corners window 'mode-line-format)
+                       '(2 3))))
       ;; both rows inside: the top edge goes in the free tab line row,
       ;; and the mode line closes the box at the bottom
       (let ((window-box-enclose-top 'header-line)
             (window-box-enclose-mode-line t))
-        (should (eq (window-box--top-edge window) 'own))
+        (should (equal (window-box--top-edge window)
+                       '(own . tab-line-format)))
         (should-not (window-box--bottom-edge window))
         (should (equal (window-box--dressed-rows window)
                        '(header-line-format mode-line-format)))
@@ -529,6 +554,79 @@ free and leaves the closing to the row that ends the box."
         (should-not (window-box--top-edge window))
         (should (equal (window-box--corners window 'tab-line-format)
                        '(0 1)))))))
+
+(ert-deftest window-box-test-a-row-the-box-names-appears ()
+  "A row `window-box-enclose-top\=' names appears where the window has none.
+The box writes its own edge row into it — the row closest to the text
+that the window leaves free, below every row the box leaves outside
+and above every row it takes in — so the box closes itself with its
+own glyphs instead of an underline it cannot bend."
+  (window-box-test--with-buffer
+    (setq-local tab-line-format " tabs ")
+    (let ((window (selected-window))
+          (window-box-enclose-top 'header-line)
+          (window-box-enclose-mode-line nil))
+      ;; The tabs stay outside, above; the box takes the header row.
+      (should (equal (window-box--free-slot window) 'header-line-format))
+      (should (equal (window-box--top-edge window)
+                     '(own . header-line-format)))
+      (window-box--apply window)
+      (should (equal (window-parameter window 'header-line-format)
+                     window-box--top-format))
+      ;; and the row is given back when the box goes
+      (window-box--clear window)
+      (should-not (window-parameter window 'header-line-format)))
+    (set-window-parameter (selected-window) 'tab-line-format nil)))
+
+(ert-deftest window-box-test-a-free-row-must-lie-between ()
+  "The box takes a free row below what it leaves out, above what it takes in.
+A row above one the box leaves outside would draw that row inside the
+box; a row below one the box takes in would draw that row outside."
+  (window-box-test--with-buffer
+    (let ((window (selected-window)))
+      ;; nothing shown: the innermost row, closest to the text
+      (let ((window-box-enclose-top 'tab-line))
+        (should (eq (window-box--free-slot window) 'header-line-format)))
+      ;; a header inside: only the row above it is free
+      (setq-local header-line-format " header ")
+      (let ((window-box-enclose-top 'header-line))
+        (should (eq (window-box--free-slot window) 'tab-line-format)))
+      ;; a header outside: no row below it, so none is free
+      (let ((window-box-enclose-top nil))
+        (should-not (window-box--free-slot window)))
+      ;; tabs shown and left outside: the header row is free below them
+      (setq-local header-line-format nil
+                  tab-line-format " tabs ")
+      (let ((window-box-enclose-top 'header-line))
+        (should (eq (window-box--free-slot window) 'header-line-format)))
+      ;; tabs shown and taken in: nothing above them is free
+      (let ((window-box-enclose-top 'tab-line))
+        (should-not (window-box--free-slot window)))
+      (setq-local tab-line-format nil))))
+
+(ert-deftest window-box-test-the-drawing-never-asks-a-row-its-height ()
+  "The drawing of a row must not ask that row how tall it is.
+Emacs works a row\='s height out by laying the row out, and the layout
+runs the `:eval\=' the box put there: asking is a recursion Emacs does
+not come back from — it died of a stack overflow with a tab line
+inside the box on a graphic display.  The box draws with what it knows
+instead: a bar of one pixel fills a row of any height, and an arc goes
+only in a row the box sizes itself."
+  (window-box-test--with-buffer
+    (setq-local tab-line-format " tabs "
+                mode-line-format " mode "
+                window-box-radius 8)
+    (cl-letf (((symbol-function 'window-tab-line-height)
+               (lambda (&rest _) (error "the drawing asked the tab line")))
+              ((symbol-function 'window-header-line-height)
+               (lambda (&rest _) (error "the drawing asked the header")))
+              ((symbol-function 'window-mode-line-height)
+               (lambda (&rest _) (error "the drawing asked the mode line"))))
+      (dolist (parameter '(tab-line-format header-line-format
+                                           mode-line-format))
+        (should (window-box--row parameter)))
+      (should (window-box--top))
+      (should (window-box--bottom)))))
 
 (ert-deftest window-box-test-a-row-keeps-what-it-showed ()
   "A row the box draws its ends on shows the window\='s own row between them."
@@ -638,10 +736,14 @@ its underline back, under a header inside the box."
         (should spec)
         (should (equal (plist-get spec :underline) nil))
         (should (equal (plist-get spec :box) nil)))
-      ;; and a row the box leaves outside keeps what its theme drew
+      ;; A graphic display leaves such a row alone; a terminal has to
+      ;; close the box on it, so it is dressed and gives up the lines
+      ;; a theme drew, the same as any row inside the box.
       (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (window-box--apply window)
-        (should-not (assq 'header-line window-box--cookies)))
+        (should (memq 'header-line-format
+                      (window-box--dressed-rows window)))
+        (should (assq 'header-line window-box--cookies)))
       (window-box--clear window))))
 
 (ert-deftest window-box-test-the-box-has-the-last-word-on-a-row ()
@@ -774,17 +876,18 @@ is, radius or none."
     (should (equal (window-box--characters) "┌┐└┘│─"))))
 
 (ert-deftest window-box-test-only-edge-rows-get-the-corners ()
-  "On a graphic display the arcs go where the row carries the edge.
+  "On a graphic display the corners go where the row carries the edge.
 A row whose overline is the box\='s top edge gets the top corners, the
 mode line whose underline is the bottom edge the bottom ones, and any
 other row is passed through by the sides."
-  (cl-letf (((symbol-function 'window-box--top-edge)
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
+            ((symbol-function 'window-box--top-edge)
              (lambda (&rest _) '(overline . header-line-format)))
             ((symbol-function 'window-box--bottom-edge)
              (lambda (&rest _) '(underline . mode-line-format))))
-    (should (equal (window-box--row-corners nil 'header-line-format) '(0 1)))
-    (should (equal (window-box--row-corners nil 'mode-line-format) '(2 3)))
-    (should (equal (window-box--row-corners nil 'tab-line-format) '(4 4)))))
+    (should (equal (window-box--corners nil 'header-line-format) '(0 1)))
+    (should (equal (window-box--corners nil 'mode-line-format) '(2 3)))
+    (should (equal (window-box--corners nil 'tab-line-format) '(4 4)))))
 
 (ert-deftest window-box-test-graphic-sides-ride-the-fringes ()
   "The graphic sides are periodic fringe bitmaps, one pixel each.
