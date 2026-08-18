@@ -182,13 +182,30 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 
 ** Known Limits
 
-- On a graphic display the sides live in the fringes, so a line
-  whose fringe shows an indicator of its own — magit's section
-  arrows, a continuation arrow — shows that instead of the side
-  there, and a frame whose fringes are switched off shows no sides at
-  all.  A terminal draws the sides in one column of margin per side;
-  a buffer that uses its margins for its own text keeps them, and
-  such a window gets the horizontal edges alone there.
+- On a graphic display the sides live in the fringes, and a fringe
+  shows one bitmap per line: a line whose fringe shows an indicator
+  of its own shows that instead of the side, and a frame whose
+  fringes are switched off shows no sides at all.  Every common
+  indicator has a home outside the fringes — that is where the box's
+  margins-stay-yours rule pays off:
+
+  #+begin_src emacs-lisp
+    ;; magit's fold arrows, as margin characters
+    (setopt magit-section-visibility-indicators '((?▹ . ?▿) ("…" . t)))
+    ;; flymake, in the margins (Emacs 30)
+    (setopt flymake-indicator-type 'margins)
+    ;; diff-hl, in the margin
+    (diff-hl-margin-mode)
+  #+end_src
+
+  A continuation arrow goes with `visual-line-mode', which most
+  configurations that wrap prose already use.
+- A terminal draws the sides in one column of margin per side; a
+  buffer that uses its margins for its own text keeps them, and such
+  a window gets the horizontal edges alone there.
+- While the box is up, its sides outrank a prefix a line brings of
+  its own — a shell's indent gutter waits under the box and comes
+  back with it gone.
 - In a terminal an edge needs a row of its own, and a window has only
   so many rows.  The top edge uses the tab line row if the window
   shows no tabs.  There is no row below the mode line.  The box has
