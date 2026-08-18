@@ -160,13 +160,15 @@ own glyphs and a radius has something to bend:
   square.
 
 A terminal draws with characters, and a character needs a row of its
-own.  Where none is free the innermost row the window shows above the
-text carries the top corners, and a mode line it shows carries the
-bottom ones, whatever the options say — a terminal has no row between
-the text and the mode line, and none between the text and a header it
-would leave outside.  The options shape a graphic display's box
-exactly, because an overline and an underline need no row of
-anyone's.
+own.  It follows the options as a graphic display does — a row the box
+leaves outside is not touched — but it has no line to draw between
+such a row and the text, and no row to draw one in: the box is open on
+that side there.  Enclose the mode line, or the row above the text,
+and the box closes on it.
+
+That is a plain consequence of what a terminal has.  A graphic display
+needs no row of anyone's, since an overline and an underline are the
+row's own lines, so it draws every shape the options ask for.
 
 On a graphic display the box uses the row itself:
 

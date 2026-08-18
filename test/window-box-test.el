@@ -144,22 +144,18 @@ brings as a text property, where the variable loses."
 
 (ert-deftest window-box-test-mode-line-stays ()
   "A window with a mode line keeps it; one without gets the edge back.
-A batch session is a terminal, where a shown mode line closes the box
-whatever `window-box-enclose-mode-line\=' says — there is no row
-between it and the text for an edge — so the box puts its ends on the
-row and the row keeps what it showed between them."
+A mode line the box leaves out is not touched at all — in a terminal
+that leaves the box open at the bottom, which is what the option asks
+for: there is no row between the mode line and the text to draw an
+edge in."
   (window-box-test--with-buffer
     (setq-local mode-line-format "mine")
     (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
       (window-box--apply (selected-window))
-      (should (equal (window-parameter (selected-window) 'mode-line-format)
-                     window-box--mode-row-format))
-      (should (equal (window-box--content (selected-window)
-                                         'mode-line-format)
-                     "mine"))
+      (should-not (window-parameter (selected-window) 'mode-line-format))
+      (should-not (window-box--dressed-rows (selected-window)))
       (window-box--clear (selected-window))
-      (should (equal mode-line-format "mine"))
-      (should-not (window-parameter (selected-window) 'mode-line-format)))
+      (should (equal mode-line-format "mine")))
     (setq-local mode-line-format nil)
     (set-window-parameter (selected-window) 'mode-line-format 'none)
     (window-box--apply (selected-window))
@@ -521,17 +517,12 @@ free and leaves the closing to the row that ends the box."
                 mode-line-format " mode ")
     (let ((window (selected-window)))
       ;; the text alone: neither row is inside, and a terminal has no
-      ;; row to draw an edge in between them and the text — so the
-      ;; rows it shows carry the corners instead, and the box closes
+      ;; row to draw an edge in between them and the text — so it has
+      ;; no edge there, and it leaves both rows alone
       (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (should-not (window-box--top-edge window))
         (should-not (window-box--bottom-edge window))
-        (should (equal (window-box--dressed-rows window)
-                       '(header-line-format mode-line-format)))
-        (should (equal (window-box--corners window 'header-line-format)
-                       '(0 1)))
-        (should (equal (window-box--corners window 'mode-line-format)
-                       '(2 3))))
+        (should-not (window-box--dressed-rows window)))
       ;; both rows inside: the top edge goes in the free tab line row,
       ;; and the mode line closes the box at the bottom
       (let ((window-box-enclose-top 'header-line)
@@ -627,6 +618,27 @@ only in a row the box sizes itself."
         (should (window-box--row parameter)))
       (should (window-box--top))
       (should (window-box--bottom)))))
+
+(ert-deftest window-box-test-the-mode-line-option-tells-in-a-terminal ()
+  "`window-box-enclose-mode-line\=' decides the bottom in a terminal too.
+Taken in, the mode line is dressed and carries the box\='s corners; left
+out, it is not touched and the box has no bottom edge — a terminal has
+no line to draw and no row between the mode line and the text to draw
+one in.  The option used to make no difference there, which is what
+the user saw."
+  (window-box-test--with-buffer
+    (setq-local mode-line-format " mine ")
+    (let ((window (selected-window)))
+      (let ((window-box-enclose-mode-line t))
+        (should (memq 'mode-line-format (window-box--dressed-rows window)))
+        (should (equal (window-box--corners window 'mode-line-format)
+                       '(2 3))))
+      (let ((window-box-enclose-mode-line nil))
+        (should-not (memq 'mode-line-format
+                          (window-box--dressed-rows window)))
+        (window-box--apply window)
+        (should-not (window-parameter window 'mode-line-format))
+        (window-box--clear window)))))
 
 (ert-deftest window-box-test-a-row-keeps-what-it-showed ()
   "A row the box draws its ends on shows the window\='s own row between them."
@@ -736,14 +748,12 @@ its underline back, under a header inside the box."
         (should spec)
         (should (equal (plist-get spec :underline) nil))
         (should (equal (plist-get spec :box) nil)))
-      ;; A graphic display leaves such a row alone; a terminal has to
-      ;; close the box on it, so it is dressed and gives up the lines
-      ;; a theme drew, the same as any row inside the box.
+      ;; and a row the box leaves outside keeps what its theme drew,
+      ;; on both displays
       (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (window-box--apply window)
-        (should (memq 'header-line-format
-                      (window-box--dressed-rows window)))
-        (should (assq 'header-line window-box--cookies)))
+        (should-not (window-box--dressed-rows window))
+        (should-not (assq 'header-line window-box--cookies)))
       (window-box--clear window))))
 
 (ert-deftest window-box-test-the-box-has-the-last-word-on-a-row ()

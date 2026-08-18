@@ -59,11 +59,13 @@ window.
 
 A row you name that the window does not show appears: the box writes
 its own edge there, so the box closes with its own line rather than
-borrowing another row's.  A terminal draws with characters, and a
-character needs a row, so it cannot keep a row the window shows above
-the text outside the box, and a mode line always closes the box
-there; a graphic display draws those edges on the rows themselves and
-follows the options exactly.
+borrowing another row's.
+
+Both displays follow the options, and a terminal has one limit: it
+draws with characters, and a character needs a row.  Where the options
+leave a row outside the box and the window keeps no row free, a
+terminal has nothing to draw the boundary with and the box is open on
+that side.  Enclose that row and it closes.
 
 #+begin_src emacs-lisp
   ;; the whole window, which is the default
