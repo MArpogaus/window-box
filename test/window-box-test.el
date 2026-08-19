@@ -193,6 +193,23 @@ fires for that.  `after-change-functions\=' does."
     (window-box-mode -1)
     (should-not (memq #'window-box--watch after-change-functions))))
 
+(ert-deftest window-box-test-a-theme-change-renews-the-hiding-remap ()
+  "The sides are hidden in the background the theme has now.
+The remap that hides them names a color, and a theme change alters it.
+The remaps the box filters to its own windows need no such care: their
+specs carry the box\='s color and `window-box--remaps\=' remakes a remap
+whose spec has changed."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (let ((cookie window-box--hidden))
+      (should cookie)
+      (should (equal window-box--hidden-color (window-box--background)))
+      ;; The theme moved on.
+      (setq window-box--hidden-color "a color no theme has")
+      (window-box--apply (selected-window))
+      (should-not (eq window-box--hidden cookie))
+      (should (equal window-box--hidden-color (window-box--background))))))
+
 (ert-deftest window-box-test-mode-line-stays ()
   "A window with a mode line keeps it; one without gets the edge back.
 A mode line the box leaves out is not touched at all — in a terminal
