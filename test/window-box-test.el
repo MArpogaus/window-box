@@ -311,6 +311,24 @@ the box are saved once, the first time the box takes them."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-the-predicate-answers-as-the-mode-goes-on ()
+  "Turning the mode on draws no box in a window the predicate spares.
+The mode is the buffer\='s and a buffer is shown where it is shown, so a
+configuration turns the mode on for the buffer and lets the predicate
+pick the places — a panel and not the ordinary window beside it.  The
+box used to go on every window of the buffer here and come off again at
+the next refresh, which is whenever a window state changes next."
+  (let ((buffer (generate-new-buffer "*window-box test*"))
+        (window-box-window-predicate #'ignore))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert "one\ntwo\n")
+          (set-window-buffer (selected-window) buffer)
+          (window-box-mode 1)
+          (should-not (window-parameter (selected-window) 'window-box)))
+      (set-window-margins (selected-window) nil nil)
+      (kill-buffer buffer))))
+
 (ert-deftest window-box-test-predicate-picks-the-windows ()
   "A box can be a window's, not only a buffer's.
 The mode is the buffer's, and a help buffer is shown in a panel and

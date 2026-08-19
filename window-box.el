@@ -1076,8 +1076,14 @@ for how the box is built."
         ;; A theme change is not a window change, and the color of the
         ;; box comes from a face.
         (add-hook 'enable-theme-functions #'window-box--refresh-frames)
+        ;; The predicate has the same say here as it has in
+        ;; `window-box--refresh': the mode is the buffer's and the box is
+        ;; the window's.  Without the test a window the predicate spares
+        ;; wore a box from the moment the mode went on until the next
+        ;; refresh, which is whenever a window state changes next.
         (dolist (window (get-buffer-window-list nil nil t))
-          (window-box--apply window)))
+          (when (window-box--boxed-p window)
+            (window-box--apply window))))
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
     (window-box--unmap-everything)
