@@ -31,9 +31,10 @@ a character in the outermost column of each margin.  The horizontal
 edges are drawn on the rows the window has.
 
 The mode keeps the width of the fringes, so their indicators stay
-where you can read them, and it leaves the margins to their owners: a
-buffer that keeps text in its margins — magit's log holds its dates
-in one — keeps them, inside the box.  The mode does not change what
+where you can read them, and it asks for its own columns of margin
+beside whatever the buffer keeps there: magit's log holds its dates in
+a wide right margin, =diff-hl-margin-mode= marks changed lines on the
+left, and both keep their columns inside the box.  The mode does not change what
 your header line and your mode line show, and =window-box-padding=
 buys air between the box and the text.
 
@@ -49,22 +50,39 @@ window keeps its own dressing.
 A window is a stack of rows.  From top to bottom these rows are the
 tab line, the header line, the text and the mode line.
 
-=window-box-encloses= lists the rows that are inside the box.  The
-text is always inside.  The default value lists all three rows, and
-the box encloses the whole window.
+The inside of the box is one unbroken stack of rows around the text.
+Two options say where it starts and where it ends:
+=window-box-enclose-top= names the topmost row inside — =tab-line=
+encloses the tab line and the header line, =header-line= the header
+line alone, nil the text alone — and =window-box-enclose-mode-line=
+says whether the mode line is inside.  The default encloses the whole
+window.
+
+A row you name that the window does not show appears: the box writes
+its own edge there, so the box closes with its own line rather than
+borrowing another row's.
+
+Both displays follow the options, and a terminal has one limit: it
+draws with characters, and a character needs a row.  Where the options
+leave a row outside the box and the window keeps no row free, a
+terminal has nothing to draw the boundary with and the box is open on
+that side.  Enclose that row and it closes.
 
 #+begin_src emacs-lisp
   ;; the whole window, which is the default
-  (setq window-box-encloses '(tab-line header-line mode-line))
+  (setq window-box-enclose-top 'tab-line
+        window-box-enclose-mode-line t)
 
   ;; the text alone
-  (setq window-box-encloses nil)
+  (setq window-box-enclose-top nil
+        window-box-enclose-mode-line nil)
 
   ;; the header line inside, the mode line outside
-  (setq window-box-encloses '(header-line))
+  (setq window-box-enclose-top 'header-line
+        window-box-enclose-mode-line nil)
 #+end_src
 
-Set the option buffer-locally to give each buffer its own box.
+Set the options buffer-locally to give each buffer its own box.
 
 [[file:img/encloses-gui.png]]
 
@@ -122,7 +140,8 @@ The package has few options:
 |-------------------------------+------------------------------------------------------|
 | =window-box=                  | the face of the box; its foreground is the color     |
 | =window-box-color=            | one color for the box, buffer-local if you set it so |
-| =window-box-encloses=         | the rows that are inside the box                     |
+| =window-box-enclose-top=      | the topmost row inside the box                       |
+| =window-box-enclose-mode-line= | whether the mode line is inside                     |
 | =window-box-padding=          | columns between a side and the text                  |
 | =window-box-characters=       | the characters of the box in a terminal              |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
@@ -188,9 +207,12 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   home in the margins instead, where the box frames them —
   [[file:docs/implementation.org][docs/implementation.org]] has the settings for magit, flymake and
   diff-hl.
-- A terminal draws the sides in one column of margin per side; a
-  buffer that uses its margins for its own text keeps them, and such
-  a window gets the horizontal edges alone there.
+- A terminal draws the sides in one column of margin per side, and
+  asks for that column beside the buffer's own: the side is drawn
+  before what the buffer puts in the margin, so it sits outside it on
+  the left.  In the right margin the order is the same, so a buffer's
+  own content there — magit's dates — sits outside the box's side
+  rather than inside it.
 - While the box is up, its sides outrank a prefix a line brings of
   its own — a shell's indent gutter waits under the box and comes
   back with it gone.

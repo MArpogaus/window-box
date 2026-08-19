@@ -17,21 +17,11 @@
 
 (require 'window-box)
 
-;; The sides are a character in a margin, and how much of its cell a
-;; character covers is the font's business.  The measurement needs a
-;; font whose side character is a line down the whole cell.
+;; One font, so the rows are the heights the checker works with.
 (let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
                       '("Noto Sans Mono" "DejaVu Sans Mono"
                         "Liberation Mono"))))
   (when font (set-frame-font (format "%s 13" font) nil t)))
-
-;; The default draws each side as a hairline, which is a character, and
-;; how tall its ink is, is the font's business: the fonts on a runner
-;; are not the fonts on a desk.  The measurement asks for the column
-;; instead, so that a gap in a side is the package's fault and never
-;; the font's.  `window-box-test-a-side-is-a-character-or-a-column'
-;; covers the choice itself.
-(setq window-box-side-characters nil)
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
 ;; land inside it.  Off, as a configuration that wants boxes has it.
@@ -48,7 +38,7 @@ The checker needs them: a frame holds more grey lines than this
 package draws, the mode line's own shadow among them.")
 
 (defconst gui-test-encloses-file "/tmp/window-box-encloses.png"
-  "Where the frame of the `window-box-encloses\=' examples lands.")
+  "Where the frame of the enclose examples lands.")
 
 (defconst gui-test-encloses-geometry "/tmp/window-box-encloses.txt"
   "Where the boxed windows of that frame land, with the edges they want.
@@ -107,58 +97,58 @@ suite."
   "Return the pixel rows the box\='s edges want around WINDOW.
 The edge above a row that is inside the box sits on that row\='s first
 pixel, the edge below a row that is outside it on that row\='s last —
-so the rows the setting leaves out are what stands between the window
+so the rows the options leave out are what stands between the window
 and its box."
   (pcase-let* ((`(,_ ,top ,_ ,bottom) (window-edges window nil nil t))
-               (encloses (buffer-local-value 'window-box-encloses
-                                             (window-buffer window)))
-               (outside (+ (if (memq 'tab-line encloses)
+               (buffer (window-buffer window))
+               (top-in (buffer-local-value 'window-box-enclose-top buffer))
+               (mode-in (buffer-local-value 'window-box-enclose-mode-line
+                                            buffer))
+               (outside (+ (if (eq top-in 'tab-line)
                                0 (window-tab-line-height window))
-                           (if (memq 'header-line encloses)
+                           (if (memq top-in '(tab-line header-line))
                                0 (window-header-line-height window)))))
     (list (if (zerop outside) top (+ top outside -1))
-          (if (memq 'mode-line encloses)
+          (if mode-in
               (1- bottom)
             (- bottom (window-mode-line-height window))))))
 
-(defun gui-test--example (name encloses tabs)
-  "Return a buffer NAME with rows to enclose, ENCLOSES what to take in.
-TABS non-nil gives it a tab line of its own."
+(defun gui-test--example (name top mode-line tabs)
+  "Return a buffer NAME with rows to enclose.
+TOP is `window-box-enclose-top\=', MODE-LINE is
+`window-box-enclose-mode-line\=', TABS non-nil gives the buffer a tab
+line of its own."
   (let ((buffer (get-buffer-create name)))
     (with-current-buffer buffer
       (erase-buffer)
-      (insert (format "%s: %s\n"
-                      name (if encloses
-                               (mapconcat #'symbol-name encloses ", ")
-                             "the text alone")))
+      (insert (format "%s: top %s, mode line %s\n"
+                      name (or top "text") (if mode-line "in" "out")))
       (setq-local header-line-format " a header line of my own "
                   mode-line-format " a mode line of my own "
-                  window-box-encloses encloses)
+                  window-box-enclose-top top
+                  window-box-enclose-mode-line mode-line)
       (when tabs (setq-local tab-line-format " a tab line of my own ")))
     buffer))
 
 (defun gui-test--encloses ()
-  "Export a frame with one window per `window-box-encloses\=' setting."
+  "Export a frame with one window per enclose shape."
   ;; Four windows with a header, a mode line and room to see them.
   (set-frame-size (selected-frame) 700 900 t)
-  (switch-to-buffer (gui-test--example "*text*" nil nil))
+  (switch-to-buffer (gui-test--example "*text*" nil nil nil))
   (delete-other-windows)
   (let* ((first (selected-window))
          (second (split-window first nil 'below))
          (third (split-window second nil 'below))
          (fourth (split-window third nil 'below))
          (windows (list first second third fourth)))
-    (set-window-buffer second (gui-test--example "*header*" '(header-line) nil))
+    (set-window-buffer second (gui-test--example "*header*" 'header-line nil nil))
     (set-window-buffer third (gui-test--example "*header and mode*"
-                                                '(header-line mode-line) nil))
+                                                'header-line t nil))
     ;; and one with padding: the box takes a column for its side and
     ;; two more for air, and the side stays at the window's edge.
     (with-current-buffer (window-buffer second)
       (setq-local window-box-padding 2))
-    (set-window-buffer fourth (gui-test--example "*everything*"
-                                                 '(tab-line header-line
-                                                            mode-line)
-                                                 t))
+    (set-window-buffer fourth (gui-test--example "*everything*" 'tab-line t t))
     ;; A buffer that keeps a margin of its own, as magit's log does:
     ;; the row spans that margin, and the end of the box has to reach
     ;; past it.
@@ -170,8 +160,7 @@ TABS non-nil gives it a tab line of its own."
     ;; can land in what separates the two.
     (let ((beside (with-selected-window third (split-window-right))))
       (set-window-buffer beside (gui-test--example "*beside*"
-                                                   '(header-line mode-line)
-                                                   nil))
+                                                   'header-line t nil))
       (setq windows (append windows (list beside))))
     (dolist (window windows)
       (with-current-buffer (window-buffer window) (window-box-mode 1)))
@@ -189,17 +178,12 @@ TABS non-nil gives it a tab line of its own."
                            (mapcar #'number-to-string
                                    (append (gui-test--wanted window)
                                            ;; whether the box draws
-                                           ;; sides here at all: a
-                                           ;; buffer that keeps its
-                                           ;; own margins gets none
-                                           ;; asked in the window's
-                                           ;; own buffer, because the
-                                           ;; padding is the buffer's
-                                           (list (if (with-current-buffer
-                                                         (window-buffer window)
-                                                       (window-box--wide-margins-p
-                                                        window))
-                                                     0 1))))
+                                           ;; sides here at all: every
+                                           ;; boxed window has them now,
+                                           ;; since the box asks for its
+                                           ;; columns beside whatever the
+                                           ;; buffer keeps in the margins
+                                           (list 1)))
                            " ")))
                 windows "")
      nil gui-test-encloses-geometry nil 'quiet)

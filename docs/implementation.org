@@ -32,12 +32,24 @@ every line to its own height.  The periodic bitmap alone tiles
 whatever the line is.
 
 The margins are therefore left to their owners.  A buffer that keeps
-text in them — magit's log holds its dates in a thirty column margin
-— keeps them, and with the default order, fringes outside margins,
-the sides still frame that content.  =window-box-padding= only ever
-adds blank margins between the fringe and the text.  A line whose
-fringe shows an indicator of its own shows that instead of the side,
-and a frame without fringes shows no sides.
+text in them — magit's log holds its dates in a thirty column margin,
+=diff-hl-margin-mode= marks every changed line in two columns — keeps
+them, and with the default order, fringes outside margins, the sides
+still frame that content.  =window-box-padding= only ever adds blank
+margins between the fringe and the text.  A line whose fringe shows an
+indicator of its own shows that instead of the side, and a frame
+without fringes shows no sides.
+
+A terminal has no fringes, so its sides live in the margins, and it
+asks for its columns *beside* the buffer's rather than instead of
+them: the window's margin grows by the width the box needs, and the
+side rides the line prefix, which a row shows before anything the
+buffer puts in the margin.  So the side sits outside the buffer's own
+marks in the left margin, and the buffer's own content sits outside
+the side in the right margin, where that same order puts the box's
+glyph first.  The box used to draw no sides at all in such a window,
+which left its horizontal edges hanging on nothing — every file of a
+configuration that marks changed lines in the margin.
 
 A fringe shows one bitmap per line, so an indicator and a side cannot
 share one.  Every common indicator has a home in the margins, where
@@ -53,11 +65,9 @@ the box frames it instead:
 #+end_src
 
 A continuation arrow goes with `visual-line-mode', which most
-configurations that wrap prose already use.  A terminal has no
-fringes: it draws the vertical edge of =window-box-characters= in the
-outermost column of each margin, the padding inside it, and a
-terminal window whose buffer owns the margins gets the horizontal
-edges alone.
+configurations that wrap prose already use.
+
+* The sides and their carriers
 
 The sides hang on `line-prefix', on two carriers at once.  The
 buffer-local variable reaches the rows below the last line of text,
@@ -74,13 +84,50 @@ overline and no underline:
   of one pixel that the box draws itself.
 - In a terminal an edge is a row of characters.
 
-The package drops a value of either option that is not the length it
-needs, because an error in a redisplay is hard to find.
+The corners are square on both displays.  Round corners were tried and
+are parked on the =rounded-corners= branch: an image is placed against
+its row's baseline rather than the row's edge, so an arc has to be
+exactly as tall as the row it sits in, and the box has to measure every
+row it dresses to know that — a measurement it cannot take while the
+row is being drawn, because Emacs works a row's height out by laying
+the row out and the layout runs the =:eval= the box put there.  That
+branch carries all of it; the box here draws its ends as stretches,
+which fill a row of any height.
+
+The package drops a value of =window-box-characters= that is not the
+length it needs, because an error in a redisplay is hard to find.
 
 * Where a horizontal edge goes
 
-=window-box-encloses= lists the rows that are inside the box.  The
-box puts a horizontal edge where the inside stops.
+=window-box-enclose-top= and =window-box-enclose-mode-line= say which
+rows are inside the box, and the inside is always one unbroken stack
+around the text: enclosing the tab line encloses the header line with
+it.  The box puts a horizontal edge where the inside stops.
+
+The edge goes on a row the box owns, so that its ends are the box's
+own glyphs:
+
+- The overline of the topmost row inside the box.  It marks the same
+  boundary as the underline of the row above it, and it is a row the
+  box dresses.
+- A row of the box's own, written into the row closest to the text
+  that the window leaves free — below every row the box leaves
+  outside, above every row it takes in.  This is how a row named by
+  =window-box-enclose-top= appears when the window has none.
+- The underline of the last row outside the box, where no row is
+  free.  The box owns no glyph on such a row, and draws none: the line
+  alone marks the boundary.
+
+A terminal draws with characters, and a character needs a row of its
+own.  It follows the options as a graphic display does — a row the box
+leaves outside is not touched — but it has no line to draw between
+such a row and the text, and no row to draw one in: the box is open on
+that side there.  Enclose the mode line, or the row above the text,
+and the box closes on it.
+
+That is a plain consequence of what a terminal has.  A graphic display
+needs no row of anyone's, since an overline and an underline are the
+row's own lines, so it draws every shape the options ask for.
 
 On a graphic display the box uses the row itself:
 
@@ -95,6 +142,11 @@ because both are drawn where the box draws.  It removes them from
 each row inside the box and not only from the one that carries the
 edge, or a row would change its look when the edge moves to the row
 above it.
+
+A row the box leaves outside keeps everything: the box borrows the one
+line it needs there and nothing else.  It used to take the border as
+well, which took the padding off a mode line dressed by
+=spacious-padding= and moved the row the box was drawing against.
 
 Where no row is at the boundary, the box draws a row of its own.  A
 window without a mode line gets such a row at the bottom.  A window
@@ -293,8 +345,8 @@ PNG files.  =test/gui-check.py= reads the pixels back with pillow.
 The first frame has two boxed side windows.  The check asserts that
 each edge is one pixel wide and sits on the edge of the window.
 
-The second frame has one window for each =window-box-encloses=
-setting, and a split window.  The elisp side computes the two rows
+The second frame has one window for each enclose shape, and a split
+window.  The elisp side computes the two rows
 that the edges must use.  It computes them from the row heights that
 Emacs reports, and not from the code that draws the box.  The check
 asserts three things:
