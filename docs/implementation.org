@@ -78,15 +78,29 @@ face twice: to the default background for the buffer, which is a side
 nobody sees, and to the box's color for the windows the box is drawn
 in.  The second remap is filtered to those windows and added after the
 first, so it wins where it applies and the bare windows keep the
-invisible side.
+invisible side.  The hiding remap names a color rather than carrying
+the box's, so it is the one remap a theme change makes stale: the box
+compares it with the background of the moment and makes it anew.
 
-The sides hang on two carriers at once.  The
-buffer-local variable reaches the rows below the last line of text,
-where an overlay ends.  A whole-buffer overlay outranks the prefix a
-line brings as a text property — a shell indents its output that way,
-and those lines went bare on the variable alone.  The pixel rig
-measures the side column either way, where a gap is the package's
-fault and never the font's.
+The sides hang on two carriers at once.  The buffer-local variable
+reaches the rows below the last line of text, where an overlay ends.  A
+whole-buffer overlay outranks the prefix a line brings as a text
+property — a shell indents its output that way, and those lines went
+bare on the variable alone.  The pixel rig measures the side column
+either way, where a gap is the package's fault and never the font's.
+
+The overlay is the buffer's, and a buffer may throw its overlays away:
+symbols-outline renders its panel with =delete-all-overlays= and
+=erase-buffer=, and deletes the overlays of a region when it collapses
+a node.  Two things follow.  A deleted overlay is still an overlay,
+only detached from its buffer, so the box asks whether it has a buffer
+rather than whether it is an overlay — the test of =overlayp= alone
+left a carrier that carried nothing, and the sides fell back on the
+variable, which such a panel's own =line-prefix= beats: 792 of 924
+side pixels, six gaps of one line each.  And a change in the text
+alone fires none of the window hooks the box listens to, so
+=window-box--watch= puts the overlay back from =after-change-functions=,
+buffer-locally, doing nothing at all unless it is gone.
 
 Emacs draws the border between two windows side by side in the first
 pixel column of the window on the right, which is the column the box

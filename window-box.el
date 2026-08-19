@@ -313,8 +313,13 @@ a row rather than below it — can tell and remake the remap.")
 A cookie of `face-remap-add-relative\=', added before the remaps the box
 filters to its own windows so that those win where they apply.")
 
-(defvar-local window-box--cookie-color nil
-  "Color the cookies were made with, so a change renews them.")
+(defvar-local window-box--hidden-color nil
+  "Background `window-box--hidden\=' was made with, so a change renews it.
+The remaps the box filters to its own windows need no such record:
+their specs carry the box\='s color, and `window-box--remaps\=' remakes
+any remap whose spec has changed.  The hiding remap carries the
+buffer\='s background instead, which no spec of the box mentions and a
+theme change alters.")
 
 (defun window-box--remap (face spec)
   "Remap FACE in the current buffer with SPEC, once.
@@ -336,21 +341,32 @@ drawn and nowhere else."
     (face-remap-remove-relative (nth 1 entry))
     (setq window-box--cookies (delq entry window-box--cookies))))
 
+(defun window-box--background ()
+  "Return the color a side is hidden in, or nil where the display names none.
+`:foreground nil\=' is no color at all rather than the background, and
+the side would show; a display that names no background leaves the
+sides alone, and in a terminal a window without a box has no margin to
+draw one in anyway."
+  (or (face-background 'default nil 'default)
+      (frame-parameter nil 'background-color)))
+
 (defun window-box--hide-sides ()
   "Draw the sides in the background of the current buffer, once.
 The box remaps them to its color again in the windows it is drawn in,
 and that remap is added later, so it wins where it applies."
   (unless window-box--hidden
-    (setq window-box--hidden
-          (face-remap-add-relative
-           'window-box--side
-           (list :foreground (face-background 'default nil 'default))))))
+    (when-let* ((background (window-box--background)))
+      (setq window-box--hidden
+            (face-remap-add-relative 'window-box--side
+                                     (list :foreground background))
+            window-box--hidden-color background))))
 
 (defun window-box--show-sides ()
   "Take back the remap that hid the sides."
   (when window-box--hidden
     (face-remap-remove-relative window-box--hidden)
-    (setq window-box--hidden nil)))
+    (setq window-box--hidden nil
+          window-box--hidden-color nil)))
 
 (defun window-box--unmap-all ()
   "Take back every remap this buffer holds.
@@ -358,13 +374,7 @@ The one way out for all of them: a cookie that a caller reads by hand
 is a cookie that stays behind when the record changes shape."
   (dolist (entry (copy-sequence window-box--cookies))
     (window-box--unmap (car entry)))
-  (setq window-box--cookies nil
-        window-box--cookie-color nil))
-
-(defun window-box--unmap-everything ()
-  "Take back every remap the box holds in this buffer, the sides too."
-  (window-box--unmap-all)
-  (window-box--show-sides))
+  (setq window-box--cookies nil))
 
 (defun window-box--remaps (wanted)
   "Hold exactly the remaps in WANTED, an alist of face and spec.
@@ -422,9 +432,10 @@ Each entry is a window parameter and a plist:
   :own      the format of an edge row of the box\='s own, where the
             box can have the row to itself")
 
-(defconst window-box--rows-order
-  '(tab-line-format header-line-format mode-line-format)
-  "The rows a window shows besides its text, top to bottom.")
+(defconst window-box--rows-order (mapcar #'car window-box--rows)
+  "The rows a window shows besides its text, top to bottom.
+The keys of `window-box--rows\=', which is written in that order.  The
+order is one fact and this is the one place that states it.")
 
 (defun window-box--row-part (parameter part)
   "Return PART of the `window-box--rows\=' entry for PARAMETER.
@@ -580,20 +591,18 @@ has neither an overline nor an underline: there the row that closes the
 box is the first row the box takes in, where no row above it is free
 for an edge of the box\='s own, and the mode line it takes in, where
 there is no row below it."
-  (let ((graphic (display-graphic-p (window-frame window)))
-        (top (window-box--top-edge window))
+  (let ((top (window-box--top-edge window))
         (bottom (window-box--bottom-edge window)))
-    (cond ((if graphic
-               (equal top (cons 'overline parameter))
-             (and (eq parameter (car (window-box--dressed-rows window)))
+    (if (display-graphic-p (window-frame window))
+        (cond ((equal top (cons 'overline parameter)) '(0 1))
+              ((equal bottom (cons 'underline parameter)) '(2 3))
+              (t '(4 4)))
+      (cond ((and (eq parameter (car (window-box--dressed-rows window)))
                   (not (eq parameter 'mode-line-format))
-                  (not top)))
-           '(0 1))
-          ((if graphic
-               (equal bottom (cons 'underline parameter))
-             (and (eq parameter 'mode-line-format) (not bottom)))
-           '(2 3))
-          (t '(4 4)))))
+                  (not top))
+             '(0 1))
+            ((and (eq parameter 'mode-line-format) (not bottom)) '(2 3))
+            (t '(4 4))))))
 
 (defun window-box--indented (spec)
   "Return SPEC with each `right\=' in it moved in, clear of the box\='s end.
@@ -621,9 +630,7 @@ its keymap and its face."
         (pos 0))
     ;; A session without a display draws nothing, and there is nothing
     ;; to fit: the content goes back as it came.
-    (when (or (null row) (string-empty-p row))
-      (setq row nil))
-    (setq row (and row (copy-sequence row)))
+    (setq row (and row (not (string-empty-p row)) (copy-sequence row)))
     (while (and row
                 (setq pos (text-property-not-all pos (length row)
                                                  'display nil row)))
@@ -677,10 +684,7 @@ Called from the window parameter the box sets, so the window being
 redisplayed is the selected one and its buffer is current."
   (let* ((window (selected-window))
          (graphic (display-graphic-p))
-         (corners (window-box--corners window parameter))
-         ;; The end is a bar of one pixel on a graphic display and a
-         ;; character in a terminal; the stretch stops short of it.
-         (end 1))
+         (corners (window-box--corners window parameter)))
     (list (window-box--cap (nth 0 corners))
           (window-box--trimmed
            (window-box--fitted (window-box--content window parameter))
@@ -706,7 +710,8 @@ redisplayed is the selected one and its buffer is current."
                                      (,(+ (* (or (cdr (window-margins)) 0)
                                              (frame-char-width))
                                           (cadr (window-fringes))
-                                          (- end)))))
+                                          ;; The end itself: one pixel.
+                                          -1))))
                         ;; `right' is the right edge of the text area,
                         ;; which is where the row ends in the window
                         ;; at the frame's edge and not in one left of
@@ -811,10 +816,13 @@ Call it with the window's buffer current."
          (bottom (window-box--bottom-edge window))
          (dressed (window-box--dressed-rows window))
          (wanted nil))
+    ;; A theme change alters the background the sides are hidden in, and
+    ;; no spec of the box's mentions it: the hiding remap is made anew
+    ;; where it no longer matches.  The filtered remaps carry the box's
+    ;; color and `window-box--remaps' sees to those.
+    (unless (equal (window-box--background) window-box--hidden-color)
+      (window-box--show-sides))
     (window-box--hide-sides)
-    (unless (equal color window-box--cookie-color)
-      (window-box--unmap-all)
-      (setq window-box--cookie-color color))
     ;; The sides: a fringe bitmap and a character are drawn in the
     ;; foreground of the face their display spec names, and that face is
     ;; static — the color of the box reaches them only through a remap,
@@ -839,19 +847,18 @@ Call it with the window's buffer current."
                    (seq-filter (lambda (edge)
                                  (memq (car-safe edge) '(overline underline)))
                                (list top bottom)))
-      (let ((inside (memq parameter dressed)))
+      (let ((spec (and (memq parameter dressed)
+                       ;; Inside: the row gives up both of its own lines
+                       ;; and its border, and the box writes the one it
+                       ;; needs over that.
+                       (list :overline nil :underline nil :box nil))))
+        (setq spec (plist-put spec
+                              (if (eq edge 'overline) :overline :underline)
+                              (if (eq edge 'overline)
+                                  color
+                                (list :color color :position 0))))
         (dolist (face (window-box--row-faces parameter))
-          (push (cons face
-                      (if (eq edge 'overline)
-                          (if inside
-                              (list :overline color :underline nil :box nil)
-                            (list :overline color))
-                        (if inside
-                            (list :underline (list :color color :position 0)
-                                  :overline nil :box nil)
-                          (list :underline (list :color color
-                                                 :position 0)))))
-                wanted))))
+          (push (cons face spec) wanted))))
     ;; A row that is inside the box gives up the overline, the
     ;; underline and the border of its own face, wherever the edge of
     ;; the box happens to be.  All three are drawn where the box
@@ -863,49 +870,34 @@ Call it with the window's buffer current."
         (unless (assq face wanted)
           (push (cons face (list :overline nil :underline nil :box nil))
                 wanted))))
-    ;; A row of the box's own, where a row is free for one.
+    ;; What the box asks of each row the window shows besides its text:
+    ;; an edge row of its own where the window leaves that row free, its
+    ;; ends where the row is inside the box, and nothing at all
+    ;; otherwise.  Neither margins nor fringes reach these rows, so the
+    ;; box goes on them through the row itself, which it takes over and
+    ;; gives back as it found it.
     (dolist (parameter window-box--rows-order)
-      (let ((own (and (member (cons 'own parameter) (list top bottom))
-                      (window-box--own-format parameter))))
-        (cond
-         (own (window-box--dress window parameter own))
-         ((equal (window-parameter window parameter)
-                 (window-box--own-format parameter))
-          (window-box--undress window parameter)))))
-    ;; The ends of the rows the box takes in: neither margins nor
-    ;; fringes reach those rows, so the box goes on them through the
-    ;; row itself, which it takes over and gives back as it found it.
-    (dolist (parameter window-box--rows-order)
-      (if (memq parameter dressed)
-          (window-box--dress window parameter
-                             (window-box--dressed-format parameter))
-        (when (equal (window-parameter window parameter)
-                     (window-box--dressed-format parameter))
-          (window-box--undress window parameter))))
+      (let ((format (cond ((member (cons 'own parameter) (list top bottom))
+                           (window-box--own-format parameter))
+                          ((memq parameter dressed)
+                           (window-box--dressed-format parameter)))))
+        (cond (format (window-box--dress window parameter format))
+              ;; Whatever of the box's the row still wears, it wears no
+              ;; longer.
+              ((member (window-parameter window parameter)
+                       (window-box--own-values parameter))
+               (window-box--undress window parameter)))))
     (window-box--remaps (nreverse wanted))
-    ;; The sides hang on the buffer's `line-prefix' and on a
-    ;; buffer-spanning overlay's: the variable reaches the rows below
-    ;; the last line of text, where an overlay ends, and the overlay
-    ;; outranks the prefix a line brings of its own — a shell indents
-    ;; its output that way, and those lines went bare on the variable
-    ;; alone.  On a graphic display the
-    ;; sides are periodic fringe bitmaps, one pixel at the outermost
-    ;; edge, repeating over every line's full height — an image in the
-    ;; margin is one default line tall, and a taller line, a banner or
-    ;; a formula preview, kept bare pixels above and below it.  The
-    ;; margins carry only the padding there.  A terminal has no
-    ;; fringes and draws the sides in the margins.
-    ;;
-    ;; A buffer that keeps something in its margins keeps it: magit's
-    ;; log writes the author and the date into a thirty column right
-    ;; margin, and `diff-hl-margin-mode' marks every changed line of
-    ;; every file in two columns on the left.  The box asks for its own
-    ;; columns beside those, not instead of them — the margin grows by
-    ;; the width the box needs, the box's side goes on the line prefix,
-    ;; which a row shows before anything the buffer puts in the margin,
-    ;; and the buffer's own marks sit inside the side.  A terminal drew
-    ;; no sides at all in such a window before, which left the
-    ;; horizontal edges hanging on nothing.
+    ;; The margins and the sides.  A graphic display draws the sides as
+    ;; fringe bitmaps and gives the margins to `window-box-padding'
+    ;; alone; a terminal has no fringes and draws them in the margins.
+    ;; Either way the box asks for its columns *beside* the buffer's
+    ;; own, never instead of them: magit's log writes the author and the
+    ;; date into a thirty column right margin, `diff-hl-margin-mode'
+    ;; marks every changed line in two on the left, and the box's side
+    ;; sits outside all of it.  A terminal drew no sides at all in such
+    ;; a window before, which left the horizontal edges hanging on
+    ;; nothing.  `window-box--wear' says how the sides hang.
     (let* ((width (window-box--width))
            (graphic (display-graphic-p (window-frame window)))
            (own (window-box--own-margins window width))
@@ -1124,7 +1116,8 @@ for how the box is built."
     (remove-hook 'after-change-functions #'window-box--watch t)
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
-    (window-box--unmap-everything)
+    (window-box--unmap-all)
+    (window-box--show-sides)
     (window-box--shed)))
 
 (provide 'window-box)
