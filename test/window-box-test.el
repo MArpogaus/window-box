@@ -145,6 +145,54 @@ brings as a text property, where the variable loses."
     (should (equal line-prefix "> "))
     (should (equal wrap-prefix "| "))))
 
+(ert-deftest window-box-test-the-prefix-overlay-survives-a-re-render ()
+  "A buffer that throws its overlays away gets the sides back.
+symbols-outline renders its panel with `delete-all-overlays\=' and
+`erase-buffer\=', and it puts a `line-prefix\=' of its own on the lines it
+draws.  A deleted overlay is still an overlay — only detached — so a
+test of `overlayp\=' alone left the box with a carrier that carried
+nothing, and every line with a prefix of its own lost its sides."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (let ((overlay window-box--prefix-overlay))
+      (should (overlay-buffer overlay))
+      (delete-all-overlays)
+      (should (overlayp overlay))
+      (should-not (overlay-buffer overlay))
+      ;; What every refresh does.
+      (window-box--apply (selected-window))
+      (should (overlay-buffer window-box--prefix-overlay))
+      (should (= (overlay-start window-box--prefix-overlay) (point-min)))
+      (should (= (overlay-end window-box--prefix-overlay) (point-max)))
+      (should (stringp (overlay-get window-box--prefix-overlay 'line-prefix))))
+    ;; And after the text is replaced, the overlay spans the new text.
+    (erase-buffer)
+    (insert "one\ntwo\nthree\n")
+    (window-box--apply (selected-window))
+    (should (= (overlay-end window-box--prefix-overlay) (point-max)))))
+
+(ert-deftest window-box-test-a-render-that-deletes-the-overlay-is-noticed ()
+  "The sides come back without waiting for a window to change.
+A panel that renders itself — `delete-all-overlays\=', `erase-buffer\=',
+insert — changes its text and nothing else, and none of the window hooks
+fires for that.  `after-change-functions\=' does."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (should (overlay-buffer window-box--prefix-overlay))
+    (delete-all-overlays)
+    (should-not (overlay-buffer window-box--prefix-overlay))
+    ;; The render writes its text; no window has changed.
+    (erase-buffer)
+    (insert "symbol one\nsymbol two\n")
+    (should (overlay-buffer window-box--prefix-overlay))
+    (should (= (overlay-start window-box--prefix-overlay) (point-min)))
+    (should (= (overlay-end window-box--prefix-overlay) (point-max)))
+    (should (equal (overlay-get window-box--prefix-overlay 'line-prefix)
+                   line-prefix))
+    ;; And the watcher goes with the mode.
+    (window-box-mode -1)
+    (should-not (memq #'window-box--watch after-change-functions))))
+
 (ert-deftest window-box-test-mode-line-stays ()
   "A window with a mode line keeps it; one without gets the edge back.
 A mode line the box leaves out is not touched at all — in a terminal

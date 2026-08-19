@@ -931,10 +931,23 @@ What the buffer wore before is kept once, for the mode to give back."
           (list line-prefix wrap-prefix (local-variable-p 'line-prefix))))
   (setq-local line-prefix prefix
               wrap-prefix prefix)
-  (unless (overlayp window-box--prefix-overlay)
-    (setq window-box--prefix-overlay
-          (save-restriction
-            (widen)
+  ;; A live overlay is moved rather than remade, and a dead one is
+  ;; remade: `delete-overlay' leaves an overlay that is still an
+  ;; overlay, only detached from its buffer, and a buffer that renders
+  ;; itself again throws every overlay away — `delete-all-overlays' in
+  ;; symbols-outline, `(mapc #\='delete-overlay (overlays-in ...))' where
+  ;; it collapses a node.  Testing `overlayp' alone therefore kept a
+  ;; carrier that carried nothing, and the sides fell back on the
+  ;; buffer-local variable, which a line's own `line-prefix' text
+  ;; property beats: the sides went missing line by line.  Moving it
+  ;; also covers a buffer that was emptied and filled again, where the
+  ;; overlay would otherwise still span the text that is gone.
+  (save-restriction
+    (widen)
+    (if (and (overlayp window-box--prefix-overlay)
+             (overlay-buffer window-box--prefix-overlay))
+        (move-overlay window-box--prefix-overlay (point-min) (point-max))
+      (setq window-box--prefix-overlay
             ;; Rear-advance, so text added at the end wears it too.
             (make-overlay (point-min) (point-max) nil nil t))))
   ;; Above every other overlay: a shell that draws an indent gutter
@@ -946,6 +959,25 @@ What the buffer wore before is kept once, for the mode to give back."
   (overlay-put window-box--prefix-overlay 'priority 100)
   (overlay-put window-box--prefix-overlay 'line-prefix prefix)
   (overlay-put window-box--prefix-overlay 'wrap-prefix prefix))
+
+(defun window-box--watch (_beginning _end _before)
+  "Put the sides\=' overlay back when a change has taken it away.
+For `after-change-functions\=', buffer-locally, while the box is worn.  A
+buffer that renders itself again throws every overlay away and then
+writes its text — symbols-outline calls `delete-all-overlays\=' and
+`erase-buffer\=' on every refresh — and none of the window hooks the box
+listens to fires for a change in the text alone.  The sides would then
+hang on the buffer-local variable until the next window change, and a
+line that brings a `line-prefix\=' of its own beats the variable: the box
+lost its side beside such a line, a line at a time.
+
+`window-box--saved-prefix\=' says the box is wearing a prefix at all, so a
+buffer whose windows the predicate spares is left alone."
+  (when (and window-box--saved-prefix
+             (stringp line-prefix)
+             (not (and (overlayp window-box--prefix-overlay)
+                       (overlay-buffer window-box--prefix-overlay))))
+    (window-box--wear line-prefix)))
 
 (defun window-box--clear (window)
   "Remove the box from WINDOW.
@@ -1066,6 +1098,11 @@ for how the box is built."
         ;; permanent-local, so the box is drawn again from scratch —
         ;; which is what the cleared cookies ask for.
         (add-hook 'after-change-major-mode-hook #'window-box--refresh)
+        ;; A change in the text alone fires none of the window hooks, and
+        ;; a buffer that renders itself again deletes the overlay the
+        ;; sides ride.  Buffer-local, and it does nothing at all unless
+        ;; that overlay is gone.
+        (add-hook 'after-change-functions #'window-box--watch nil t)
         ;; The last word.  A display rule can write the same window
         ;; parameters the box writes — `auto-side-windows' does, on
         ;; each display of the buffer — and whoever runs last wins.
@@ -1084,6 +1121,7 @@ for how the box is built."
         (dolist (window (get-buffer-window-list nil nil t))
           (when (window-box--boxed-p window)
             (window-box--apply window))))
+    (remove-hook 'after-change-functions #'window-box--watch t)
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
     (window-box--unmap-everything)
