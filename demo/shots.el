@@ -8,6 +8,14 @@
 ;; margins and leaves the fringes to their indicators.
 (menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
 (blink-cursor-mode -1)
+;; Window dividers.  Without them Emacs paints `vertical-border' over
+;; the first column of a right hand window's left fringe, which is
+;; where the box draws its left side: the border wins and the picture
+;; shows a box with a side missing.  A divider has a column of its own
+;; and leaves the fringe alone.  One pixel keeps the picture tight.
+(setq window-divider-default-places 'right-only
+      window-divider-default-right-width 1)
+(window-divider-mode 1)
 (setq-default cursor-type 'bar)
 (let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
                       '("FiraCode Nerd Font" "Source Code Pro"
@@ -91,10 +99,12 @@ the whole window, which is the default\n"
   (let ((buffer (get-buffer-create "*notes*")))
     (with-current-buffer buffer
       (erase-buffer)
-      (insert ";; The same buffer in two windows.\n"
+      ;; Short lines: each window is half of 840 pixels wide, and a
+      ;; line that does not fit is truncated in the picture.
+      (insert ";; The same buffer, two windows.\n"
               ";;\n"
-              ";; The box is the buffer's, and a predicate says which\n"
-              ";; windows wear it — here the one on the right.\n")
+              ";; A predicate says which windows\n"
+              ";; wear the box — here the right.\n")
       (goto-char (point-min))
       (setq-local mode-line-format " *notes* "))
     (switch-to-buffer buffer)

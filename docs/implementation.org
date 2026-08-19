@@ -88,6 +88,18 @@ and those lines went bare on the variable alone.  The pixel rig
 measures the side column either way, where a gap is the package's
 fault and never the font's.
 
+Emacs draws the border between two windows side by side in the first
+pixel column of the window on the right, which is the column the box
+draws its left side in, and the border wins.  Measured under Xvfb: the
+left side of a boxed right hand window was 22 pixels tall where it
+should have been 300, and the pixel in the border's column was the
+border's black.  `window-divider-mode' moves the border into a column
+of its own and the side comes back — 300 pixels.  The package cannot
+do it instead: the border belongs to no buffer, and a face remap of
+`vertical-border' does not reach it, filtered to a window or not.  The
+pictures in the README turn dividers on for that reason, and the
+README names the setting.
+
 The horizontal edges differ by display, because a terminal has no
 overline and no underline:
 

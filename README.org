@@ -222,6 +222,14 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   column of a window that has a neighbour on its left.  This border
   covers the side of the box there.  A line is there in each case,
   but it has the color of the frame and not the color of the box.
+  Window dividers give the border a column of its own and give the
+  box its side back:
+
+  #+begin_src emacs-lisp
+    (setq window-divider-default-places 'right-only
+          window-divider-default-right-width 1)
+    (window-divider-mode 1)
+  #+end_src
 - A window that shows its own tab line keeps it.  In a terminal the
   tabs use the row of the top edge.  The box then has three edges,
   and the tab line closes it at the top.
