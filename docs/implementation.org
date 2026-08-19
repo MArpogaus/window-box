@@ -69,7 +69,18 @@ configurations that wrap prose already use.
 
 * The sides and their carriers
 
-The sides hang on `line-prefix', on two carriers at once.  The
+A side hangs on `line-prefix', which belongs to the buffer, and a
+fringe belongs to the window.  So every window showing a boxed buffer
+draws the sides — the windows =window-box-window-predicate= spares as
+well, and a buffer shown twice is one buffer.  The box therefore draws
+the sides in a face of their own, =window-box--side=, and remaps that
+face twice: to the default background for the buffer, which is a side
+nobody sees, and to the box's color for the windows the box is drawn
+in.  The second remap is filtered to those windows and added after the
+first, so it wins where it applies and the bare windows keep the
+invisible side.
+
+The sides hang on two carriers at once.  The
 buffer-local variable reaches the rows below the last line of text,
 where an overlay ends.  A whole-buffer overlay outranks the prefix a
 line brings as a text property — a shell indents its output that way,
@@ -85,17 +96,15 @@ overline and no underline:
 - In a terminal an edge is a row of characters.
 
 The corners are square on both displays.  Round corners were tried and
-are parked on the =rounded-corners= branch: an image is placed against
-its row's baseline rather than the row's edge, so an arc has to be
+are parked on the =feat/rounded_corners= branch: an image is placed
+against its row's baseline rather than the row's edge, so an arc has to
+be
 exactly as tall as the row it sits in, and the box has to measure every
 row it dresses to know that — a measurement it cannot take while the
 row is being drawn, because Emacs works a row's height out by laying
 the row out and the layout runs the =:eval= the box put there.  That
 branch carries all of it; the box here draws its ends as stretches,
 which fill a row of any height.
-
-The package drops a value of =window-box-characters= that is not the
-length it needs, because an error in a redisplay is hard to find.
 
 * Where a horizontal edge goes
 
