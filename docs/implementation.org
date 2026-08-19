@@ -127,6 +127,15 @@ own glyphs:
   free.  The box owns no glyph on such a row, and draws none: the line
   alone marks the boundary.
 
+An underline follows the text of its row, not the row's edge.  A mode
+line dressed by `spacious-padding' is taller than its text, and the
+bottom edge of the box lands on the text's descent line: measured under
+Xvfb, three pixels above the window's bottom, with the sides ending on
+the same line.  The box is closed, and the row's lower padding is below
+it.  `:position' cannot help — it moves an underline up from the
+descent line and off the row, never down: 0 drew on the descent line,
+12 drew twelve pixels higher, and 40 drew nothing at all.
+
 A terminal draws with characters, and a character needs a row of its
 own.  It follows the options as a graphic display does — a row the box
 leaves outside is not touched — but it has no line to draw between
