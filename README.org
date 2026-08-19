@@ -143,16 +143,16 @@ The package has few options:
 | =window-box-enclose-top=      | the topmost row inside the box                       |
 | =window-box-enclose-mode-line= | whether the mode line is inside                     |
 | =window-box-padding=          | columns between a side and the text                  |
-| =window-box-characters=       | the characters of the box in a terminal              |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
 
-The box is one pixel on every side.  The horizontal edges are one
-pixel because an overline cannot be thicker.  A side is a periodic
-fringe bitmap, one pixel wide, which repeats over every line's full
-height — an ordinary text line, a banner drawn from images, a formula
-preview.  A character's ink height is the font's business and a
-margin image is one line tall, so neither survives every buffer; the
-bitmap does, and there is no option for the look of the sides.
+The box is one pixel on every side, and one shape: the horizontal
+edges are one pixel because an overline cannot be thicker, and a side
+is a periodic fringe bitmap, one pixel wide, which repeats over every
+line's full height — an ordinary text line, a banner drawn from
+images, a formula preview.  A character's ink height is the font's
+business and a margin image is one line tall, so neither survives
+every buffer; the bitmap does.  A terminal draws ┌ ┐ └ ┘ │ ─.  The
+color is yours, the shape is not.
 
 Give a buffer more air:
 
@@ -165,12 +165,6 @@ Give one buffer its own color:
 #+begin_src emacs-lisp
   (setq-local window-box-color "orange")
   (window-box-mode 1)
-#+end_src
-
-Use round corners in a terminal:
-
-#+begin_src emacs-lisp
-  (setq window-box-characters "╭╮╰╯│─")
 #+end_src
 
 ** In the Terminal

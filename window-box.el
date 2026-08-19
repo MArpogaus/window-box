@@ -75,21 +75,27 @@
   :group 'convenience
   :prefix "window-box-")
 
+(defface window-box--side '((t :inherit window-box))
+  "Face the sides of the box are drawn in.
+A graphic display draws them as fringe bitmaps, and a fringe is a
+window\='s own: every window showing a boxed buffer has one, including
+the windows `window-box-window-predicate\=' spares.  A bitmap is drawn
+in the foreground of the face its display spec names, so the box gives
+the sides a face of their own and remaps it twice — to the background
+for the buffer, which is a side nobody sees, and to the box\='s color
+for the windows the box is drawn in.  Do not set it: remap the
+`window-box\=' face, or set `window-box-color\='.")
+
+(defconst window-box--glyphs "┌┐└┘│─"
+  "The six characters a terminal draws the box with.
+In order: the four corners, the vertical edge, the horizontal edge.  A
+graphic display draws lines of one pixel instead.  There is no option:
+a box is a box, and the same one on both displays.")
+
 (defface window-box '((t :inherit shadow))
   "Face of the box.
 The foreground is the line color.  Remap it buffer-locally for a box
 color per buffer.")
-
-(defcustom window-box-characters "┌┐└┘│─"
-  "The six characters the box is drawn with in a terminal.
-In order: the four corners, the vertical edge, the horizontal edge.
-A graphic display draws lines of one pixel instead.
-
-A value that is not exactly six characters long is ignored and the
-default drawn instead.  The box is drawn from a `:eval\' in the tab
-line, so a value the drawing cannot read would turn every redisplay
-of a boxed window into an error."
-  :type '(string :tag "Six characters, in the order ┌ ┐ └ ┘ │ ─"))
 
 (defcustom window-box-color nil
   "Color of the box, or nil for the foreground of the `window-box' face.
@@ -185,20 +191,9 @@ no overline at all, and an invalid `:background nil'."
       (frame-parameter nil 'foreground-color)
       "grey50"))
 
-(defun window-box--characters ()
-  "Return the six characters the box is drawn with.
-`window-box-characters' can be set to anything — `setq\' asks no
-`:type\' — and a shorter string would signal from inside redisplay,
-where an error repaints as one instead of naming the option that
-caused it.  Such a value is dropped for the default."
-  (if (and (stringp window-box-characters)
-           (= (length window-box-characters) 6))
-      window-box-characters
-    (eval (car (get 'window-box-characters 'standard-value)) t)))
-
 (defun window-box--edge (left right)
   "Return one horizontal edge of the box, from corner LEFT to corner RIGHT.
-The corners are indices into `window-box-characters\='.  A graphic
+The corners are indices into `window-box--glyphs\='.  A graphic
 display draws a thin bar across the whole row, and LEFT and RIGHT are
 unused there.  A terminal draws characters, and the columns are exact."
   (if (display-graphic-p)
@@ -225,10 +220,10 @@ unused there.  A terminal draws characters, and the columns are exact."
                      (or (car margins) 0)
                      (or (cdr margins) 0))))
       (propertize
-       (let ((characters (window-box--characters)))
-         (concat (string (aref characters left))
-                 (make-string (max 0 (- width 2)) (aref characters 5))
-                 (string (aref characters right))))
+       (concat (string (aref window-box--glyphs left))
+               (make-string (max 0 (- width 2))
+                            (aref window-box--glyphs 5))
+               (string (aref window-box--glyphs right)))
        'face (list :foreground (window-box--color))))))
 
 (defun window-box--top ()
@@ -241,9 +236,13 @@ unused there.  A terminal draws characters, and the columns are exact."
 
 (defun window-box--side ()
   "Return the character that draws a side of the box in a terminal.
-The graphic sides are fringe bitmaps; see `window-box--fringe-prefix\='."
-  (propertize (string (aref (window-box--characters) 4))
-              'face (list :foreground (window-box--color))))
+It is drawn in `window-box--side\=', which a window without a box shows
+in the background: a buffer that keeps text in its margins keeps them
+in every window that shows it, and the character would sit in the
+outermost column of them all.  The graphic sides are fringe bitmaps;
+see `window-box--fringe-prefix\='."
+  (propertize (string (aref window-box--glyphs 4))
+              'face 'window-box--side))
 
 (defun window-box--width ()
   "Return the margin the box needs on each side, in columns.
@@ -282,12 +281,14 @@ window does; the padding is the rest of the margin."
 (defun window-box--fringe-prefix ()
   "Return the line prefix that draws the sides in the fringes."
   (concat
-   (propertize " " 'display '(left-fringe window-box--left-side window-box))
-   (propertize " " 'display '(right-fringe window-box--right-side window-box))))
+   (propertize " " 'display
+               '(left-fringe window-box--left-side window-box--side))
+   (propertize " " 'display
+               '(right-fringe window-box--right-side window-box--side))))
 
 (defun window-box--cap (corner)
   "Return the box\='s end for one side of a row it draws its ends on.
-CORNER is an index into `window-box-characters\=', which a terminal
+CORNER is an index into `window-box--glyphs\=', which a terminal
 draws: the vertical edge where the box goes on past this row, a corner
 where the row is the one that closes it.  A graphic display draws a bar
 of one pixel, which fills a row of any height."
@@ -297,7 +298,7 @@ of one pixel, which fills a row of any height."
       ;; it draws the side.
       (propertize " " 'face (list :background (window-box--color))
                   'display '(space :width (1)))
-    (propertize (string (aref (window-box--characters) corner))
+    (propertize (string (aref window-box--glyphs corner))
                 'face (list :foreground (window-box--color)))))
 
 ;;;; Boxing and unboxing windows
@@ -306,6 +307,11 @@ of one pixel, which fills a row of any height."
   "Face remaps this buffer holds, as a list (FACE COOKIE SPEC).
 The spec is kept so a box that wants a different one — the edge above
 a row rather than below it — can tell and remake the remap.")
+
+(defvar-local window-box--hidden nil
+  "The remap that hides the sides where no box is drawn.
+A cookie of `face-remap-add-relative\=', added before the remaps the box
+filters to its own windows so that those win where they apply.")
 
 (defvar-local window-box--cookie-color nil
   "Color the cookies were made with, so a change renews them.")
@@ -330,6 +336,22 @@ drawn and nowhere else."
     (face-remap-remove-relative (nth 1 entry))
     (setq window-box--cookies (delq entry window-box--cookies))))
 
+(defun window-box--hide-sides ()
+  "Draw the sides in the background of the current buffer, once.
+The box remaps them to its color again in the windows it is drawn in,
+and that remap is added later, so it wins where it applies."
+  (unless window-box--hidden
+    (setq window-box--hidden
+          (face-remap-add-relative
+           'window-box--side
+           (list :foreground (face-background 'default nil 'default))))))
+
+(defun window-box--show-sides ()
+  "Take back the remap that hid the sides."
+  (when window-box--hidden
+    (face-remap-remove-relative window-box--hidden)
+    (setq window-box--hidden nil)))
+
 (defun window-box--unmap-all ()
   "Take back every remap this buffer holds.
 The one way out for all of them: a cookie that a caller reads by hand
@@ -338,6 +360,11 @@ is a cookie that stays behind when the record changes shape."
     (window-box--unmap (car entry)))
   (setq window-box--cookies nil
         window-box--cookie-color nil))
+
+(defun window-box--unmap-everything ()
+  "Take back every remap the box holds in this buffer, the sides too."
+  (window-box--unmap-all)
+  (window-box--show-sides))
 
 (defun window-box--remaps (wanted)
   "Hold exactly the remaps in WANTED, an alist of face and spec.
@@ -543,7 +570,7 @@ one."
 
 (defun window-box--corners (window parameter)
   "Return the two corner indices for the ends of the row PARAMETER in WINDOW.
-Each is an index into `window-box-characters\=': a corner where the row
+Each is an index into `window-box--glyphs\=': a corner where the row
 is the one that closes the box on that side, the vertical edge where
 the box goes on past it.
 
@@ -784,14 +811,16 @@ Call it with the window's buffer current."
          (bottom (window-box--bottom-edge window))
          (dressed (window-box--dressed-rows window))
          (wanted nil))
+    (window-box--hide-sides)
     (unless (equal color window-box--cookie-color)
       (window-box--unmap-all)
       (setq window-box--cookie-color color))
-    ;; The sides: a fringe bitmap is drawn in the face its display
-    ;; spec names, and that face is static — `window-box-color' and a
-    ;; theme's change of the `window-box' face reach the bitmaps only
-    ;; through a remap.
-    (push (cons 'window-box (list :foreground color)) wanted)
+    ;; The sides: a fringe bitmap and a character are drawn in the
+    ;; foreground of the face their display spec names, and that face is
+    ;; static — the color of the box reaches them only through a remap,
+    ;; and this one is filtered to the windows the box is drawn in, over
+    ;; the buffer-wide remap that hides them everywhere else.
+    (push (cons 'window-box--side (list :foreground color)) wanted)
     ;; The horizontal edges: an overline sits at the top of a row and
     ;; an underline, asked for the bottom position, at its very last
     ;; pixel — so the same row can be inside the box or outside it,
@@ -1051,7 +1080,7 @@ for how the box is built."
           (window-box--apply window)))
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
-    (window-box--unmap-all)
+    (window-box--unmap-everything)
     (window-box--shed)))
 
 (provide 'window-box)

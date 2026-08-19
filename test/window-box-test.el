@@ -259,23 +259,6 @@ in, the box puts its ends on it and the tabs show between them."
     (window-box--clear (selected-window))
     (should (equal line-prefix "> "))))
 
-(ert-deftest window-box-test-characters-of-the-wrong-length ()
-  "A value that is not six characters is dropped for the default.
-The box is drawn from a `:eval' during redisplay, so reading past the
-end of the string would repaint every boxed window as an error
-instead of naming the option behind it."
-  (let ((default (eval (car (get 'window-box-characters 'standard-value)) t)))
-    (dolist (value (list "┌┐└┘│" "+-|" "" nil 42))
-      (let ((window-box-characters value))
-        (should (equal (window-box--characters) default))
-        ;; and the drawing gets through with it
-        (should (stringp (window-box--edge 0 1)))
-        (should (stringp (window-box--prefix)))))
-    ;; six of them, whatever they are, are the user's business
-    (let ((window-box-characters "++++|-"))
-      (should (equal (window-box--characters) "++++|-"))
-      (should (string-prefix-p "+" (window-box--edge 0 1))))))
-
 (ert-deftest window-box-test-asks-beside-margins-a-buffer-uses ()
   "A window with margins of its own keeps them and gets the sides too.
 Magit\='s log writes the author and the date into a wide right margin,
@@ -894,9 +877,36 @@ line; a margin image is one default line tall and dashed on taller
 ones, and one taller than the line grows every line to its height."
   (let ((prefix (window-box--fringe-prefix)))
     (should (equal (get-text-property 0 'display prefix)
-                   '(left-fringe window-box--left-side window-box)))
+                   '(left-fringe window-box--left-side window-box--side)))
     (should (equal (get-text-property 1 'display prefix)
-                   '(right-fringe window-box--right-side window-box)))))
+                   '(right-fringe window-box--right-side
+                                  window-box--side)))))
+
+(ert-deftest window-box-test-a-side-hides-where-no-box-is-drawn ()
+  "A window the box spares shows no side, though it has the fringes.
+The sides ride the buffer\='s line prefix, so every window showing the
+buffer draws them: a fringe is a window\='s own and every window has
+one, and a buffer that keeps text in its margins keeps them in every
+window too.  The box gives the sides a face of their own, remaps it to
+the background for the buffer, and remaps it to the box\='s color again
+for the windows it is drawn in — the second remap is added later, so it
+wins where it applies."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (window-box--apply (selected-window))
+    ;; the buffer-wide remap, which hides the side
+    (should window-box--hidden)
+    (should (equal (cdr (assq 'window-box--side
+                             (mapcar (lambda (e) (cons (car e) (nth 2 e)))
+                                     window-box--cookies)))
+                   (list :foreground (window-box--color))))
+    ;; the colour comes back through a remap filtered to boxed windows
+    (should (eq (car-safe (nth 2 (assq 'window-box--side
+                                      window-box--cookies)))
+                :foreground))
+    (window-box-mode -1)
+    (should-not window-box--hidden)
+    (should-not window-box--cookies)))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
