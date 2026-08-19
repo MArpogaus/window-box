@@ -28,8 +28,10 @@
 
 ;; `window-box-mode' draws a rectangular box around every window that
 ;; shows the buffer.  Nothing more: what your header line and your
-;; mode line say stays yours, and `window-box-encloses' says whether
-;; they are inside the box or outside it.
+;; mode line say stays yours, and `window-box-enclose-top' and
+;; `window-box-enclose-mode-line' say whether they are inside the box
+;; or outside it.  The inside is always one unbroken stack of rows
+;; around the text.
 ;;
 ;; The sides are one pixel at the window's very edge: on a graphic
 ;; display a periodic bitmap at the outermost pixel of each fringe,
@@ -112,25 +114,41 @@ how a configuration says which places:
   :type '(choice (const :tag "Every window showing the buffer" nil)
                  function))
 
-(defcustom window-box-encloses '(tab-line header-line mode-line)
-  "Which of a window\='s own rows the box encloses.
-A list of `tab-line\=', `header-line\=' and `mode-line\='.  The text is
-always inside; a row named here is inside with it, and a row left out
-stays outside the box.  Nil draws a box around the text alone.
+(defcustom window-box-enclose-top 'tab-line
+  "The topmost of the window\='s rows that is inside the box.
+The rows above the text sit in a fixed order — tab line, then header
+line — and the inside of the box is one unbroken stack, so the choice
+is where the stack starts: `tab-line\=' encloses the tab line and the
+header line with the text, `header-line\=' the header line alone — a
+tab line, where the window shows one, stays outside — and nil draws
+the top edge right above the text.  A row the window does not show is
+skipped, and the edge lands on the topmost row it does.
 
-The rows sit in a fixed order — tab line, header line, text, mode line
-— so the box is drawn around the text and whatever of them is next to
-it, and its edges land where the inside stops.
+A graphic display draws the edge as the overline of the topmost row
+inside, or as the underline of the last row outside.  A terminal
+draws with characters, and a character needs a row: the box writes
+its own edge row into the row closest to the text the window leaves
+free.  Where the window leaves none free — every row above the text
+is shown and this option keeps them outside — a terminal has nothing
+to draw the edge with, and the box is open at the top there.
 
-A graphic display draws every combination: the edge above a row is
-that row\='s overline, the edge below it its underline, both one pixel
-at the row\='s very edge.  A terminal draws with characters and can
-only use a row it is given: the top edge needs the tab line row free,
-there is no row below the mode line, and where an edge has nowhere to
-go the row that closes the box carries the corners instead."
-  :type '(set (const :tag "Tab line" tab-line)
-              (const :tag "Header line" header-line)
-              (const :tag "Mode line" mode-line))
+Set it buffer-locally for a box of its own shape."
+  :type '(choice (const :tag "Tab line and header line" tab-line)
+                 (const :tag "Header line" header-line)
+                 (const :tag "The text alone" nil))
+  :local t)
+
+(defcustom window-box-enclose-mode-line t
+  "Whether the box encloses the mode line with the text.
+The edge is the mode line\='s underline where the box takes it in, its
+overline where it leaves it out.  A terminal has neither line, and no
+row between the text and the mode line to draw one in: a mode line it
+takes in carries the box\='s corners, and a mode line it leaves out
+leaves the box open at the bottom.  A window without a mode line gets
+a row of the box\='s own below the text, on both displays.
+
+Set it buffer-locally for a box of its own shape."
+  :type 'boolean
   :local t)
 
 ;; There is no option for the look of the graphic sides.  A character
@@ -149,9 +167,9 @@ go the row that closes the box carries the corners instead."
 Set it buffer-locally for a buffer that wants more air than the
 others.
 
-A buffer that uses its margins for its own text keeps them and gets
-no padding; a terminal, whose sides live in the margins too, then
-draws that window\='s horizontal edges alone."
+A buffer that uses its margins for its own text keeps them: the box
+asks for its columns beside the buffer\='s, so the sides sit outside
+whatever the buffer draws there."
   :type 'natnum
   :local t)
 
@@ -179,11 +197,10 @@ caused it.  Such a value is dropped for the default."
     (eval (car (get 'window-box-characters 'standard-value)) t)))
 
 (defun window-box--edge (left right)
-  "Return one horizontal edge of the box.
-On a graphic display that is a thin bar across the whole row, and
-LEFT and RIGHT are unused.  In a terminal it runs from corner LEFT to
-corner RIGHT, indices into `window-box-characters', and the columns
-are exact."
+  "Return one horizontal edge of the box, from corner LEFT to corner RIGHT.
+The corners are indices into `window-box-characters\='.  A graphic
+display draws a thin bar across the whole row, and LEFT and RIGHT are
+unused there.  A terminal draws characters, and the columns are exact."
   (if (display-graphic-p)
       ;; The row's height comes from the display spec alone.  A face
       ;; `:height' below one in a side window's mode line sends Emacs
@@ -269,14 +286,15 @@ window does; the padding is the rest of the margin."
    (propertize " " 'display '(right-fringe window-box--right-side window-box))))
 
 (defun window-box--cap (corner)
-  "Return the box\='s end for one side of a row it encloses.
+  "Return the box\='s end for one side of a row it draws its ends on.
 CORNER is an index into `window-box-characters\=', which a terminal
 draws: the vertical edge where the box goes on past this row, a corner
-where the row is the one that closes it."
+where the row is the one that closes it.  A graphic display draws a bar
+of one pixel, which fills a row of any height."
   (if (display-graphic-p)
       ;; A row spans no fringes: a bar of one pixel lands on the
-      ;; outermost pixel of the window, which is where the fringe
-      ;; below it draws the side.
+      ;; outermost pixel of the window, which is where the fringe below
+      ;; it draws the side.
       (propertize " " 'face (list :background (window-box--color))
                   'display '(space :width (1)))
     (propertize (string (aref (window-box--characters) corner))
@@ -361,7 +379,8 @@ made anew."
     (header-line-format
      :name header-line
      :saved window-box--saved-header-line
-     :dressed window-box--header-row-format)
+     :dressed window-box--header-row-format
+     :own window-box--top-format)
     (mode-line-format
      :name mode-line
      :saved window-box--saved-mode-line
@@ -370,12 +389,15 @@ made anew."
   "The three rows a window can show besides its text.
 Each entry is a window parameter and a plist:
 
-  :name     what the option `window-box-encloses\=' calls the row,
-            which is also the name of its face
+  :name     the row\='s everyday name, which is also its face\='s
   :saved    the parameter that keeps the value the row had
   :dressed  the format that puts the box\='s ends on the row
   :own      the format of an edge row of the box\='s own, where the
             box can have the row to itself")
+
+(defconst window-box--rows-order
+  '(tab-line-format header-line-format mode-line-format)
+  "The rows a window shows besides its text, top to bottom.")
 
 (defun window-box--row-part (parameter part)
   "Return PART of the `window-box--rows\=' entry for PARAMETER.
@@ -420,8 +442,16 @@ box, which `window-box--content\=' answers."
     (and content (not (eq content 'none)))))
 
 (defun window-box--enclosed-p (parameter)
-  "Return non-nil when `window-box-encloses\=' takes in the row PARAMETER."
-  (memq (window-box--row-part parameter :name) window-box-encloses))
+  "Return non-nil when the box encloses the row PARAMETER.
+`window-box-enclose-top\=' rules the rows above the text and
+`window-box-enclose-mode-line\=' the one below; enclosing the tab line
+encloses the header line with it, so the inside is one unbroken
+stack."
+  (pcase parameter
+    ('tab-line-format (eq window-box-enclose-top 'tab-line))
+    ('header-line-format
+     (memq window-box-enclose-top '(tab-line header-line)))
+    ('mode-line-format (and window-box-enclose-mode-line t))))
 
 (defun window-box--above (window)
   "Return the rows WINDOW shows above its text, top to bottom."
@@ -429,72 +459,112 @@ box, which `window-box--content\=' answers."
                 (window-box--line-visible-p window parameter))
               '(tab-line-format header-line-format)))
 
+(defun window-box--free-slot (window)
+  "Return the row above WINDOW\='s text the box may take for an edge of its own.
+The box may take a row the window does not use, below every row it
+leaves outside the box — an edge above such a row would draw that row
+inside — and above every row it takes in, so the inside stays whole.
+Innermost first, so the edge sits as close to the text as the window
+allows.
+
+This is how a row named by `window-box-enclose-top\=' appears when the
+window has none: the box writes its own edge into that row, on both
+displays, rather than leaving the box to close itself elsewhere."
+  (let* ((slots (butlast window-box--rows-order))
+         (above (window-box--above window))
+         (index (lambda (row) (seq-position slots row)))
+         (inside (seq-filter #'window-box--enclosed-p above))
+         (outside (seq-remove #'window-box--enclosed-p above))
+         (lower (if inside (funcall index (car inside)) (length slots)))
+         (upper (if outside (funcall index (car (last outside))) -1)))
+    (seq-find (lambda (slot)
+                (and (not (memq slot above))
+                     (< upper (funcall index slot) lower)))
+              (reverse slots))))
+
 (defun window-box--top-edge (window)
   "Return where the top edge of the box goes in WINDOW.
-Either (overline . PARAMETER) or (underline . PARAMETER) for an edge
-on a row the window already has, the symbol `own\=' for a row of the
-box\='s own in the free tab line row, or nil where the display has
-nowhere to draw it — then the row below closes the box with corners.
+One of (overline . PARAMETER) for the overline of a row inside the
+box, (own . PARAMETER) for a row of the box\='s own in a row the window
+leaves free, (underline . PARAMETER) for the underline of the last row
+outside the box, or nil where the display has nowhere to draw it —
+then the row below closes the box with corners.
 
-The edge lands where the inside of the box stops: above the topmost
-row `window-box-encloses\=' takes in, and below the last row it leaves
-out."
+The edge marks the boundary between the rows the box leaves outside
+and everything inside.  The overline of the topmost row inside marks
+that boundary as well as the underline of the row above it, and it is
+a row the box dresses, so its ends carry the corners; the underline is
+the last resort, for a window whose rows above the text are all
+outside the box and leave no row free."
   (let* ((above (window-box--above window))
          ;; A terminal has neither an overline nor an underline, so an
          ;; edge there needs a row of its own.
          (attach (display-graphic-p (window-frame window)))
-         (inside (seq-drop-while (lambda (parameter)
-                                   (not (window-box--enclosed-p parameter)))
-                                 above)))
+         (inside (seq-filter #'window-box--enclosed-p above))
+         (slot (window-box--free-slot window)))
     (cond
-     ;; Nothing above the text: the tab line row is free for an edge.
-     ((null above) 'own)
-     ;; The topmost row is inside, so the edge goes above it — which
-     ;; is the tab line row itself when that is the row, and a row of
-     ;; the box's own is only possible while it is free.
-     ((eq (car inside) (car above))
-      (cond (attach (cons 'overline (car above)))
-            ;; No overline to attach to: a row of the box's own, where
-            ;; the tab line row is free for one.
-            ((not (eq (car above) 'tab-line-format)) 'own)))
-     ;; Something above is left out: the edge goes under the last of
-     ;; those rows, which only an underline can do.
-     (attach (cons 'underline (car (if inside
-                                       (seq-difference above inside)
-                                     (last above))))))))
+     ;; A row inside the box is there to carry the edge.
+     ((and inside attach) (cons 'overline (car inside)))
+     ;; A terminal needs a row of its own for it, where one is free.
+     (inside (and slot (cons 'own slot)))
+     ;; Nothing inside above the text: the box draws its own edge row
+     ;; in the innermost row the window leaves free.
+     (slot (cons 'own slot))
+     ;; None free: only an underline can mark the boundary.
+     ((and above attach) (cons 'underline (car (last above)))))))
 
 (defun window-box--bottom-edge (window)
   "Return where the bottom edge of the box goes in WINDOW.
-Like `window-box--top-edge\=', for the mode line: below it where
-`window-box-encloses\=' takes it in, above it where it does not, and a
-row of the box\='s own where the window shows no mode line."
-  (let ((attach (display-graphic-p (window-frame window))))
-    (cond
-     ((not (window-box--line-visible-p window 'mode-line-format)) 'own)
-     ((not attach) nil)
-     ((window-box--enclosed-p 'mode-line-format)
-      (cons 'underline 'mode-line-format))
-     (t (cons 'overline 'mode-line-format)))))
+The same shapes as `window-box--top-edge\=', for the one row below the
+text: a row of the box\='s own where the window shows no mode line, the
+mode line\='s underline where the box takes it in, its overline where
+the box leaves it out, and nil in a terminal, which has neither line
+and no row below the mode line — there the mode line carries the
+corners."
+  (cond
+   ((not (window-box--line-visible-p window 'mode-line-format))
+    '(own . mode-line-format))
+   ((not (display-graphic-p (window-frame window))) nil)
+   ((window-box--enclosed-p 'mode-line-format)
+    '(underline . mode-line-format))
+   (t '(overline . mode-line-format))))
 
 (defun window-box--dressed-rows (window)
-  "Return the rows of WINDOW the box draws its ends on, top to bottom."
+  "Return the rows of WINDOW the box draws its ends on, top to bottom.
+The rows the enclose options take in and the window shows — on both
+displays alike.  A terminal draws with characters and cannot draw a
+line between the text and a row it leaves outside the box, so the box
+has no edge on that side there; it does not take the row in to make
+one."
   (seq-filter (lambda (parameter)
                 (and (window-box--enclosed-p parameter)
                      (window-box--line-visible-p window parameter)))
-              '(tab-line-format header-line-format mode-line-format)))
+              window-box--rows-order))
 
 (defun window-box--corners (window parameter)
-  "Return the two characters that end the row PARAMETER in WINDOW.
-A vertical edge where the box goes on past the row, a corner where
-the row is the one that closes it — which is what a terminal is left
-with when the edge beyond it has nowhere to go."
-  (let ((rows (window-box--dressed-rows window)))
-    (cond ((and (eq parameter (car rows))
-                (not (eq parameter 'mode-line-format))
-                (not (window-box--top-edge window)))
+  "Return the two corner indices for the ends of the row PARAMETER in WINDOW.
+Each is an index into `window-box-characters\=': a corner where the row
+is the one that closes the box on that side, the vertical edge where
+the box goes on past it.
+
+A graphic display draws the box\='s edge on the row that carries it, so
+that row\='s ends are its corners.  A terminal draws with characters and
+has neither an overline nor an underline: there the row that closes the
+box is the first row the box takes in, where no row above it is free
+for an edge of the box\='s own, and the mode line it takes in, where
+there is no row below it."
+  (let ((graphic (display-graphic-p (window-frame window)))
+        (top (window-box--top-edge window))
+        (bottom (window-box--bottom-edge window)))
+    (cond ((if graphic
+               (equal top (cons 'overline parameter))
+             (and (eq parameter (car (window-box--dressed-rows window)))
+                  (not (eq parameter 'mode-line-format))
+                  (not top)))
            '(0 1))
-          ((and (eq parameter 'mode-line-format)
-                (not (window-box--bottom-edge window)))
+          ((if graphic
+               (equal bottom (cons 'underline parameter))
+             (and (eq parameter 'mode-line-format) (not bottom)))
            '(2 3))
           (t '(4 4)))))
 
@@ -508,7 +578,8 @@ window left of another spends its last column on the separator, and a
 tail that compensates for the margin — the reason this function
 exists — otherwise ends exactly on the cap\='s column.  A stretch fills
 whatever the move leaves open."
-  (cond ((eq spec 'right) (if (display-graphic-p) '(- right (1)) '(- right 2)))
+  (cond ((eq spec 'right)
+         (if (display-graphic-p) '(- right (1)) '(- right 2)))
         ((consp spec) (mapcar #'window-box--indented spec))
         (t spec)))
 
@@ -578,7 +649,11 @@ where they are a column each."
 Called from the window parameter the box sets, so the window being
 redisplayed is the selected one and its buffer is current."
   (let* ((window (selected-window))
-         (corners (window-box--corners window parameter)))
+         (graphic (display-graphic-p))
+         (corners (window-box--corners window parameter))
+         ;; The end is a bar of one pixel on a graphic display and a
+         ;; character in a terminal; the stretch stops short of it.
+         (end 1))
     (list (window-box--cap (nth 0 corners))
           (window-box--trimmed
            (window-box--fitted (window-box--content window parameter))
@@ -590,20 +665,21 @@ redisplayed is the selected one and its buffer is current."
           ;; column of its own width on the separator, `right' does
           ;; not count it, and an end placed by it lands in it.
           (propertize " " 'display
-                      (if (display-graphic-p)
+                      (if graphic
                           ;; `right' is the right edge of the text
                           ;; area, and the margin and the fringe both
                           ;; lie outside it.  The row spans the two of
                           ;; them, so the end of the box reaches past
-                          ;; both, in pixels, less its own pixel: a
-                          ;; glyph aligned to the row's very end would
-                          ;; start outside the row and be clipped away.
+                          ;; both, in pixels, less the end's own width:
+                          ;; a glyph aligned to the row's very end
+                          ;; would start outside the row and be
+                          ;; clipped away.
                           `(space :align-to
                                   (+ right
                                      (,(+ (* (or (cdr (window-margins)) 0)
                                              (frame-char-width))
                                           (cadr (window-fringes))
-                                          -1))))
+                                          (- end)))))
                         ;; `right' is the right edge of the text area,
                         ;; which is where the row ends in the window
                         ;; at the frame's edge and not in one left of
@@ -661,26 +737,25 @@ gets its order back when the box goes."
       (set-window-parameter window 'window-box--saved-order t)
       (set-window-fringes window (nth 0 fringes) (nth 1 fringes) t t))))
 
-(defun window-box--wide-margins-p (window)
-  "Return non-nil when WINDOW has margins of its own to keep.
-The box needs `window-box--width\=' columns of margin; anything wider
-was put there by whoever dressed the window, and holds something the
-box must not drop.
-
-The buffer is asked as well as the window, and any width it asks for
-counts.  Emacs applies `left-margin-width' when the buffer is
-displayed, so a buffer that asks for a margin later — as
-`outline-minor-mode' does when it draws its buttons there — would
-never be seen: the box has written its own width into the window by
-then.  One column is enough for a fold arrow, so the box gives way to
-any width at all rather than to a wider one."
-  (let ((margins (window-margins window))
-        (width (window-box--width)))
-    (or (> (or (car margins) 0) width)
-        (> (or (cdr margins) 0) width)
-        (with-current-buffer (window-buffer window)
-          (or (> (or left-margin-width 0) 0)
-              (> (or right-margin-width 0) 0))))))
+(defun window-box--own-margins (window width)
+  "Return the margins WINDOW would wear without the box, as (LEFT RIGHT).
+Either can be nil, which is how a window says the buffer\='s own
+`left-margin-width\=' and `right-margin-width\=' decide.  The answer is
+saved the first time the box takes the margins, so the box never adds
+its own WIDTH columns to columns of its own — and a window split off a
+boxed one, which arrives wearing them, is recognised by them."
+  (or (window-parameter window 'window-box--saved-margins)
+      (let* ((margins (window-margins window))
+             (buffer (window-buffer window))
+             (own (list (buffer-local-value 'left-margin-width buffer)
+                        (buffer-local-value 'right-margin-width buffer)))
+             (mine (cons (+ (or (nth 0 own) 0) width)
+                         (+ (or (nth 1 own) 0) width)))
+             (theirs (if (and (> width 0) (equal margins mine))
+                         '(nil nil)
+                       (list (car margins) (cdr margins)))))
+        (set-window-parameter window 'window-box--saved-margins theirs)
+        theirs)))
 
 (defun window-box--dress (window parameter format)
   "Give WINDOW the row FORMAT for PARAMETER and keep what was there.
@@ -720,29 +795,48 @@ Call it with the window's buffer current."
     ;; The horizontal edges: an overline sits at the top of a row and
     ;; an underline, asked for the bottom position, at its very last
     ;; pixel — so the same row can be inside the box or outside it,
-    ;; whichever `window-box-encloses' says.  The row's own underline
-    ;; and box give way to the edge; content, fonts and colors stay.
-    (pcase-dolist (`(,edge . ,parameter) (delq nil (list (and (consp top) top)
-                                                         (and (consp bottom)
-                                                              bottom))))
-      (dolist (face (window-box--row-faces parameter))
-        (push (cons face
-                    (if (eq edge 'overline)
-                        (list :overline color :underline nil :box nil)
-                      (list :underline (list :color color :position 0)
-                            :overline nil :box nil)))
-              wanted)))
-    ;; A row that is inside the box gives up the underline and the
-    ;; border of its own face, wherever the edge of the box happens to
-    ;; be.  Both are drawn where the box draws, and a row must not
-    ;; change its look because the edge moved to the row above it.
+    ;; whichever the enclose options say.
+    ;;
+    ;; A row inside the box gives up the other line and the border of
+    ;; its own face: both are drawn where the box draws.  A row the box
+    ;; leaves outside keeps them, and everything else it wears — the
+    ;; box only borrows the one line it needs there.  Stripping the
+    ;; border of such a row took the padding off a mode line dressed by
+    ;; `spacious-padding', which moved the row the box was drawing
+    ;; against.
+    (pcase-dolist (`(,edge . ,parameter)
+                   ;; The lines only: a row of the box's own carries no
+                   ;; line of the row's, it *is* the box's edge.
+                   (seq-filter (lambda (edge)
+                                 (memq (car-safe edge) '(overline underline)))
+                               (list top bottom)))
+      (let ((inside (memq parameter dressed)))
+        (dolist (face (window-box--row-faces parameter))
+          (push (cons face
+                      (if (eq edge 'overline)
+                          (if inside
+                              (list :overline color :underline nil :box nil)
+                            (list :overline color))
+                        (if inside
+                            (list :underline (list :color color :position 0)
+                                  :overline nil :box nil)
+                          (list :underline (list :color color
+                                                 :position 0)))))
+                wanted))))
+    ;; A row that is inside the box gives up the overline, the
+    ;; underline and the border of its own face, wherever the edge of
+    ;; the box happens to be.  All three are drawn where the box
+    ;; draws — spacious-padding gives the mode line an overline, many
+    ;; themes give rows a box — and a row must not change its look
+    ;; because the edge moved to the row above it.
     (dolist (parameter dressed)
       (dolist (face (window-box--row-faces parameter))
         (unless (assq face wanted)
-          (push (cons face (list :underline nil :box nil)) wanted))))
+          (push (cons face (list :overline nil :underline nil :box nil))
+                wanted))))
     ;; A row of the box's own, where a row is free for one.
-    (dolist (parameter '(tab-line-format mode-line-format))
-      (let ((own (and (eq (if (eq parameter 'tab-line-format) top bottom) 'own)
+    (dolist (parameter window-box--rows-order)
+      (let ((own (and (member (cons 'own parameter) (list top bottom))
                       (window-box--own-format parameter))))
         (cond
          (own (window-box--dress window parameter own))
@@ -752,8 +846,7 @@ Call it with the window's buffer current."
     ;; The ends of the rows the box takes in: neither margins nor
     ;; fringes reach those rows, so the box goes on them through the
     ;; row itself, which it takes over and gives back as it found it.
-    (dolist (parameter '(tab-line-format header-line-format
-                                         mode-line-format))
+    (dolist (parameter window-box--rows-order)
       (if (memq parameter dressed)
           (window-box--dress window parameter
                              (window-box--dressed-format parameter))
@@ -774,57 +867,30 @@ Call it with the window's buffer current."
     ;; margins carry only the padding there.  A terminal has no
     ;; fringes and draws the sides in the margins.
     ;;
-    ;; A buffer that keeps something in its margins needs them more
-    ;; than the box does: magit's log writes the author and the date
-    ;; into a thirty column right margin, and writing the padding over
-    ;; that column drops it without a word.  Such a window keeps its
-    ;; margins — the box puts the fringes outside them, so the sides
-    ;; still frame them — and a terminal, whose sides live in the
-    ;; margins, draws that window's horizontal edges alone.  The test
-    ;; is the margins as they stand, not what they were when the box
-    ;; went up, so a buffer that sets them later is noticed on the
-    ;; next change.
+    ;; A buffer that keeps something in its margins keeps it: magit's
+    ;; log writes the author and the date into a thirty column right
+    ;; margin, and `diff-hl-margin-mode' marks every changed line of
+    ;; every file in two columns on the left.  The box asks for its own
+    ;; columns beside those, not instead of them — the margin grows by
+    ;; the width the box needs, the box's side goes on the line prefix,
+    ;; which a row shows before anything the buffer puts in the margin,
+    ;; and the buffer's own marks sit inside the side.  A terminal drew
+    ;; no sides at all in such a window before, which left the
+    ;; horizontal edges hanging on nothing.
     (let* ((width (window-box--width))
            (graphic (display-graphic-p (window-frame window)))
-           (theirs (or (zerop width) (window-box--wide-margins-p window))))
-      (if theirs
-          ;; Give back what the box took, if it took anything: the
-          ;; buffer's own widths, which Emacs applies when it displays
-          ;; a buffer and which the box has been writing over since.
-          ;; A window dressed by someone else, magit's log among them,
-          ;; is left as it stands.
-          (when-let* ((saved (window-parameter window
-                                               'window-box--saved-margins)))
-            ;; only the box's own width — kept with the save — and
-            ;; never a width someone else has set since
-            (when (equal (window-margins window)
-                         (cons (nth 2 saved) (nth 2 saved)))
-              (set-window-margins window left-margin-width
-                                  right-margin-width))
-            (set-window-parameter window 'window-box--saved-margins nil))
-        (unless (window-parameter window 'window-box--saved-margins)
-          (let ((margins (window-margins window)))
-            (set-window-parameter
-             window 'window-box--saved-margins
-             ;; A window split off from a boxed one arrives with the
-             ;; box's own margins, and saving those would give them
-             ;; back for good.  The buffer's widths are what Emacs
-             ;; would have given such a window.  The box's width rides
-             ;; along, so the give-back can tell its own margins from
-             ;; someone else's after the width has changed.
-             (if (equal margins (cons width width))
-                 (list left-margin-width right-margin-width width)
-               (list (car margins) (cdr margins) width)))))
-        (unless (equal (window-margins window) (cons width width))
-          (set-window-margins window width width)))
-      (cond (graphic
-             (window-box--order window)
-             (window-box--wear (window-box--fringe-prefix)))
-            ((and theirs (not (zerop width)))
-             ;; A terminal window whose buffer owns the margins has
-             ;; nowhere to draw sides.
-             (window-box--shed))
-            (t (window-box--wear (window-box--prefix)))))))
+           (own (window-box--own-margins window width))
+           (left (+ (or (nth 0 own) left-margin-width 0) width))
+           (right (+ (or (nth 1 own) right-margin-width 0) width)))
+      (unless (or (zerop width)
+                  (equal (window-margins window) (cons left right)))
+        (set-window-margins window left right))
+      (if graphic
+          (progn (window-box--order window)
+                 (window-box--wear (window-box--fringe-prefix)))
+        (if (zerop width)
+            (window-box--shed)
+          (window-box--wear (window-box--prefix)))))))
 
 (defun window-box--wear (prefix)
   "Hang PREFIX on the current buffer, on both carriers.
@@ -856,7 +922,7 @@ What the buffer wore before is kept once, for the mode to give back."
   "Remove the box from WINDOW.
 The face remaps are the buffer's and go when the mode turns off."
   (set-window-parameter window 'window-box nil)
-  (dolist (parameter '(tab-line-format header-line-format mode-line-format))
+  (dolist (parameter window-box--rows-order)
     (when (member (window-parameter window parameter)
                   (window-box--own-values parameter))
       (window-box--undress window parameter)))
@@ -865,7 +931,9 @@ The face remaps are the buffer's and go when the mode turns off."
     (let ((fringes (window-fringes window)))
       (set-window-fringes window (nth 0 fringes) (nth 1 fringes) nil t))
     (set-window-parameter window 'window-box--saved-order nil))
-  ;; The margins the window had, where the box took them.
+  ;; The margins the window wore without the box, nil and all: nil is
+  ;; how a window leaves the width to the buffer, and a number the box
+  ;; wrote over would take that away.
   (when-let* ((saved (window-parameter window 'window-box--saved-margins)))
     (set-window-margins window (nth 0 saved) (nth 1 saved))
     (set-window-parameter window 'window-box--saved-margins nil))
@@ -883,10 +951,10 @@ The face remaps are the buffer's and go when the mode turns off."
 (defun window-box--persist ()
   "Let the box\='s window parameters travel with a saved window state.
 `window-state-get\=' saves the margins, so what the box set travels
-with a hidden side window.
-The marks that say those settings are the box\='s do not, unless they
-are named here.  Turn the mode off while such a window is away, and it
-comes back wearing the box\='s margins with no box, and nothing left
+with a hidden side window.  The marks that say those settings are the
+box\='s do not, unless they are named here.  Turn the mode off while
+such a window is away, and it comes back wearing the box\='s margins
+with no box, and nothing left
 that knows to take them off again.
 
 The widths and the marks are numbers and t, which a state written to a
@@ -944,10 +1012,11 @@ windows also get theirs back here."
 ;;;###autoload
 (define-minor-mode window-box-mode
   "Draw a rectangular box around every window that shows this buffer.
-What your header line and your mode line show stays yours, and
-`window-box-encloses\=' says which of the rows around the text are
-inside the box.  A row that is inside gets the ends of the box at its
-two sides.  See the commentary for how the box is built."
+What your header line and your mode line show stays yours;
+`window-box-enclose-top\=' and `window-box-enclose-mode-line\=' say
+which of the rows around the text are inside the box.  A row that is
+inside gets the ends of the box at its two sides.  See the commentary
+for how the box is built."
   :lighter ""
   (if window-box-mode
       (progn
