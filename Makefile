@@ -4,6 +4,7 @@
 #   make checkdoc  documentation style
 #   make lint      package-lint, the MELPA rules
 #   make test      ERT test suite
+#   make format    indent every Lisp file in place
 #   make tty       box drawn in a real terminal, needs python3 + pyte
 #   make gui       box measured pixel by pixel, needs a display + pillow
 #   make clean     remove build output and the tool sandbox
@@ -19,6 +20,8 @@ SRC  := $(filter-out %-autoloads.el %-pkg.el,$(wildcard *.el))
 # gui-test.el is left out on purpose: it runs only on a graphic
 # display and calls functions a console build does not define.  The
 # `gui' target loads it, so a mistake there still shows up.
+# Everything written in Lisp, the parts that are no package included.
+LISP := $(SRC) $(wildcard test/*.el) $(wildcard demo/*.el) $(wildcard tools/*.el)
 TEST := $(filter-out test/gui-test.el,$(wildcard test/*.el))
 
 # Elisp programs live in variables: make joins their continuation lines,
@@ -37,7 +40,7 @@ checkdoc = (progn (require (quote checkdoc)) \
 
 BATCH = $(EMACS) -Q --batch -L . -L test --eval '$(init)'
 
-.PHONY: all compile checkdoc lint test tty gui clean
+.PHONY: all compile checkdoc lint test tty gui format clean
 
 all: compile checkdoc lint test
 
@@ -75,6 +78,14 @@ XVFB := $(shell command -v xvfb-run 2>/dev/null)
 gui:
 	@$(XVFB) $(EMACS) -Q -L . -L test -l test/gui-test.el
 	@python3 test/gui-check.py
+
+# The formatter loads each file before indenting it, so a macro of this
+# package indents its body the way its `declare' says; that needs the
+# load path and the dependencies, which is why it wants the sandbox.
+# It answers 1 when it had to change something, which is how the hook
+# stops a commit; from make that is a job done, not a failure.
+format: $(SANDBOX)
+	@$(BATCH) -l tools/indent.el $(LISP) || true
 
 clean:
 	@rm -rf $(SANDBOX) ./*.elc test/*.elc

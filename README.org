@@ -18,6 +18,7 @@
   - [[#known-limits][Known Limits]]
   - [[#comparison-with-buffer-box][Comparison with buffer-box]]
   - [[#how-it-works][How It Works]]
+  - [[#development][Development]]
   - [[#contributions][Contributions]]
   - [[#license][License]]
   - [[#contact][Contact]]
@@ -263,6 +264,26 @@ There are four differences:
 [[file:docs/implementation.org][docs/implementation.org]] describes how the package draws the box.  It
 names the parts of the window dressing that the box uses, tells how
 the box gives them back, and lists what the tests measure.
+
+** Development
+
+=make= runs what the CI runs: byte-compilation with warnings as errors,
+checkdoc, package-lint and the batch tests.  =make format= indents every
+Lisp file, which is =tools/indent.el= and nothing more than the
+indentation =indent-region= gives Lisp: no form is rewritten and no line
+reflowed.
+
+The hooks of =.pre-commit-config.yaml= run the whitespace and YAML
+checks, the formatter and checkdoc before a commit, the commit message
+through commitizen, and package-lint, the compilation and the tests
+before a push:
+
+#+begin_src shell
+  pre-commit install --install-hooks -t pre-commit -t commit-msg -t pre-push
+#+end_src
+
+The workflow of the same name runs them over every file, so a commit
+made without the hooks is still checked.
 
 ** Contributions
 
