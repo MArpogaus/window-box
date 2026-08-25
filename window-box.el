@@ -648,10 +648,17 @@ its keymap and its face."
 
 (defun window-box--row-faces (parameter)
   "Return the faces that draw the row PARAMETER names.
-A mode line has one for the selected window and one for the others."
-  (if (eq parameter 'mode-line-format)
-      '(mode-line-active mode-line-inactive)
-    (list (window-box--row-part parameter :name))))
+A row has one face for the selected window and one for the others: the
+mode line always had the pair, and the header line and the tab line have
+it from Emacs 31 on.  The everyday name is what the pair inherits, but a
+face that carries an attribute of its own — spacious-padding gives
+`header-line-inactive\=' an underline of its own — never reads the
+inherited one, so the remap has to name each face that is drawn."
+  (let ((name (window-box--row-part parameter :name)))
+    (or (seq-filter #'facep
+                    (list (intern (format "%s-active" name))
+                          (intern (format "%s-inactive" name))))
+        (list name))))
 
 (defun window-box--trimmed (row limit)
   "Return ROW cut to LIMIT columns, where it is a drawn string.
