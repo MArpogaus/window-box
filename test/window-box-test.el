@@ -816,16 +816,26 @@ carried the edge: a tab line that took the edge over gave the theme
 its underline back, under a header inside the box."
   (window-box-test--with-buffer
     (setq-local header-line-format " header ")
-    (let ((window (selected-window)))
+    ;; The faces the row is drawn with, which is what carries the remap:
+    ;; Emacs 31 draws a header line with `header-line-active' and
+    ;; `header-line-inactive', and earlier ones with `header-line'.
+    (let* ((window (selected-window))
+           (faces (window-box--row-faces 'header-line-format))
+           (spec-of (lambda ()
+                      (nth 2 (assq (car faces) window-box--cookies)))))
+      (should faces)
       (window-box--apply window)
-      (let ((spec (nth 2 (assq 'header-line window-box--cookies))))
+      (let ((spec (funcall spec-of)))
         (should spec)
         (should (equal (plist-get spec :underline) nil))
         (should (equal (plist-get spec :box) nil)))
+      ;; every face that draws the row, not the first alone
+      (should (seq-every-p (lambda (face) (assq face window-box--cookies))
+                           faces))
       ;; tabs, which take the edge of the box over
       (setq-local tab-line-format " tabs ")
       (window-box--apply window)
-      (let ((spec (nth 2 (assq 'header-line window-box--cookies))))
+      (let ((spec (funcall spec-of)))
         (should spec)
         (should (equal (plist-get spec :underline) nil))
         (should (equal (plist-get spec :box) nil)))
@@ -834,7 +844,7 @@ its underline back, under a header inside the box."
       (let ((window-box-enclose-top nil) (window-box-enclose-mode-line nil))
         (window-box--apply window)
         (should-not (window-box--dressed-rows window))
-        (should-not (assq 'header-line window-box--cookies)))
+        (should-not (funcall spec-of)))
       (window-box--clear window))))
 
 (ert-deftest window-box-test-the-box-has-the-last-word-on-a-row ()
