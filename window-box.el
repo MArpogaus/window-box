@@ -274,17 +274,39 @@ window does; the padding is the rest of the margin."
 ;; The margins are left to their owners: the buffer's own content sits
 ;; inside the box, with the default order, and `window-box-padding'
 ;; only ever adds blank ones.
-(when (fboundp 'define-fringe-bitmap)
-  (define-fringe-bitmap 'window-box--left-side [#b10000000] 1 8 '(center t))
-  (define-fringe-bitmap 'window-box--right-side [#b00000001] 1 8 '(center t)))
+(defun window-box--side-bitmap (side width)
+  "Return the bitmap that draws SIDE in a fringe WIDTH pixels wide.
+SIDE is `left' or `right'.  The bitmap is as wide as the fringe, with
+its outermost pixel set: a fringe draws a bitmap from its inner edge
+outwards and clips what does not fit, so a wider bitmap loses the very
+pixel the box wants.  The right side went missing in every window whose
+right fringe was narrower than the bitmap — `dirvish-side' gives its
+window one pixel.  One bitmap per side and width, defined on first
+use."
+  (let* ((width (max width 1))
+         (name (intern (format "window-box--%s-side-%d" side width))))
+    ;; A build without a window system has no fringes, and no function
+    ;; to define one with.
+    (unless (or (get name 'window-box--bitmap)
+                (not (fboundp 'define-fringe-bitmap)))
+      (define-fringe-bitmap name
+        (vector (if (eq side 'left) (ash 1 (1- width)) 1))
+        1 width '(center t))
+      (put name 'window-box--bitmap t))
+    name))
 
-(defun window-box--fringe-prefix ()
-  "Return the line prefix that draws the sides in the fringes."
-  (concat
-   (propertize " " 'display
-               '(left-fringe window-box--left-side window-box--side))
-   (propertize " " 'display
-               '(right-fringe window-box--right-side window-box--side))))
+(defun window-box--fringe-prefix (window)
+  "Return the line prefix that draws the sides in WINDOW's fringes.
+The prefix hangs on the buffer, so a buffer shown in two windows whose
+fringes differ wears the sides of the one drawn last."
+  (pcase-let ((`(,left ,right . ,_) (window-fringes window)))
+    (concat
+     (propertize " " 'display
+                 `(left-fringe ,(window-box--side-bitmap 'left left)
+                               window-box--side))
+     (propertize " " 'display
+                 `(right-fringe ,(window-box--side-bitmap 'right right)
+                                window-box--side)))))
 
 (defun window-box--cap (corner)
   "Return the box's end for one side of a row it draws its ends on.
@@ -915,7 +937,7 @@ Call it with the window's buffer current."
         (set-window-margins window left right))
       (if graphic
           (progn (window-box--order window)
-                 (window-box--wear (window-box--fringe-prefix)))
+                 (window-box--wear (window-box--fringe-prefix window)))
         (if (zerop width)
             (window-box--shed)
           (window-box--wear (window-box--prefix)))))))

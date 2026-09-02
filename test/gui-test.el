@@ -216,7 +216,20 @@ has fringes, so this is checked here and not in the batch suite."
       (with-current-buffer buffer (window-box-mode -1))
       (window-box--refresh)
       (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
-        (error "Unboxing touched the fringes: %S" (window-fringes window))))
+        (error "Unboxing touched the fringes: %S" (window-fringes window)))
+      ;; A narrow fringe takes a narrow bitmap: a wider one is clipped
+      ;; at the fringe's width and loses the outermost pixel, which is
+      ;; the side.  `dirvish-side' gives its window one pixel.
+      (set-window-fringes window 3 1 t)
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (let ((wanted `(right-fringe window-box--right-side-1
+                                   window-box--side))
+            (worn (with-current-buffer buffer
+                    (get-text-property 1 'display line-prefix))))
+        (unless (equal worn wanted)
+          (error "A one pixel fringe wears %S, wanted %S" worn wanted)))
+      (with-current-buffer buffer (window-box-mode -1)))
     (delete-other-windows)
     (kill-buffer buffer)))
 

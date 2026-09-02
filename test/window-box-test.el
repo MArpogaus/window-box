@@ -968,12 +968,42 @@ other row is passed through by the sides."
 A bitmap repeats over every line's full height, however tall the
 line; a margin image is one default line tall and dashed on taller
 ones, and one taller than the line grows every line to its height."
-  (let ((prefix (window-box--fringe-prefix)))
-    (should (equal (get-text-property 0 'display prefix)
-                   '(left-fringe window-box--left-side window-box--side)))
-    (should (equal (get-text-property 1 'display prefix)
-                   '(right-fringe window-box--right-side
-                                  window-box--side)))))
+  (skip-unless (fboundp 'define-fringe-bitmap))
+  (let* ((window (selected-window))
+         (prefix (window-box--fringe-prefix window)))
+    (pcase-let ((`(,left ,right . ,_) (window-fringes window)))
+      (should (equal (get-text-property 0 'display prefix)
+                     `(left-fringe ,(window-box--side-bitmap 'left left)
+                                   window-box--side)))
+      (should (equal (get-text-property 1 'display prefix)
+                     `(right-fringe ,(window-box--side-bitmap 'right right)
+                                    window-box--side))))))
+
+(ert-deftest window-box-test-a-side-is-as-wide-as-its-fringe ()
+  "A side's bitmap is the width of the fringe it is drawn in.
+A fringe draws a bitmap from its inner edge outwards and clips what
+does not fit, so the outermost pixel of a wider bitmap never reaches
+the display: the right side, whose only pixel is that one, went
+missing in every window whose right fringe was narrower — a window
+`dirvish-side\=' dresses has one pixel.  Measured in a graphic frame:
+the old eight pixel bitmap drew at a fringe of eight and at no width
+below it, and a bitmap of the fringe's own width drew at eight, four,
+two and one."
+  (skip-unless (fboundp 'define-fringe-bitmap))
+  ;; One name per side and width, and the name says which.
+  (should (eq (window-box--side-bitmap 'right 1) 'window-box--right-side-1))
+  (should (eq (window-box--side-bitmap 'left 8) 'window-box--left-side-8))
+  (should (eq (window-box--side-bitmap 'right 1)
+              (window-box--side-bitmap 'right 1)))
+  ;; A fringe of no pixels still names a bitmap, rather than one of no
+  ;; width, which `define-fringe-bitmap\=' will not take.
+  (should (eq (window-box--side-bitmap 'left 0) 'window-box--left-side-1))
+  ;; Each name is a bitmap the display knows, and the two sides are
+  ;; not the same bitmap: their set pixel sits at opposite ends.
+  (should (fringe-bitmap-p (window-box--side-bitmap 'left 4)))
+  (should (fringe-bitmap-p (window-box--side-bitmap 'right 4)))
+  (should-not (eq (window-box--side-bitmap 'left 4)
+                  (window-box--side-bitmap 'right 4))))
 
 (ert-deftest window-box-test-a-side-hides-where-no-box-is-drawn ()
   "A window the box spares shows no side, though it has the fringes.
