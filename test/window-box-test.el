@@ -998,10 +998,12 @@ two and one."
   ;; A fringe of no pixels still names a bitmap, rather than one of no
   ;; width, which `define-fringe-bitmap\=' will not take.
   (should (eq (window-box--side-bitmap 'left 0) 'window-box--left-side-1))
-  ;; Each name is a bitmap the display knows, and the two sides are
-  ;; not the same bitmap: their set pixel sits at opposite ends.
-  (should (fringe-bitmap-p (window-box--side-bitmap 'left 4)))
-  (should (fringe-bitmap-p (window-box--side-bitmap 'right 4)))
+  ;; Each name has been defined as a bitmap — asked of the package's own
+  ;; mark, not of `fringe-bitmap-p\=', which a build without fringes does
+  ;; not define at all — and the two sides are not the same bitmap:
+  ;; their set pixel sits at opposite ends.
+  (should (get (window-box--side-bitmap 'left 4) 'window-box--bitmap))
+  (should (get (window-box--side-bitmap 'right 4) 'window-box--bitmap))
   (should-not (eq (window-box--side-bitmap 'left 4)
                   (window-box--side-bitmap 'right 4))))
 
