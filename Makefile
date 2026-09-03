@@ -10,6 +10,9 @@
 #   make gui       box measured pixel by pixel, needs a display + pillow
 #   make clean     remove build output and the tool sandbox
 #
+# The complexity of each function is checked by a hook of its own; see
+# .pre-commit-config.yaml and https://github.com/MArpogaus/elisp-complexity.
+#
 # The checks install their tools and this package's dependencies into
 # $(SANDBOX), so a fresh checkout needs nothing but Emacs and make.
 
@@ -45,7 +48,7 @@ checkdoc = (progn (require (quote checkdoc)) \
 
 BATCH = $(EMACS) -Q --batch -L . -L test --eval '$(init)'
 
-.PHONY: all compile checkdoc lint relint test tty gui clean
+.PHONY: all compile checkdoc lint relint test tty gui format clean
 
 all: compile checkdoc lint relint test
 
@@ -69,7 +72,7 @@ lint: $(STAMP)
 
 # What checkdoc and package-lint both let through: a docstring escape
 # written \= rather than \\=, which the reader eats, so `describe-function'
-# shows the wrong thing.
+# shows the reader the = as text.
 relint: $(STAMP)
 	@$(BATCH) -l relint -f relint-batch $(SRC) $(TEST)
 
