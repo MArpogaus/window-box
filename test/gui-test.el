@@ -69,7 +69,7 @@ against itself.")
 (defun gui-test--fringes ()
   "Check that unboxing gives a split window its own fringes back.
 Emacs gives a new window the fringes of the one it was split from, so
-a window split off while the box is on arrives wearing the box\\='s
+a window split off while the box is on arrives wearing the box's
 own — and saving those would give them back for good.  Only a graphic
 display has fringes, so this is checked here rather than in the batch
 suite."
@@ -94,9 +94,9 @@ suite."
     (kill-buffer buffer)))
 
 (defun gui-test--wanted (window)
-  "Return the pixel rows the box\\='s edges want around WINDOW.
-The edge above a row that is inside the box sits on that row\\='s first
-pixel, the edge below a row that is outside it on that row\\='s last —
+  "Return the pixel rows the box's edges want around WINDOW.
+The edge above a row that is inside the box sits on that row's first
+pixel, the edge below a row that is outside it on that row's last —
 so the rows the options leave out are what stands between the window
 and its box."
   (pcase-let* ((`(,_ ,top ,_ ,bottom) (window-edges window nil nil t))
