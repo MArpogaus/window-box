@@ -94,17 +94,29 @@ its own puts the same property on the same lines.  dirvish's subtree
 guide is one — an overlay per subtree with a =line-prefix= of
 =dirvish-subtree-prefix= repeated per depth, and a text property on
 each line beside it — and =org-indent-mode= is another.  The box's
-overlay carries =priority 100=, so it used to win and the guide was
-not drawn: a subtree lost its indentation altogether.  Neither
-carrier can hold both strings, and the box cannot compose per line
-with a prefix it does not own, so =window-box-yield-prefix= decides
-which one gives way.  It answers "the buffer" by default:
-=window-box--own-prefix-p= looks for a =line-prefix= on the text or on
-an overlay that is not the box's, and where it finds one the box takes
-no margins and hangs no prefix at all.  The horizontal edges ride the
-window's rows, so they are drawn either way.  The consequence to
-expect: in a dirvish panel the sides are there until the first subtree
-opens, and back when the last one closes.
+overlay carries =priority 100=, which was added so that a shell's
+indent could not take a stretch of the sides away; that made it win
+over dirvish as well, and a subtree lost its indentation altogether.
+
+Neither carrier can hold both strings, so the box draws them as one:
+=window-box--own-prefixes= collects what the buffer prefixes itself —
+a string =line-prefix= on the text or on an overlay that is not the
+box's — and =window-box--compose= hangs one overlay per region
+carrying the side and that region's own prefix concatenated, at
+=priority 101=.  Where two of those overlap the narrower wins:
+measured, an overlay inside another of the same priority answers for
+the lines they share, so a subtree inside a subtree keeps the deeper
+guide.
+
+Two limits.  =window-box-compose-prefix= caps how many regions are
+composed — a buffer that prefixes every line of itself would want an
+overlay for each — and past the cap the box hangs no prefix at all, so
+the gutter is drawn and the sides are not.  And an overlay arrives
+without a hook: dirvish inserts a subtree's listing and *then* hangs
+the guide over it, so the change hook runs before there is anything to
+compose with.  =window-box--compose-soon= asks again from an idle
+timer, one to a buffer however many changes arrive, which is why a
+subtree opened this instant wears its side a moment later.
 
 The overlay is the buffer's, and a buffer may throw its overlays away:
 symbols-outline renders its panel with =delete-all-overlays= and
