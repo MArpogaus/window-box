@@ -99,7 +99,18 @@
   (kill-emacs 0))
 (run-with-timer 1.0 nil
                 (lambda ()
-                  (set-frame-size (selected-frame) 840 400 t)
+                  ;; 820 pixels across, which is what every picture of
+                  ;; these packages is.  A frame is whole columns wide,
+                  ;; so it is asked for the most that fit: the animation
+                  ;; is never scaled, because a resize makes two grey
+                  ;; lines out of the box's one pixel.
+                  (let ((fringes (+ (frame-parameter nil 'left-fringe)
+                                    (frame-parameter nil 'right-fringe))))
+                    (set-frame-size (selected-frame)
+                                    (/ (- 820 fringes) (frame-char-width))
+                                    (/ 400 (frame-char-height)))
+                    (while (> (frame-pixel-width) 820)
+                      (set-frame-width (selected-frame) (1- (frame-width)))))
                   (condition-case err (demo)
                     (error (write-region (format "ERROR %S" err) nil
                                          "/tmp/demo-wb/failed")

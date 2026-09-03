@@ -59,9 +59,25 @@ its own as well."
       (window-box-mode 1))
     buffer))
 
+(defconst shots-width 820
+  "How wide every picture of these packages is, in pixels.")
+
+(defun shots--frame (height)
+  "Ask the frame for `shots-width' pixels across and HEIGHT down.
+A frame is whole columns wide, so it is asked for the most columns that
+fit; whatever is missing is a few pixels of the frame's own edge, which
+`shots.py' pads."
+  (let ((fringes (+ (frame-parameter nil 'left-fringe)
+                    (frame-parameter nil 'right-fringe))))
+    (set-frame-size (selected-frame)
+                    (/ (- shots-width fringes) (frame-char-width))
+                    (/ height (frame-char-height)))
+    (while (> (frame-pixel-width) shots-width)
+      (set-frame-width (selected-frame) (1- (frame-width))))))
+
 (defun shots-encloses ()
   "One window per enclose shape, boxed."
-  (set-frame-size (selected-frame) 840 520 t)
+  (shots--frame 520)
   (switch-to-buffer
    (shots--buffer "*text*" nil nil
                   "enclose nothing\nthe text alone\n"))
@@ -95,7 +111,7 @@ the whole window, which is the default\n"
 
 (defun shots-windows ()
   "One buffer in two windows, boxed in one of them only."
-  (set-frame-size (selected-frame) 840 320 t)
+  (shots--frame 320)
   (let ((buffer (get-buffer-create "*notes*")))
     (with-current-buffer buffer
       (erase-buffer)
@@ -123,7 +139,7 @@ the whole window, which is the default\n"
 
 (defun shots-screenshot ()
   "Two side windows boxed, the main window plain."
-  (set-frame-size (selected-frame) 840 520 t)
+  (shots--frame 520)
   ;; The resize is an X round trip; drawing before it lands would
   ;; export the frame at the last scene's height.
   (sit-for 0.3)

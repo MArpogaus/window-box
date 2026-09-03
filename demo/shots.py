@@ -18,7 +18,7 @@ import time
 import pyte
 from PIL import Image, ImageDraw, ImageFont
 
-WIDTH, ROWS = 852, 26
+WIDTH, ROWS = 820, 26
 # In order of preference, among the fonts that have the box drawing
 # characters — a font without them draws the box as nothing at all.
 FONTS = ["Source Code Pro", "DejaVu Sans Mono", "Liberation Mono"]

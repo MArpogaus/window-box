@@ -40,8 +40,9 @@ frames:
 - Do not resample the frame rate.  The =fps= filter drops frames in
   an irregular way, and the motion becomes uneven.
 
-Record at a width that the reader does not scale.  840 pixels fit the
-column that GitHub uses for the README.
+Record at a width that the reader does not scale.  820 pixels fit the
+column that GitHub uses for the README, and every picture of these
+packages is that wide.
 
 * The screenshots
 
@@ -54,11 +55,12 @@ frame for each picture:
                                      # and ../img/windows-gui.png
 #+end_src
 
-Every picture is 852 pixels wide and shares one theme: a white
+Every picture is 820 pixels wide and shares one theme: a white
 ground, near black text, the grey of a GUI mode line, and the box in
-=#5e81ac=.  The frames are 840 pixels, which fit the column that
-GitHub uses for the README, and the terminal picture is drawn onto a
-canvas of the same width.
+=#5e81ac=.  A frame is whole columns wide, so it is asked for the most
+columns that fit and the few pixels that are missing are padded with
+its own edge; the terminal picture is drawn onto a canvas of the same
+width.
 
 The picture of the terminal is not a photograph of a terminal.
 =shots.py= runs Emacs in a pseudo terminal and feeds the output into
