@@ -1161,8 +1161,13 @@ for how the box is built."
         ;; prefix along with every other local variable, and neither
         ;; event above fires for it.  The mode itself survives, being
         ;; permanent-local, so the box is drawn again from scratch —
-        ;; which is what the cleared cookies ask for.
-        (add-hook 'after-change-major-mode-hook #'window-box--refresh)
+        ;; which is what the cleared cookies ask for.  Every frame,
+        ;; because the overlay that carries the sides is
+        ;; permanent-local as well: a mode change while another frame
+        ;; is selected left the sides drawn without their remap, in
+        ;; `shadow', in every window that showed the buffer.
+        (add-hook 'after-change-major-mode-hook
+                  #'window-box--refresh-frames)
         ;; A change in the text alone fires none of the window hooks, and
         ;; a buffer that renders itself again deletes the overlay the
         ;; sides ride.  Buffer-local, and it does nothing at all unless
