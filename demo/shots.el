@@ -43,8 +43,8 @@
 
 (defun shots--buffer (name top mode-line text &optional tabs)
   "Return a buffer NAME showing TEXT, with the enclose options set.
-TOP is `window-box-enclose-top\\=', MODE-LINE is
-`window-box-enclose-mode-line\\=', TABS non-nil gives it a tab line of
+TOP is `window-box-enclose-top', MODE-LINE is
+`window-box-enclose-mode-line', TABS non-nil gives it a tab line of
 its own as well."
   (let ((buffer (get-buffer-create name)))
     (with-current-buffer buffer

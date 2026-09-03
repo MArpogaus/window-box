@@ -115,8 +115,8 @@ and its box."
 
 (defun gui-test--example (name top mode-line tabs)
   "Return a buffer NAME with rows to enclose.
-TOP is `window-box-enclose-top\\=', MODE-LINE is
-`window-box-enclose-mode-line\\=', TABS non-nil gives the buffer a tab
+TOP is `window-box-enclose-top', MODE-LINE is
+`window-box-enclose-mode-line', TABS non-nil gives the buffer a tab
 line of its own."
   (let ((buffer (get-buffer-create name)))
     (with-current-buffer buffer
