@@ -821,8 +821,14 @@ Either can be nil, which is how a window says the buffer's own
 `left-margin-width' and `right-margin-width' decide.  The answer is
 saved the first time the box takes the margins, so the box never adds
 its own WIDTH columns to columns of its own — and a window split off a
-boxed one, which arrives wearing them, is recognised by them."
-  (or (window-parameter window 'window-box--saved-margins)
+boxed one, which arrives wearing them, is recognised by them.
+
+A WIDTH of zero takes no margins and saves none: what the window wore
+then is not the box's to give back, and writing those numbers back at
+the end would pin a margin the buffer has since dropped."
+  (or (and (zerop width) (list (car (window-margins window))
+                               (cdr (window-margins window))))
+      (window-parameter window 'window-box--saved-margins)
       (let* ((margins (window-margins window))
              (buffer (window-buffer window))
              (own (list (buffer-local-value 'left-margin-width buffer)
