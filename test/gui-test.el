@@ -50,7 +50,7 @@ against itself.")
 (defvar gui-test-header
   '(:eval
     (let* ((chip (propertize " ! " 'face '(:background "#d08770"
-                                           :foreground "white")))
+                                                       :foreground "white")))
            (buttons (concat (propertize "─" 'mouse-face 'highlight)
                             " "
                             (propertize "✕" 'mouse-face 'highlight))))

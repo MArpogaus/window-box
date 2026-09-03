@@ -8,57 +8,57 @@
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
 (menu-bar-mode -1)
 (run-with-timer 0.5 nil
- (lambda ()
-   (switch-to-buffer "*main*") (delete-other-windows)
-   (insert "main window\n")
-   (let ((top (split-window nil -6 'above)))
-     (set-window-buffer top (get-buffer-create "*boxed*"))
-     (with-current-buffer "*boxed*"
-       (insert "boxed in the terminal\nsecond line\n")
-       (setq-local mode-line-format nil)
-       (window-box-mode 1)))
-   ;; A second box beside the first: a terminal spends one column of
-   ;; the window on the separator, and an edge that counts it loses a
-   ;; corner off the end.
-   (let ((right (split-window-right 40)))
-     (set-window-buffer right (get-buffer-create "*beside*"))
-     (with-current-buffer "*beside*"
-       (insert "boxed beside it\n")
-       (setq-local mode-line-format nil
-                   ;; and with padding: the box takes a column for its
-                   ;; side and two more for air, and the side stays at
-                   ;; the window's edge
-                   window-box-padding 2)
-       (window-box-mode 1)))
-   ;; A window with rows of its own, and the box drawn around them:
-   ;; the top edge takes the free tab line row, and the mode line
-   ;; closes the box, since a terminal has no row below it.
-   (let* ((below (split-window (frame-root-window) -8 'below))
-          ;; and one beside it, left of the divider: a terminal spends
-          ;; a column of that window on the separator, and an end
-          ;; placed by the row's own right edge lands in it.
-          (beside (with-selected-window below (split-window-right 40))))
-     (set-window-buffer below (get-buffer-create "*rows*"))
-     (set-window-buffer beside (get-buffer-create "*more rows*"))
-     (dolist (name '("*rows*" "*more rows*"))
-       (with-current-buffer (get-buffer-create name)
-         (erase-buffer)
-         (insert (format "%s\n" (if (equal name "*rows*")
-                                    "boxed around its own rows"
-                                  "and beside it")))
-         (setq-local header-line-format
-                     (format " a header line in %s " name)
-                     mode-line-format (format " a mode line in %s " name))
-         (window-box-mode 1))))
-   ;; A header line with a button at its right hand end: it aligns the
-   ;; button to `right', which is the column the box wants for its own
-   ;; end, and the box has to keep that column.
-   (with-current-buffer "*rows*"
-     (setq-local header-line-format
-                 '(" a header line in *rows*"
-                   (:eval (propertize " " 'display
-                                      '(space :align-to (- right 3))))
-                   "[x]")))
-   (redisplay t)
-   (run-with-timer 1.0 nil (lambda () (kill-emacs 0)))))
+                (lambda ()
+                  (switch-to-buffer "*main*") (delete-other-windows)
+                  (insert "main window\n")
+                  (let ((top (split-window nil -6 'above)))
+                    (set-window-buffer top (get-buffer-create "*boxed*"))
+                    (with-current-buffer "*boxed*"
+                      (insert "boxed in the terminal\nsecond line\n")
+                      (setq-local mode-line-format nil)
+                      (window-box-mode 1)))
+                  ;; A second box beside the first: a terminal spends one column of
+                  ;; the window on the separator, and an edge that counts it loses a
+                  ;; corner off the end.
+                  (let ((right (split-window-right 40)))
+                    (set-window-buffer right (get-buffer-create "*beside*"))
+                    (with-current-buffer "*beside*"
+                      (insert "boxed beside it\n")
+                      (setq-local mode-line-format nil
+                                  ;; and with padding: the box takes a column for its
+                                  ;; side and two more for air, and the side stays at
+                                  ;; the window's edge
+                                  window-box-padding 2)
+                      (window-box-mode 1)))
+                  ;; A window with rows of its own, and the box drawn around them:
+                  ;; the top edge takes the free tab line row, and the mode line
+                  ;; closes the box, since a terminal has no row below it.
+                  (let* ((below (split-window (frame-root-window) -8 'below))
+                         ;; and one beside it, left of the divider: a terminal spends
+                         ;; a column of that window on the separator, and an end
+                         ;; placed by the row's own right edge lands in it.
+                         (beside (with-selected-window below (split-window-right 40))))
+                    (set-window-buffer below (get-buffer-create "*rows*"))
+                    (set-window-buffer beside (get-buffer-create "*more rows*"))
+                    (dolist (name '("*rows*" "*more rows*"))
+                      (with-current-buffer (get-buffer-create name)
+                        (erase-buffer)
+                        (insert (format "%s\n" (if (equal name "*rows*")
+                                                   "boxed around its own rows"
+                                                 "and beside it")))
+                        (setq-local header-line-format
+                                    (format " a header line in %s " name)
+                                    mode-line-format (format " a mode line in %s " name))
+                        (window-box-mode 1))))
+                  ;; A header line with a button at its right hand end: it aligns the
+                  ;; button to `right', which is the column the box wants for its own
+                  ;; end, and the box has to keep that column.
+                  (with-current-buffer "*rows*"
+                    (setq-local header-line-format
+                                '(" a header line in *rows*"
+                                  (:eval (propertize " " 'display
+                                                     '(space :align-to (- right 3))))
+                                  "[x]")))
+                  (redisplay t)
+                  (run-with-timer 1.0 nil (lambda () (kill-emacs 0)))))
 ;;; tty-test.el ends here
