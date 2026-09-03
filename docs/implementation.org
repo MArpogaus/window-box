@@ -64,12 +64,12 @@ the box frames it instead:
   (diff-hl-margin-mode)
 #+end_src
 
-A continuation arrow goes with `visual-line-mode', which most
+A continuation arrow goes with =visual-line-mode=, which most
 configurations that wrap prose already use.
 
 * The sides and their carriers
 
-A side hangs on `line-prefix', which belongs to the buffer, and a
+A side hangs on =line-prefix=, which belongs to the buffer, and a
 fringe belongs to the window.  So every window showing a boxed buffer
 draws the sides — the windows =window-box-window-predicate= spares as
 well, and a buffer shown twice is one buffer.  The box therefore draws
@@ -136,10 +136,10 @@ pixel column of the window on the right, which is the column the box
 draws its left side in, and the border wins.  Measured under Xvfb: the
 left side of a boxed right hand window was 22 pixels tall where it
 should have been 300, and the pixel in the border's column was the
-border's black.  `window-divider-mode' moves the border into a column
+border's black.  =window-divider-mode= moves the border into a column
 of its own and the side comes back — 300 pixels.  The package cannot
 do it instead: the border belongs to no buffer, and a face remap of
-`vertical-border' does not reach it, filtered to a window or not.  The
+=vertical-border= does not reach it, filtered to a window or not.  The
 pictures in the README turn dividers on for that reason, and the
 README names the setting.
 
@@ -153,8 +153,7 @@ overline and no underline:
 The corners are square on both displays.  Round corners were tried and
 are parked on the =feat/rounded_corners= branch: an image is placed
 against its row's baseline rather than the row's edge, so an arc has to
-be
-exactly as tall as the row it sits in, and the box has to measure every
+be exactly as tall as the row it sits in, and the box has to measure every
 row it dresses to know that — a measurement it cannot take while the
 row is being drawn, because Emacs works a row's height out by laying
 the row out and the layout runs the =:eval= the box put there.  That
@@ -183,11 +182,11 @@ own glyphs:
   alone marks the boundary.
 
 An underline follows the text of its row, not the row's edge.  A mode
-line dressed by `spacious-padding' is taller than its text, and the
+line dressed by =spacious-padding= is taller than its text, and the
 bottom edge of the box lands on the text's descent line: measured under
 Xvfb, three pixels above the window's bottom, with the sides ending on
 the same line.  The box is closed, and the row's lower padding is below
-it.  `:position' cannot help — it moves an underline up from the
+it.  =:position= cannot help — it moves an underline up from the
 descent line and off the row, never down: 0 drew on the descent line,
 12 drew twelve pixels higher, and 40 drew nothing at all.
 
@@ -253,7 +252,7 @@ the row itself:
 The box aligns the end at the right with a computed position, and not
 with the right edge of the text area.  The margin and the fringe both
 lie outside that edge, and the row spans the two of them: a graphic
-display counts their widths in pixels, less the end\='s own pixel, and
+display counts their widths in pixels, less the end's own pixel, and
 a terminal counts the margins in columns.  A terminal spends one
 column of a window on the separator to the window at its right.  That
 column is not part of the text area.
@@ -262,7 +261,7 @@ A row can also be wider than its window: the default mode line fills
 it and more.  Content that reaches the edge pushes the stretch and
 the end past it, where redisplay clips them away, so the drawn
 content is cut a column short of the row.  Stock redisplay clips such
-a row at the window\='s edge, so the cut loses nothing that was shown.
+a row at the window's edge, so the cut loses nothing that was shown.
 
 The content of the row can align something to the right edge itself.
 A header line with a button at its right hand end does this, and that
@@ -305,9 +304,12 @@ saved state keeps the widths of a box that is no longer there.
 
 ** Margins
 
-The box sets the margins of the window to one column for the side and
-`window-box-padding' more, and puts a character into each margin.  It
-saves the old widths in a window parameter.
+A terminal draws its sides in the margins, so the box asks for one
+column for the side and =window-box-padding= more, and puts a
+character into each.  A graphic display draws its sides in the
+fringes, so it asks for the padding alone, and for nothing at all
+where that is zero.  Either way the box saves the old widths in a
+window parameter.
 
 A window that comes from a split of a boxed window has the margins of
 the box already.  The box saves the widths of the buffer for such a
@@ -317,19 +319,23 @@ The widths of the fringes are the window's own.  The box does not
 change them, so a fringe keeps its width and draws its indicators
 where you can read them.
 
-The box does set the order of the two areas.  A window keeps whether
-its fringes are outside its margins, and the box needs them inside:
-the sides are in the margins, and with the fringes outside them a side
-sits between the fringe and the text while the horizontal edges, which
-span the row, reach past it.  The box turns that order around and
-gives it back when it goes.  A window that another package left the
-other way round, or that an older version of this package narrowed
-the fringes in, therefore comes right on the next refresh.
+The box does set the order of the two areas.  A window is born with
+its margins outside its fringes, and the box needs them the other way
+round: a side is the outermost pixel of a fringe, and with the margins
+outside it that pixel sits between the text and the padding — inside
+the box rather than on it.  The box turns the order around on a
+graphic display and gives it back when it goes.  It leaves the fourth
+answer of =window-fringes= alone, the one that says the widths survive
+a buffer change: that is the window's own answer, and a box that set
+it left the window pinned to the widths of the moment for good.
 
 A buffer can use its margins for its own text.  The log of magit
-writes the author and the date into a right margin of thirty columns.
-The box does not take a margin from such a buffer.  It draws the top
-edge and the bottom edge, and no side edges.
+writes the author and the date into a right margin of thirty columns,
+and =diff-hl-margin-mode= marks every changed line in two.  The box
+asks for its columns *beside* those, never instead of them, so such a
+buffer keeps its own content and gets its sides as well.  It used to
+step aside and draw no sides at all, which left the horizontal edges
+hanging on nothing.
 
 The box asks the window and the buffer for the margin widths.  Emacs
 applies =left-margin-width= when it shows a buffer.  A mode can ask
@@ -353,8 +359,12 @@ last boxed window of that buffer loses its box.
 
 ** Face remaps
 
-The box remaps the row faces for an overline or an underline.  The
-sides need no remap: they are characters in the =window-box= face.
+The box remaps the row faces for an overline or an underline, and it
+takes the overline, the underline and the border off a row that is
+inside the box, because all three are drawn where the box draws.  The
+sides carry a face of their own, =window-box--side=, which is remapped
+twice: to the background of the buffer, where nobody sees it, and to
+the color of the box in the windows the box is drawn in.
 
 A face remap belongs to the buffer.  It would reach each window that
 shows the buffer, and =window-box-window-predicate= exists for the
@@ -419,8 +429,8 @@ The first frame has two boxed side windows.  The check asserts that
 each edge is one pixel wide and sits on the edge of the window.
 
 The second frame has one window for each enclose shape, and a split
-window.  The elisp side computes the two rows
-that the edges must use.  It computes them from the row heights that
+window.  The elisp side computes the two rows that
+the edges must use.  It computes them from the row heights that
 Emacs reports, and not from the code that draws the box.  The check
 asserts three things:
 
@@ -431,10 +441,10 @@ asserts three things:
 The check leaves out the first pixel column of a window that has a
 neighbour on its left.  Emacs draws its own border there.
 
-A side is one column of margin wide, so the check asks each side for
-a pixel of the box color somewhere in that column.  It measures with
-`window-box-side-characters' at nil, which draws a solid column: a
-gap in a side is then the package\='s fault and not the font\='s.
+A side is one pixel of fringe wide, so the check asks each side for a
+pixel of the box color in that column of every row between the two
+horizontal edges.  The side is a periodic bitmap, which tiles a row of
+any height, so a gap is the package's fault and never the font's.
 
 ** =make tty=
 
