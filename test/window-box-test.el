@@ -209,7 +209,7 @@ fires for that.  `after-change-functions' does."
   "The sides are hidden in the background the theme has now.
 The remap that hides them names a color, and a theme change alters it.
 The remaps the box filters to its own windows need no such care: their
-specs carry the box\\='s color and `window-box--remaps' remakes a remap
+specs carry the box's color and `window-box--remaps' remakes a remap
 whose spec has changed."
   (window-box-test--with-buffer
     (window-box-mode 1)
@@ -338,7 +338,7 @@ in, the box puts its ends on it and the tabs show between them."
 
 (ert-deftest window-box-test-asks-beside-margins-a-buffer-uses ()
   "A window with margins of its own keeps them and gets the sides too.
-Magit\\='s log writes the author and the date into a wide right margin,
+Magit's log writes the author and the date into a wide right margin,
 and `diff-hl-margin-mode' marks changed lines in two columns on the
 left.  The box asks for its own column beside those, so the sides are
 drawn and nothing the buffer keeps there is lost; a terminal window
@@ -390,7 +390,7 @@ the box are saved once, the first time the box takes them."
 
 (ert-deftest window-box-test-the-predicate-answers-as-the-mode-goes-on ()
   "Turning the mode on draws no box in a window the predicate spares.
-The mode is the buffer\\='s and a buffer is shown where it is shown, so a
+The mode is the buffer's and a buffer is shown where it is shown, so a
 configuration turns the mode on for the buffer and lets the predicate
 pick the places — a panel and not the ordinary window beside it.  The
 box used to go on every window of the buffer here and come off again at
@@ -568,10 +568,10 @@ back as the width the window is supposed to have."
       (kill-buffer buffer))))
 
 (ert-deftest window-box-test-remaps-name-the-windows-they-apply-to ()
-  "A remap says which windows it is for, since it is the buffer\\='s.
+  "A remap says which windows it is for, since it is the buffer's.
 Without that, a window `window-box-window-predicate' spares wears
-the box\\='s colours: measured on a graphic frame, its fringes in the
-box colour at their full eight pixel width and the box\\='s overline on
+the box's colours: measured on a graphic frame, its fringes in the
+box colour at their full eight pixel width and the box's overline on
 its mode line."
   (with-temp-buffer
     (window-box--remap 'fringe (list :background "red"))
@@ -692,7 +692,7 @@ box; a row below one the box takes in would draw that row outside."
 
 (ert-deftest window-box-test-the-drawing-never-asks-a-row-its-height ()
   "The drawing of a row must not ask that row how tall it is.
-Emacs works a row\\='s height out by laying the row out, and the layout
+Emacs works a row's height out by laying the row out, and the layout
 runs the `:eval' the box put there: asking is a recursion Emacs does
 not come back from — it died of a stack overflow with a tab line
 inside the box on a graphic display.  The box draws with what it knows
@@ -714,7 +714,7 @@ instead: a bar of one pixel fills a row of any height."
 
 (ert-deftest window-box-test-the-mode-line-option-tells-in-a-terminal ()
   "`window-box-enclose-mode-line' decides the bottom in a terminal too.
-Taken in, the mode line is dressed and carries the box\\='s corners; left
+Taken in, the mode line is dressed and carries the box's corners; left
 out, it is not touched and the box has no bottom edge — a terminal has
 no line to draw and no row between the mode line and the text to draw
 one in.  The option used to make no difference there, which is what
@@ -734,7 +734,7 @@ the user saw."
         (window-box--clear window)))))
 
 (ert-deftest window-box-test-a-row-keeps-what-it-showed ()
-  "A row the box draws its ends on shows the window\\='s own row between them."
+  "A row the box draws its ends on shows the window's own row between them."
   (window-box-test--with-buffer
     (setq-local header-line-format " header ")
     (let ((window-box-enclose-top 'header-line)
@@ -751,7 +751,7 @@ the user saw."
       (should-not (window-parameter window 'header-line-format)))))
 
 (ert-deftest window-box-test-a-row-of-the-window-s-own-comes-back ()
-  "A header the window itself carried is given back, not the buffer\\='s.
+  "A header the window itself carried is given back, not the buffer's.
 Side window rules hand a window its own header line, and the box has
 to put that one back rather than the one the buffer would show."
   (window-box-test--with-buffer
@@ -768,7 +768,7 @@ to put that one back rather than the one the buffer would show."
 
 (ert-deftest window-box-test-a-saved-window-comes-back-marked ()
   "A window put away with the box on knows it is boxed when it returns.
-`window-state-get' saves the margins and the fringes, so the box\\='s
+`window-state-get' saves the margins and the fringes, so the box's
 widths travel with a window that is hidden — a side window toggled
 away.  Without the mark travelling too, a mode turned off in the
 meantime would leave those widths on a window nothing knows to
@@ -908,13 +908,13 @@ window does, and the padding is the columns between it and the text."
       (window-box-mode -1))))
 
 (ert-deftest window-box-test-the-row-end-reaches-past-margin-and-fringe ()
-  "A dressed row\\='s stretch counts the fringe as well as the margin.
-`right' in a row\\='s display spec is the right edge of the text area,
-and both the margin and the fringe lie between it and the row\\='s end.
-A stretch that counts only the margin parks the box\\='s end a fringe
-short of the side below it — the header\\='s right edge sat seven pixels
-left of the side.  The reach is less the end\\='s own pixel: a glyph
-aligned to the row\\='s very last pixel boundary would start outside the
+  "A dressed row's stretch counts the fringe as well as the margin.
+`right' in a row's display spec is the right edge of the text area,
+and both the margin and the fringe lie between it and the row's end.
+A stretch that counts only the margin parks the box's end a fringe
+short of the side below it — the header's right edge sat seven pixels
+left of the side.  The reach is less the end's own pixel: a glyph
+aligned to the row's very last pixel boundary would start outside the
 row and be clipped away."
   (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
             ((symbol-function 'window-margins) (lambda (&rest _) '(1 . 1)))
@@ -932,7 +932,7 @@ row and be clipped away."
   "A display property that is a LIST of specs is indented like a bare one.
 A mode line that aligns its own tail to `right' with
 \((space :align-to (- right ...))) fills the row to its very end when
-the spec slips through unmoved, and the box\\='s end lands past the row,
+the spec slips through unmoved, and the box's end lands past the row,
 where it is clipped — in a terminal, into the separator column."
   (let* ((drawn (concat (propertize " " 'display
                                     '((space :align-to
@@ -953,7 +953,7 @@ where it is clipped — in a terminal, into the separator column."
 The default mode line fills the window, and a row that reaches the
 edge pushes the stretch and the end of the box past it, where they
 are clipped away — the box had a one row hole at its right edge.
-Stock redisplay clips such a row at the window\\='s edge, so the cut
+Stock redisplay clips such a row at the window's edge, so the cut
 loses nothing that was shown."
   (should (equal (window-box--trimmed (make-string 50 ?x) 40)
                  (make-string 40 ?x)))
@@ -963,7 +963,7 @@ loses nothing that was shown."
 
 (ert-deftest window-box-test-only-edge-rows-get-the-corners ()
   "On a graphic display the corners go where the row carries the edge.
-A row whose overline is the box\\='s top edge gets the top corners, the
+A row whose overline is the box's top edge gets the top corners, the
 mode line whose underline is the bottom edge the bottom ones, and any
 other row is passed through by the sides."
   (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
@@ -1021,11 +1021,11 @@ two and one."
 
 (ert-deftest window-box-test-a-side-hides-where-no-box-is-drawn ()
   "A window the box spares shows no side, though it has the fringes.
-The sides ride the buffer\\='s line prefix, so every window showing the
-buffer draws them: a fringe is a window\\='s own and every window has
+The sides ride the buffer's line prefix, so every window showing the
+buffer draws them: a fringe is a window's own and every window has
 one, and a buffer that keeps text in its margins keeps them in every
 window too.  The box gives the sides a face of their own, remaps it to
-the background for the buffer, and remaps it to the box\\='s color again
+the background for the buffer, and remaps it to the box's color again
 for the windows it is drawn in — the second remap is added later, so it
 wins where it applies."
   (window-box-test--with-buffer
