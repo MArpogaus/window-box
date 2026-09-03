@@ -111,26 +111,47 @@ sat thirty columns inside the window and the corners did not meet."
 
 ;;;; Boxing windows
 
-(ert-deftest window-box-test-a-buffer-keeps-a-prefix-of-its-own ()
-  "A gutter the buffer draws keeps its line, and the box draws no side.
-One `line-prefix' to a line: dirvish's subtree guide is one of these,
-and the box overrode it, so a subtree lost its indentation."
+(ert-deftest window-box-test-a-side-is-drawn-over-a-prefix-of-the-buffers ()
+  "A gutter the buffer draws keeps its line, and the side is drawn over it.
+One `line-prefix' to a line, so the box makes an overlay carrying the
+side and the gutter as one string.  dirvish's subtree guide is such a
+gutter, and the box's own carrier used to win over it: a subtree lost
+its indentation."
   (window-box-test--with-buffer
-    (should-not (window-box--own-prefix-p))
-    (put-text-property (point-min) (point-max) 'line-prefix "| ")
-    (should (window-box--own-prefix-p))
-    (window-box-mode 1)
-    ;; no prefix of the box's, and no margins taken for one
-    (should-not window-box--prefix-overlay)
-    (should-not (local-variable-p 'line-prefix))
-    (should (equal (window-margins (selected-window)) '(nil)))
-    ;; and the row the box draws is there all the same
-    (should (window-box--boxed-p (selected-window)))
-    (window-box-mode -1)
-    ;; with the option off the sides win, as they did before
-    (let ((window-box-yield-prefix nil))
+    (should-not (window-box--own-prefixes))
+    (let ((own (make-overlay (point-min) (point-max))))
+      (overlay-put own 'line-prefix "| ")
+      (should (= 1 (length (window-box--own-prefixes))))
       (window-box-mode 1)
-      (should window-box--prefix-overlay)
+      ;; the composed overlay carries both, above the box's own carrier
+      (should (= 1 (length window-box--composed)))
+      (let ((both (overlay-get (car window-box--composed) 'line-prefix)))
+        (should (string-suffix-p "| " both))
+        (should (> (length both) 2)))
+      (should (> (overlay-get (car window-box--composed) 'priority)
+                 (overlay-get window-box--prefix-overlay 'priority)))
+      ;; and what redisplay reads at such a line is the composed one
+      (should (equal (get-char-property (point-min) 'line-prefix)
+                     (overlay-get (car window-box--composed) 'line-prefix)))
+      (window-box-mode -1)
+      (should-not window-box--composed)
+      (should (equal (get-char-property (point-min) 'line-prefix) "| ")))))
+
+(ert-deftest window-box-test-too-much-gutter-keeps-the-lines ()
+  "Past `window-box-compose-prefix' the lines are left to their owner.
+An overlay for every region of a buffer that prefixes each line of
+itself is more than the box will make."
+  (window-box-test--with-buffer
+    (let ((window-box-compose-prefix 1))
+      (dotimes (i 2)
+        (let ((ov (make-overlay (+ (point-min) i) (+ (point-min) i 1))))
+          (overlay-put ov 'line-prefix "| ")))
+      (window-box-mode 1)
+      (should-not window-box--composed)
+      (should-not window-box--prefix-overlay)
+      (should-not (local-variable-p 'line-prefix))
+      ;; the box is still on the window: the horizontal edges are drawn
+      (should (window-box--boxed-p (selected-window)))
       (window-box-mode -1))))
 
 (ert-deftest window-box-test-mode-round-trip ()
