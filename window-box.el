@@ -104,6 +104,21 @@ again applies it."
   :type '(choice (const :tag "Face foreground" nil) color)
   :local t)
 
+(defcustom window-box-yield-prefix t
+  "Whether the box gives up its sides to a buffer that draws its own.
+A line carries one `line-prefix', so a side of the box and a gutter of
+the buffer cannot both be drawn on it: dirvish's subtree guide,
+`org-indent-mode', a shell that indents its output.  With this on, such
+a buffer keeps its own prefix and the box draws its horizontal edges
+alone.  With it off the sides win, and that gutter is not shown while
+the box is up — the indentation of a dirvish subtree disappeared this
+way.
+
+The horizontal edges are drawn either way: they ride the window's rows,
+not the buffer's lines."
+  :type 'boolean
+  :group 'window-box)
+
 (defcustom window-box-window-predicate nil
   "Which windows of a boxed buffer get the box, or nil for all of them.
 A function called with one window, whose buffer has `window-box-mode'
@@ -950,18 +965,24 @@ the author and the date into a thirty column right margin,
 the box's side sits outside all of it.  A terminal drew no sides at all
 in such a window before, which left the horizontal edges hanging on
 nothing.  `window-box--wear\' says how the sides hang."
-  (let* ((width (window-box--width window))
-         (own (window-box--own-margins window width))
-         (left (+ (or (nth 0 own) left-margin-width 0) width))
-         (right (+ (or (nth 1 own) right-margin-width 0) width)))
-    (unless (or (zerop width)
-                (equal (window-margins window) (cons left right)))
-      (set-window-margins window left right))
-    (cond ((display-graphic-p (window-frame window))
-           (window-box--order window)
-           (window-box--wear (window-box--fringe-prefix window)))
-          ((zerop width) (window-box--shed))
-          (t (window-box--wear (window-box--prefix window right))))))
+  (if (and window-box-yield-prefix (window-box--own-prefix-p))
+      ;; The buffer draws its own gutter, and one `line-prefix' cannot
+      ;; carry both: the box takes no margins and hangs no prefix, so
+      ;; the gutter stays as its owner drew it.  The horizontal edges
+      ;; ride the window's rows and are drawn all the same.
+      (window-box--shed)
+    (let* ((width (window-box--width window))
+           (own (window-box--own-margins window width))
+           (left (+ (or (nth 0 own) left-margin-width 0) width))
+           (right (+ (or (nth 1 own) right-margin-width 0) width)))
+      (unless (or (zerop width)
+                  (equal (window-margins window) (cons left right)))
+        (set-window-margins window left right))
+      (cond ((display-graphic-p (window-frame window))
+             (window-box--order window)
+             (window-box--wear (window-box--fringe-prefix window)))
+            ((zerop width) (window-box--shed))
+            (t (window-box--wear (window-box--prefix window right)))))))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
@@ -982,6 +1003,17 @@ Call it with the window's buffer current."
     (window-box--remaps
      (window-box--wanted-remaps color top bottom dressed))
     (window-box--apply-sides window)))
+
+(defun window-box--own-prefix-p ()
+  "Return non-nil where the current buffer draws prefixes of its own.
+A `line-prefix' the buffer put there, on its text or on an overlay of
+its own — the box's own carrier is not one.  See
+`window-box-yield-prefix' for what the answer decides."
+  (or (text-property-not-all (point-min) (point-max) 'line-prefix nil)
+      (seq-some (lambda (ov)
+                  (and (not (eq ov window-box--prefix-overlay))
+                       (overlay-get ov 'line-prefix)))
+                (overlays-in (point-min) (point-max)))))
 
 (defun window-box--wear (prefix)
   "Hang PREFIX on the current buffer, on both carriers.

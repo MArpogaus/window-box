@@ -89,6 +89,23 @@ property — a shell indents its output that way, and those lines went
 bare on the variable alone.  The pixel rig measures the side column
 either way, where a gap is the package's fault and never the font's.
 
+One prefix to a line, and two owners: a buffer that draws a gutter of
+its own puts the same property on the same lines.  dirvish's subtree
+guide is one — an overlay per subtree with a =line-prefix= of
+=dirvish-subtree-prefix= repeated per depth, and a text property on
+each line beside it — and =org-indent-mode= is another.  The box's
+overlay carries =priority 100=, so it used to win and the guide was
+not drawn: a subtree lost its indentation altogether.  Neither
+carrier can hold both strings, and the box cannot compose per line
+with a prefix it does not own, so =window-box-yield-prefix= decides
+which one gives way.  It answers "the buffer" by default:
+=window-box--own-prefix-p= looks for a =line-prefix= on the text or on
+an overlay that is not the box's, and where it finds one the box takes
+no margins and hangs no prefix at all.  The horizontal edges ride the
+window's rows, so they are drawn either way.  The consequence to
+expect: in a dirvish panel the sides are there until the first subtree
+opens, and back when the last one closes.
+
 The overlay is the buffer's, and a buffer may throw its overlays away:
 symbols-outline renders its panel with =delete-all-overlays= and
 =erase-buffer=, and deletes the overlays of a region when it collapses
