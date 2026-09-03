@@ -154,6 +154,27 @@ itself is more than the box will make."
       (should (window-box--boxed-p (selected-window)))
       (window-box-mode -1))))
 
+(ert-deftest window-box-test-no-composing-keeps-the-sides ()
+  "A `window-box-compose-prefix' of zero draws the sides and not the gutter.
+Zero composes nothing, which is what the box did before the option:
+the sides win and the gutter waits under the box.  Zero used to read
+as a cap the buffer was already past, and the box gave those lines up
+instead — the sides went missing altogether."
+  (window-box-test--with-buffer
+    (let ((window-box-compose-prefix 0)
+          (own (make-overlay (point-min) (point-max))))
+      (overlay-put own 'line-prefix "| ")
+      (window-box-mode 1)
+      (should-not window-box--composed)
+      ;; The sides are worn: the carrier is there and the prefix with it
+      (should (overlayp window-box--prefix-overlay))
+      (should (local-variable-p 'line-prefix))
+      (should (stringp line-prefix))
+      ;; and the box's own prefix is what redisplay reads at such a line
+      (should (equal (get-char-property (point-min) 'line-prefix)
+                     line-prefix))
+      (window-box-mode -1))))
+
 (ert-deftest window-box-test-mode-round-trip ()
   "The mode dresses the window and takes the dressing back.
 A batch session is a terminal, so the sides are margins here.  One

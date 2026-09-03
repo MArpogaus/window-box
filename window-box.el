@@ -190,7 +190,8 @@ Set it buffer-locally for a box of its own shape."
 (defcustom window-box-padding 0
   "Columns of margin between the sides of the box and the text, per side.
 Set it buffer-locally for a buffer that wants more air than the
-others.
+others.  A graphic display takes no margin at all for a padding of
+zero, so turning one down to zero applies when the mode goes on again.
 
 A buffer that uses its margins for its own text keeps them: the box
 asks for its columns beside the buffer's, so the sides sit outside
@@ -830,7 +831,11 @@ gets its order back when the box goes."
   (let ((fringes (window-fringes window)))
     (unless (nth 2 fringes)
       (set-window-parameter window 'window-box--saved-order t)
-      (set-window-fringes window (nth 0 fringes) (nth 1 fringes) t t))))
+      ;; Four arguments, not five: the fifth says the widths survive
+      ;; `set-window-buffer', which is the window's own answer to give
+      ;; and not the box's to change.  A box that set it left the
+      ;; window pinned to the widths of the moment for good.
+      (set-window-fringes window (nth 0 fringes) (nth 1 fringes) t))))
 
 (defun window-box--own-margins (window width)
   "Return the margins WINDOW would wear without the box, as (LEFT RIGHT).
@@ -962,15 +967,19 @@ it."
 (defun window-box--apply-sides (window)
   "Give WINDOW the margins and the sides of the box.
 A graphic display draws the sides as fringe bitmaps and gives the
-margins to `window-box-padding\' alone; a terminal has no fringes and
+margins to `window-box-padding' alone; a terminal has no fringes and
 draws them in the margins.  Either way the box asks for its columns
 *beside* the buffer's own, never instead of them: magit's log writes
 the author and the date into a thirty column right margin,
-`diff-hl-margin-mode\' marks every changed line in two on the left, and
+`diff-hl-margin-mode' marks every changed line in two on the left, and
 the box's side sits outside all of it.  A terminal drew no sides at all
 in such a window before, which left the horizontal edges hanging on
-nothing.  `window-box--wear\' says how the sides hang."
-  (if-let* ((regions (window-box--own-prefixes))
+nothing.  `window-box--wear' says how the sides hang."
+  (if-let* ((regions (unless (eql window-box-compose-prefix 0)
+                       ;; Zero composes nothing, so there is no count to
+                       ;; compare either: the sides win and the gutter
+                       ;; waits under the box.
+                       (window-box--own-prefixes)))
             (cap window-box-compose-prefix)
             ((> (length regions) cap)))
       ;; More gutter than the box will compose with, so those lines are
@@ -1002,7 +1011,7 @@ Call it with the window's buffer current."
     ;; A theme change alters the background the sides are hidden in, and
     ;; no spec of the box's mentions it: the hiding remap is made anew
     ;; where it no longer matches.  The filtered remaps carry the box's
-    ;; color and `window-box--remaps\' sees to those.
+    ;; color and `window-box--remaps' sees to those.
     (unless (equal (window-box--background) window-box--hidden-color)
       (window-box--show-sides))
     (window-box--hide-sides)
@@ -1161,7 +1170,7 @@ The face remaps are the buffer's and go when the mode turns off."
   ;; The order of fringes and margins, where the box turned it around.
   (when (window-parameter window 'window-box--saved-order)
     (let ((fringes (window-fringes window)))
-      (set-window-fringes window (nth 0 fringes) (nth 1 fringes) nil t))
+      (set-window-fringes window (nth 0 fringes) (nth 1 fringes) nil))
     (set-window-parameter window 'window-box--saved-order nil))
   ;; The margins the window wore without the box, nil and all: nil is
   ;; how a window leaves the width to the buffer, and a number the box
@@ -1186,8 +1195,7 @@ The face remaps are the buffer's and go when the mode turns off."
 with a hidden side window.  The marks that say those settings are the
 box's do not, unless they are named here.  Turn the mode off while
 such a window is away, and it comes back wearing the box's margins
-with no box, and nothing left
-that knows to take them off again.
+with no box, and nothing left that knows to take them off again.
 
 The widths and the marks are numbers and t, which a state written to a
 file can hold.  The rows the box took over are formats, and a format
