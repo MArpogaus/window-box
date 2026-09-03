@@ -409,14 +409,6 @@ and that remap is added later, so it wins where it applies."
     (setq window-box--hidden nil
           window-box--hidden-color nil)))
 
-(defun window-box--unmap-all ()
-  "Take back every remap this buffer holds.
-The one way out for all of them: a cookie that a caller reads by hand
-is a cookie that stays behind when the record changes shape."
-  (dolist (entry (copy-sequence window-box--cookies))
-    (window-box--unmap (car entry)))
-  (setq window-box--cookies nil))
-
 (defun window-box--remaps (wanted)
   "Hold exactly the remaps in WANTED, an alist of face and spec.
 A face that is no longer wanted gives its remap back, and one whose
@@ -707,7 +699,12 @@ A row wider than its window pushes everything after it off the edge,
 the end of the box with it — the default mode line does it in any
 window narrower than its text.  Stock redisplay clips such a row at
 the window's edge, so the cut loses nothing that was shown, and the
-stretch that follows the content fills what it opens."
+stretch that follows the content fills what it opens.
+
+The measure is `string-width', which counts a stretch glyph as one
+column: a row whose content carries an absolute stretch of its own —
+`(space :align-to 100)' in a window of eighty — is reported short, is
+not cut, and redisplay clips the end of the box off the edge."
   (if (and (stringp row) (> (string-width row) limit))
       (truncate-string-to-width row limit)
     row))
@@ -953,7 +950,7 @@ the author and the date into a thirty column right margin,
 the box's side sits outside all of it.  A terminal drew no sides at all
 in such a window before, which left the horizontal edges hanging on
 nothing.  `window-box--wear\' says how the sides hang."
-  (let* ((width (window-box--width))
+  (let* ((width (window-box--width window))
          (own (window-box--own-margins window width))
          (left (+ (or (nth 0 own) left-margin-width 0) width))
          (right (+ (or (nth 1 own) right-margin-width 0) width)))
@@ -1194,7 +1191,7 @@ for how the box is built."
     (remove-hook 'after-change-functions #'window-box--watch t)
     (dolist (window (get-buffer-window-list nil nil t))
       (window-box--clear window))
-    (window-box--unmap-all)
+    (window-box--remaps nil)
     (window-box--show-sides)
     (window-box--shed)))
 
