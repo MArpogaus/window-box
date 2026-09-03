@@ -229,7 +229,24 @@ has fringes, so this is checked here and not in the batch suite."
                     (get-text-property 1 'display line-prefix))))
         (unless (equal worn wanted)
           (error "A one pixel fringe wears %S, wanted %S" worn wanted)))
-      (with-current-buffer buffer (window-box-mode -1)))
+      (with-current-buffer buffer (window-box-mode -1))
+      ;; A window with the order it is born with, which is the one the
+      ;; box has to turn around.  It gives back all four answers of
+      ;; `window-fringes', the last of them included: that one says the
+      ;; widths survive a buffer change, and a box that set it left the
+      ;; window pinned to the widths of the moment for good.
+      (set-window-fringes window nil nil nil)
+      (let ((born (window-fringes window)))
+        (with-current-buffer buffer (window-box-mode 1))
+        (window-box--refresh)
+        (unless (nth 2 (window-fringes window))
+          (error "The box left the fringes inside the margins: %S"
+                 (window-fringes window)))
+        (with-current-buffer buffer (window-box-mode -1))
+        (window-box--refresh)
+        (unless (equal (window-fringes window) born)
+          (error "Unboxing left the fringes %S, wanted %S"
+                 (window-fringes window) born))))
     (delete-other-windows)
     (kill-buffer buffer)))
 
