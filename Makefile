@@ -3,6 +3,7 @@
 #   make compile   byte-compile, warnings are errors
 #   make checkdoc  documentation style
 #   make lint      package-lint, the MELPA rules
+#   make relint    the regular expressions and the docstring escapes
 #   make test      ERT test suite
 #   make tty       box drawn in a real terminal, needs python3 + pyte
 #   make gui       box measured pixel by pixel, needs a display + pillow
@@ -13,7 +14,7 @@
 
 EMACS   ?= emacs
 SANDBOX ?= .sandbox
-DEPS    ?= package-lint
+DEPS    ?= package-lint relint
 
 SRC  := $(filter-out %-autoloads.el %-pkg.el,$(wildcard *.el))
 # gui-test.el is left out on purpose: it runs only on a graphic
@@ -37,9 +38,9 @@ checkdoc = (progn (require (quote checkdoc)) \
 
 BATCH = $(EMACS) -Q --batch -L . -L test --eval '$(init)'
 
-.PHONY: all compile checkdoc lint test tty gui clean
+.PHONY: all compile checkdoc lint relint test tty gui clean
 
-all: compile checkdoc lint test
+all: compile checkdoc lint relint test
 
 $(SANDBOX):
 	@$(EMACS) -Q --batch --eval '$(init)' --eval '$(bootstrap)'
@@ -57,6 +58,12 @@ checkdoc:
 
 lint: $(SANDBOX)
 	@$(BATCH) -f package-lint-batch-and-exit $(SRC)
+
+# What checkdoc and package-lint both let through: a docstring escape
+# written \= rather than \\=, which the reader eats, so `describe-function'
+# shows the wrong thing.
+relint: $(SANDBOX)
+	@$(BATCH) -l relint -f relint-batch $(SRC) $(TEST)
 
 test: $(SANDBOX)
 	@$(BATCH) $(addprefix -l ,$(TEST)) -f ert-run-tests-batch-and-exit
