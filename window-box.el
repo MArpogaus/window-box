@@ -212,13 +212,7 @@ unused there.  A terminal draws characters, and the columns are exact."
                   ;; row's end, fringes and margins included, which is
                   ;; where the side edges are.
                   'display '(space :align-to 10000 :height (1)))
-    ;; The body and the margins, not `window-total-width': that counts
-    ;; the column a terminal puts between two windows side by side, and
-    ;; an edge one column too long loses its last corner off the end.
-    (let* ((margins (window-margins))
-           (width (+ (window-body-width)
-                     (or (car margins) 0)
-                     (or (cdr margins) 0))))
+    (let ((width (window-box--row-width)))
       (propertize
        (concat (string (aref window-box--glyphs left))
                (make-string (max 0 (- width 2))
@@ -244,26 +238,51 @@ see `window-box--fringe-prefix'."
   (propertize (string (aref window-box--glyphs 4))
               'face 'window-box--side))
 
-(defun window-box--width ()
-  "Return the margin the box needs on each side, in columns.
+(defun window-box--row-width (&optional window)
+  "Return the columns a row of WINDOW spans: its body and both margins.
+WINDOW is the selected one by default.  Not `window-total-width',
+which counts the column a terminal puts between two windows side by
+side: a row one column too long loses its last corner off the end."
+  (let ((margins (window-margins window)))
+    (+ (window-body-width window)
+       (or (car margins) 0)
+       (or (cdr margins) 0))))
+
+(defun window-box--width (&optional window)
+  "Return the margin the box needs on each side of WINDOW, in columns.
+WINDOW is the selected one by default, which is where redisplay asks.
 A terminal draws the side itself in the outermost column and the
 padding inside it; a graphic display draws the sides in the fringes,
 so its margins carry `window-box-padding' alone — and none at all
-where that is zero."
+where that is zero.  The frame of WINDOW is what decides, not the
+selected one: a daemon serves a graphic frame and a terminal frame at
+once, and each of them needs its own answer."
   (let ((padding (if (natnump window-box-padding) window-box-padding 0)))
-    (if (display-graphic-p) padding (1+ padding))))
+    (if (display-graphic-p (window-frame window)) padding (1+ padding))))
 
-(defun window-box--prefix ()
-  "Return the line prefix that draws the sides in a terminal's margins.
-The side sits in the outermost column, so the box ends where the
-window does; the padding is the rest of the margin."
-  (let ((padding (make-string (1- (window-box--width)) ?\s))
+(defun window-box--prefix (window right)
+  "Return the line prefix that draws the sides in WINDOW's margins.
+RIGHT is the whole right margin of WINDOW, in columns.  The side sits
+in the outermost column, so the box ends where the window does.
+
+A margin display string is laid out from the *inner* edge of the right
+margin, so that string is as wide as the whole margin: with magit's
+thirty column author and date margin the side sat thirty columns
+inside the window's edge and the corners of the box did not meet.  The
+left margin needs no such count, because its outermost column is the
+window's edge.
+
+The prefix belongs to the buffer and serves every window that shows
+it, so a buffer shown in two windows with different right margins is
+drawn for the one that last asked."
+  (let ((padding (make-string (1- (window-box--width window)) ?\s))
+        (right-padding (make-string (max 0 (1- right)) ?\s))
         (side (window-box--side)))
     (concat
      (propertize " " 'display `((margin left-margin)
                                 ,(concat side padding)))
      (propertize " " 'display `((margin right-margin)
-                                ,(concat padding side))))))
+                                ,(concat right-padding side))))))
 
 ;; The graphic sides: a one pixel periodic bitmap at the outermost
 ;; pixel of each fringe, which repeats over the whole height of every
@@ -703,9 +722,7 @@ where they are a column each."
       (1- (/ (- (window-pixel-width window)
                 (window-right-divider-width window))
              (frame-char-width)))
-    (let ((margins (window-margins window)))
-      (+ (window-body-width window)
-         (or (car margins) 0) (or (cdr margins) 0) -2))))
+    (- (window-box--row-width window) 2)))
 
 (defun window-box--row (parameter)
   "Return the row PARAMETER names with the box's ends on it.
@@ -750,10 +767,10 @@ redisplayed is the selected one and its buffer is current."
                         ;; follows it.  The column is counted instead,
                         ;; from the text area outwards, as the drawn
                         ;; edges count their width.
-                        (let ((margins (window-margins)))
-                          `(space :align-to
-                                  ,(+ (window-body-width)
-                                      (or (cdr margins) 0) -1)))))
+                        `(space :align-to
+                                ,(- (window-box--row-width)
+                                    (or (car (window-margins)) 0)
+                                    1))))
           (window-box--cap (nth 1 corners)))))
 
 (defvar-local window-box--prefix-overlay nil
@@ -941,7 +958,7 @@ nothing.  `window-box--wear\' says how the sides hang."
            (window-box--order window)
            (window-box--wear (window-box--fringe-prefix window)))
           ((zerop width) (window-box--shed))
-          (t (window-box--wear (window-box--prefix))))))
+          (t (window-box--wear (window-box--prefix window right))))))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
