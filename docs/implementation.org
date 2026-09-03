@@ -404,7 +404,7 @@ neighbour on its left.  Emacs draws its own border there.
 
 A side is one column of margin wide, so the check asks each side for
 a pixel of the box color somewhere in that column.  It measures with
-`window-box-side-characters\=' at nil, which draws a solid column: a
+`window-box-side-characters' at nil, which draws a solid column: a
 gap in a side is then the package\='s fault and not the font\='s.
 
 ** =make tty=
