@@ -111,6 +111,28 @@ sat thirty columns inside the window and the corners did not meet."
 
 ;;;; Boxing windows
 
+(ert-deftest window-box-test-a-buffer-keeps-a-prefix-of-its-own ()
+  "A gutter the buffer draws keeps its line, and the box draws no side.
+One `line-prefix' to a line: dirvish's subtree guide is one of these,
+and the box overrode it, so a subtree lost its indentation."
+  (window-box-test--with-buffer
+    (should-not (window-box--own-prefix-p))
+    (put-text-property (point-min) (point-max) 'line-prefix "| ")
+    (should (window-box--own-prefix-p))
+    (window-box-mode 1)
+    ;; no prefix of the box's, and no margins taken for one
+    (should-not window-box--prefix-overlay)
+    (should-not (local-variable-p 'line-prefix))
+    (should (equal (window-margins (selected-window)) '(nil)))
+    ;; and the row the box draws is there all the same
+    (should (window-box--boxed-p (selected-window)))
+    (window-box-mode -1)
+    ;; with the option off the sides win, as they did before
+    (let ((window-box-yield-prefix nil))
+      (window-box-mode 1)
+      (should window-box--prefix-overlay)
+      (window-box-mode -1))))
+
 (ert-deftest window-box-test-mode-round-trip ()
   "The mode dresses the window and takes the dressing back.
 A batch session is a terminal, so the sides are margins here.  One

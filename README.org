@@ -144,6 +144,7 @@ The package has few options:
 | =window-box-enclose-mode-line= | whether the mode line is inside                     |
 | =window-box-padding=          | columns between a side and the text                  |
 | =window-box-window-predicate= | the windows of a boxed buffer that get a box         |
+| =window-box-yield-prefix=     | give the sides up to a buffer that draws its own     |
 
 The box is one pixel on every side, and one shape: the horizontal
 edges are one pixel because an overline cannot be thicker, and a side
@@ -207,9 +208,13 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   the left.  In the right margin the order is the same, so a buffer's
   own content there — magit's dates — sits outside the box's side
   rather than inside it.
-- While the box is up, its sides outrank a prefix a line brings of
-  its own — a shell's indent gutter waits under the box and comes
-  back with it gone.
+- A line carries one =line-prefix=, so a side of the box and a gutter
+  the buffer draws cannot both be on it: dirvish's subtree guide,
+  =org-indent-mode=, a shell that indents its output.  Such a buffer
+  keeps its own gutter and the box draws its horizontal edges alone;
+  the sides come back when the gutter goes.  Set
+  =window-box-yield-prefix= to nil for the other trade, where the
+  sides win and the gutter waits under the box.
 - In a terminal an edge needs a row of its own, and a window has only
   so many rows.  The top edge uses the tab line row if the window
   shows no tabs.  There is no row below the mode line.  The box has
