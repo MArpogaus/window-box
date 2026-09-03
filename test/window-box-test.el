@@ -1034,12 +1034,12 @@ wins where it applies."
     ;; the buffer-wide remap, which hides the side
     (should window-box--hidden)
     (should (equal (cdr (assq 'window-box--side
-                             (mapcar (lambda (e) (cons (car e) (nth 2 e)))
-                                     window-box--cookies)))
+                              (mapcar (lambda (e) (cons (car e) (nth 2 e)))
+                                      window-box--cookies)))
                    (list :foreground (window-box--color))))
     ;; the colour comes back through a remap filtered to boxed windows
     (should (eq (car-safe (nth 2 (assq 'window-box--side
-                                      window-box--cookies)))
+                                       window-box--cookies)))
                 :foreground))
     (window-box-mode -1)
     (should-not window-box--hidden)
