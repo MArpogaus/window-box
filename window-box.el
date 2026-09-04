@@ -4,7 +4,7 @@
 
 ;; Author: Marcel Arpogaus <znepry.necbtnhf@tznvy.pbz>
 ;; Assisted-by: Claude:claude-fable-5
-;; Version: 0.1
+;; Version: 1.0
 ;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: convenience, frames
 ;; URL: https://github.com/MArpogaus/window-box
