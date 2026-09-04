@@ -1,0 +1,319 @@
+;;; gui-test.el --- Graphic display session for the pixel test -*- lexical-binding: t; -*-
+
+;;; Commentary:
+
+;; Loaded by `make gui' inside a graphic Emacs.  It is the one test
+;; file the Makefile leaves out of the byte-compilation, because it
+;; calls what only a build with X defines.  It boxes two side
+;; windows, exports the frame and exits; gui-check.py reads the pixels
+;; back.
+;;
+;; The header line here measures itself with `string-pixel-width', the
+;; way a header with right aligned buttons has to.  That measurement
+;; re-enters redisplay, and it is what turned a face `:height' below
+;; one in a side window's mode line into a stack overflow.  Keep it.
+
+;;; Code:
+
+(require 'window-box)
+
+;; One font, so the rows are the heights the checker works with.
+(let ((font (seq-find (lambda (name) (find-font (font-spec :name name)))
+                      '("Noto Sans Mono" "DejaVu Sans Mono"
+                        "Liberation Mono"))))
+  (when font (set-frame-font (format "%s 13" font) nil t)))
+
+;; A scroll bar sits outside the fringe, so the box's right edge would
+;; land inside it.  Off, as a configuration that wants boxes has it.
+(menu-bar-mode -1)
+(tool-bar-mode -1)
+(scroll-bar-mode -1)
+
+(defconst gui-test-file "/tmp/window-box-gui.png"
+  "Where the exported frame lands.")
+
+(defconst gui-test-geometry "/tmp/window-box-gui.txt"
+  "Where the pixel edges of the boxed windows land.
+The checker needs them: a frame holds more grey lines than this
+package draws, the mode line's own shadow among them.")
+
+(defconst gui-test-encloses-file "/tmp/window-box-encloses.png"
+  "Where the frame of the enclose examples lands.")
+
+(defconst gui-test-encloses-geometry "/tmp/window-box-encloses.txt"
+  "Where the boxed windows of that frame land, with the edges they want.
+Each line is LEFT TOP RIGHT BOTTOM TOP-EDGE BOTTOM-EDGE, the last two
+worked out from the row heights Emacs reports and the setting alone,
+so the checker measures the package against the display and not
+against itself.")
+
+(defvar gui-test-header
+  '(:eval
+    (let* ((chip (propertize " ! " 'face '(:background "#d08770"
+                                                       :foreground "white")))
+           (buttons (concat (propertize "─" 'mouse-face 'highlight)
+                            " "
+                            (propertize "✕" 'mouse-face 'highlight))))
+      ;; No caps of the row's own: the box dresses the row and puts
+      ;; its ends on it — a cap here would double the vertical line.
+      (list chip " " (format-mode-line "%b")
+            (propertize " " 'display
+                        `(space :align-to
+                                (- right (,(+ (string-pixel-width
+                                               (propertize buttons 'face
+                                                           'header-line))
+                                              1)))))
+            buttons)))
+  "A header line that measures itself, as a real one does.")
+
+(defun gui-test--fringes ()
+  "Check that unboxing gives a split window its own fringes back.
+Emacs gives a new window the fringes of the one it was split from, so
+a window split off while the box is on arrives wearing the box's
+own — and saving those would give them back for good.  Only a graphic
+display has fringes, so this is checked here rather than in the batch
+suite."
+  (let ((buffer (get-buffer-create "*fringes*")))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert "split while boxed\n"))
+    (switch-to-buffer buffer)
+    (delete-other-windows)
+    (let ((wide (seq-take (window-fringes (selected-window)) 2)))
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (split-window-below)
+      (window-box--refresh)
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (dolist (window (window-list nil 'no-minibuffer))
+        (unless (equal (seq-take (window-fringes window) 2) wide)
+          (error "A window kept the box's fringes: %S, wanted %S"
+                 (seq-take (window-fringes window) 2) wide))))
+    (delete-other-windows)
+    (kill-buffer buffer)))
+
+(defun gui-test--wanted (window)
+  "Return the pixel rows the box's edges want around WINDOW.
+The edge above a row that is inside the box sits on that row's first
+pixel, the edge below a row that is outside it on that row's last —
+so the rows the options leave out are what stands between the window
+and its box."
+  (pcase-let* ((`(,_ ,top ,_ ,bottom) (window-edges window nil nil t))
+               (buffer (window-buffer window))
+               (top-in (buffer-local-value 'window-box-enclose-top buffer))
+               (mode-in (buffer-local-value 'window-box-enclose-mode-line
+                                            buffer))
+               (outside (+ (if (eq top-in 'tab-line)
+                               0 (window-tab-line-height window))
+                           (if (memq top-in '(tab-line header-line))
+                               0 (window-header-line-height window)))))
+    (list (if (zerop outside) top (+ top outside -1))
+          (if mode-in
+              (1- bottom)
+            (- bottom (window-mode-line-height window))))))
+
+(defun gui-test--example (name top mode-line tabs)
+  "Return a buffer NAME with rows to enclose.
+TOP is `window-box-enclose-top', MODE-LINE is
+`window-box-enclose-mode-line', TABS non-nil gives the buffer a tab
+line of its own."
+  (let ((buffer (get-buffer-create name)))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert (format "%s: top %s, mode line %s\n"
+                      name (or top "text") (if mode-line "in" "out")))
+      (setq-local header-line-format " a header line of my own "
+                  mode-line-format " a mode line of my own "
+                  window-box-enclose-top top
+                  window-box-enclose-mode-line mode-line)
+      (when tabs (setq-local tab-line-format " a tab line of my own ")))
+    buffer))
+
+(defun gui-test--encloses ()
+  "Export a frame with one window per enclose shape."
+  ;; Four windows with a header, a mode line and room to see them.
+  (set-frame-size (selected-frame) 700 900 t)
+  (switch-to-buffer (gui-test--example "*text*" nil nil nil))
+  (delete-other-windows)
+  (let* ((first (selected-window))
+         (second (split-window first nil 'below))
+         (third (split-window second nil 'below))
+         (fourth (split-window third nil 'below))
+         (windows (list first second third fourth)))
+    (set-window-buffer second (gui-test--example "*header*" 'header-line nil nil))
+    (set-window-buffer third (gui-test--example "*header and mode*"
+                                                'header-line t nil))
+    ;; and one with padding: the box takes a column for its side and
+    ;; two more for air, and the side stays at the window's edge.  Its
+    ;; header carries the tail too: the box's own margins move `right'
+    ;; just as much as a margin the buffer keeps does.
+    (with-current-buffer (window-buffer second)
+      (setq-local window-box-padding 2
+                  header-line-format gui-test-header))
+    (set-window-buffer fourth (gui-test--example "*everything*" 'tab-line t t))
+    ;; A buffer that keeps a margin of its own, as magit's log does:
+    ;; the row spans that margin, and the end of the box has to reach
+    ;; past it.  Its header carries a tail aligned to `right', the way
+    ;; a panel header's close button is: the tail has to keep across
+    ;; the margin the distance from the end it keeps without one.
+    (with-current-buffer (window-buffer third)
+      (setq-local right-margin-width 10
+                  header-line-format gui-test-header)
+      (set-window-buffer third (current-buffer)))
+    ;; One of them split, so a window that is not at the frame's right
+    ;; edge is measured too: an end placed by the row's own right edge
+    ;; can land in what separates the two.
+    (let ((beside (with-selected-window third (split-window-right))))
+      (set-window-buffer beside (gui-test--example "*beside*"
+                                                   'header-line t nil))
+      (setq windows (append windows (list beside))))
+    (dolist (window windows)
+      (with-current-buffer (window-buffer window) (window-box-mode 1)))
+    (window-box--refresh)
+    (force-mode-line-update t)
+    (redisplay t)
+    (write-region
+     (mapconcat (lambda (window)
+                  (format "%s %s\n"
+                          (string-join
+                           (mapcar #'number-to-string
+                                   (window-edges window nil nil t))
+                           " ")
+                          (string-join
+                           (mapcar #'number-to-string
+                                   (append (gui-test--wanted window)
+                                           ;; whether the box draws
+                                           ;; sides here at all: every
+                                           ;; boxed window has them now,
+                                           ;; since the box asks for its
+                                           ;; columns beside whatever the
+                                           ;; buffer keeps in the margins
+                                           (list 1)
+                                           ;; the margin the buffer
+                                           ;; keeps and the fringe
+                                           ;; between it and the edge,
+                                           ;; for the tail of the header
+                                           ;; to be measured against
+                                           (list (or (cdr (window-margins
+                                                           window))
+                                                     0)
+                                                 (cadr (window-fringes
+                                                        window)))))
+                           " ")))
+                windows "")
+     nil gui-test-encloses-geometry nil 'quiet)
+    (let ((coding-system-for-write 'binary))
+      (write-region (x-export-frames nil 'png) nil
+                    gui-test-encloses-file nil 'quiet))
+    (dolist (window windows)
+      (with-current-buffer (window-buffer window) (window-box-mode -1)))
+    (delete-other-windows)))
+
+(defun gui-test--order ()
+  "Check that the box leaves the fringes exactly as it finds them.
+The sides are periodic bitmaps in the fringes, so the box needs
+neither their order nor their widths changed — a window another
+package dressed keeps whatever it was given.  Only a graphic display
+has fringes, so this is checked here and not in the batch suite."
+  (set-frame-size (selected-frame) 700 520 t)
+  (let ((buffer (get-buffer-create "*order*")))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert "fringes as they were\n"))
+    (switch-to-buffer buffer)
+    (delete-other-windows)
+    (let ((window (selected-window)))
+      (set-window-fringes window 8 8 t)
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
+        (error "The box touched the fringes: %S" (window-fringes window)))
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
+        (error "Unboxing touched the fringes: %S" (window-fringes window)))
+      ;; A narrow fringe takes a narrow bitmap: a wider one is clipped
+      ;; at the fringe's width and loses the outermost pixel, which is
+      ;; the side.  `dirvish-side' gives its window one pixel.
+      (set-window-fringes window 3 1 t)
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (let ((wanted `(right-fringe window-box--right-side-1
+                                   window-box--side))
+            (worn (with-current-buffer buffer
+                    (get-text-property 1 'display line-prefix))))
+        (unless (equal worn wanted)
+          (error "A one pixel fringe wears %S, wanted %S" worn wanted)))
+      (with-current-buffer buffer (window-box-mode -1))
+      ;; A window with the order it is born with, which is the one the
+      ;; box has to turn around.  It gives back all four answers of
+      ;; `window-fringes', the last of them included: that one says the
+      ;; widths survive a buffer change, and a box that set it left the
+      ;; window pinned to the widths of the moment for good.
+      (set-window-fringes window nil nil nil)
+      (let ((born (window-fringes window)))
+        (with-current-buffer buffer (window-box-mode 1))
+        (window-box--refresh)
+        (unless (nth 2 (window-fringes window))
+          (error "The box left the fringes inside the margins: %S"
+                 (window-fringes window)))
+        (with-current-buffer buffer (window-box-mode -1))
+        (window-box--refresh)
+        (unless (equal (window-fringes window) born)
+          (error "Unboxing left the fringes %S, wanted %S"
+                 (window-fringes window) born))))
+    (delete-other-windows)
+    (kill-buffer buffer)))
+
+(defun gui-test--run ()
+  "Box two side windows, export the frame and exit."
+  (set-frame-size (selected-frame) 700 520 t)
+  (gui-test--fringes)
+  (gui-test--order)
+  (switch-to-buffer (get-buffer-create "*main*"))
+  (delete-other-windows)
+  (insert "The main window keeps its own dressing.\n")
+  (dolist (side '(top bottom))
+    (let ((buffer (get-buffer-create (format "*%s*" side))))
+      (with-current-buffer buffer
+        (erase-buffer)
+        (insert (format "The %s side window is boxed.\n" side))
+        (setq-local header-line-format gui-test-header
+                    mode-line-format nil))
+      (display-buffer-in-side-window buffer `((side . ,side)
+                                              (window-height . 6)))
+      (with-current-buffer buffer (window-box-mode 1))))
+  (force-mode-line-update t)
+  (redisplay t)
+  (write-region
+   (mapconcat (lambda (window)
+                (format "%s\n" (string-join
+                                (mapcar #'number-to-string
+                                        (window-edges window nil nil t))
+                                " ")))
+              (seq-filter (lambda (window)
+                            (buffer-local-value 'window-box-mode
+                                                (window-buffer window)))
+                          (window-list nil 'no-minibuffer))
+              "")
+   nil gui-test-geometry nil 'quiet)
+  (let ((coding-system-for-write 'binary))
+    (write-region (x-export-frames nil 'png) nil gui-test-file nil 'quiet))
+  (gui-test--encloses)
+  (kill-emacs 0))
+
+;; Wait for the frame: the test measures pixels, so redisplay has to
+;; have brought it up.
+(run-with-timer 0.5 nil
+                (lambda ()
+                  (condition-case err (gui-test--run)
+                    (error
+                     ;; A message goes to the echo area of a frame
+                     ;; nobody is watching; the runner reads this.
+                     (write-region (format "gui-test: %S\n" err) nil
+                                   "/tmp/window-box-gui-error.txt" nil 'quiet)
+                     (kill-emacs 1)))))
+
+(provide 'gui-test)
+;;; gui-test.el ends here

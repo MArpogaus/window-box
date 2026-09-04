@@ -1,0 +1,495 @@
+#+TITLE: How window-box draws the box
+#+OPTIONS: toc:2
+
+This document describes the implementation.  The [[file:../README.org][README]] tells you how
+to use the package.
+
+The text uses these terms:
+
+- *box*: the rectangle that =window-box-mode= draws around a window.
+- *edge*: one line of the box.  A box has a top edge, a bottom edge
+  and two side edges.
+- *row*: one of the three rows that a window can show around its
+  text.  These rows are the tab line, the header line and the mode
+  line.
+- *dressing*: the window parameters, the fringes, the margins and the
+  face remaps that the box uses.
+
+* The two displays
+
+A graphic display draws the sides in the fringes: a one pixel
+periodic bitmap at the outermost pixel of each fringe, repeating over
+every line's full height.  Nothing else survives every buffer.  A
+character's ink height is the font's business — FiraCode draws a
+block character over the whole line, Noto Sans Mono four pixels
+short, and =font-get-glyphs= cannot tell the two apart in advance.  A
+filled margin column is unbroken but ten pixels wide against
+horizontal edges of one.  A margin image with only its outermost
+pixel column inked is one default line tall, and a line taller than
+that — a banner drawn from images, a LaTeX preview — keeps bare
+pixels above and below it, while an image taller than the line grows
+every line to its own height.  The periodic bitmap alone tiles
+whatever the line is.
+
+The margins are therefore left to their owners.  A buffer that keeps
+text in them — magit's log holds its dates in a thirty column margin,
+=diff-hl-margin-mode= marks every changed line in two columns — keeps
+them, and with the default order, fringes outside margins, the sides
+still frame that content.  =window-box-padding= only ever adds blank
+margins between the fringe and the text.  A line whose fringe shows an
+indicator of its own shows that instead of the side, and a frame
+without fringes shows no sides.
+
+A terminal has no fringes, so its sides live in the margins, and it
+asks for its columns *beside* the buffer's rather than instead of
+them: the window's margin grows by the width the box needs, and the
+side rides the line prefix, which a row shows before anything the
+buffer puts in the margin.  So the side sits outside the buffer's own
+marks in the left margin, and the buffer's own content sits outside
+the side in the right margin, where that same order puts the box's
+glyph first.  The box used to draw no sides at all in such a window,
+which left its horizontal edges hanging on nothing — every file of a
+configuration that marks changed lines in the margin.
+
+A fringe shows one bitmap per line, so an indicator and a side cannot
+share one.  Every common indicator has a home in the margins, where
+the box frames it instead:
+
+#+begin_src emacs-lisp
+  ;; magit's fold arrows, as margin characters
+  (setopt magit-section-visibility-indicators '((?▹ . ?▿) ("…" . t)))
+  ;; flymake, in the margins (Emacs 30)
+  (setopt flymake-indicator-type 'margins)
+  ;; diff-hl, in the margin
+  (diff-hl-margin-mode)
+#+end_src
+
+A continuation arrow goes with =visual-line-mode=, which most
+configurations that wrap prose already use.
+
+* The sides and their carriers
+
+A side hangs on =line-prefix=, which belongs to the buffer, and a
+fringe belongs to the window.  So every window showing a boxed buffer
+draws the sides — the windows =window-box-window-predicate= spares as
+well, and a buffer shown twice is one buffer.  The box therefore draws
+the sides in a face of their own, =window-box--side=, and remaps that
+face twice: to the default background for the buffer, which is a side
+nobody sees, and to the box's color for the windows the box is drawn
+in.  The second remap is filtered to those windows and added after the
+first, so it wins where it applies and the bare windows keep the
+invisible side.  The hiding remap names a color rather than carrying
+the box's, so it is the one remap a theme change makes stale: the box
+compares it with the background of the moment and makes it anew.
+
+The sides hang on two carriers at once.  The buffer-local variable
+reaches the rows below the last line of text, where an overlay ends.  A
+whole-buffer overlay outranks the prefix a line brings as a text
+property — a shell indents its output that way, and those lines went
+bare on the variable alone.  The pixel rig measures the side column
+either way, where a gap is the package's fault and never the font's.
+
+One prefix to a line, and two owners: a buffer that draws a gutter of
+its own puts the same property on the same lines.  dirvish's subtree
+guide is one — an overlay per subtree with a =line-prefix= of
+=dirvish-subtree-prefix= repeated per depth, and a text property on
+each line beside it — and =org-indent-mode= is another.  The box's
+overlay carries =priority 100=, which was added so that a shell's
+indent could not take a stretch of the sides away; that made it win
+over dirvish as well, and a subtree lost its indentation altogether.
+
+Neither carrier can hold both strings, so the box draws them as one:
+=window-box--own-prefixes= collects what the buffer prefixes itself —
+a string =line-prefix= on the text or on an overlay that is not the
+box's — and =window-box--compose= hangs one overlay per region
+carrying the side and that region's own prefix concatenated, at
+=priority 101=.  Where two of those overlap the narrower wins:
+measured, an overlay inside another of the same priority answers for
+the lines they share, so a subtree inside a subtree keeps the deeper
+guide.
+
+Two limits.  =window-box-compose-prefix= caps how many regions are
+composed — a buffer that prefixes every line of itself would want an
+overlay for each — and past the cap the box hangs no prefix at all, so
+the gutter is drawn and the sides are not.  And an overlay arrives
+without a hook: dirvish inserts a subtree's listing and *then* hangs
+the guide over it, so the change hook runs before there is anything to
+compose with.  =window-box--compose-soon= asks again from an idle
+timer, one to a buffer however many changes arrive, which is why a
+subtree opened this instant wears its side a moment later.
+
+The overlay is the buffer's, and a buffer may throw its overlays away:
+symbols-outline renders its panel with =delete-all-overlays= and
+=erase-buffer=, and deletes the overlays of a region when it collapses
+a node.  Two things follow.  A deleted overlay is still an overlay,
+only detached from its buffer, so the box asks whether it has a buffer
+rather than whether it is an overlay — the test of =overlayp= alone
+left a carrier that carried nothing, and the sides fell back on the
+variable, which such a panel's own =line-prefix= beats: 792 of 924
+side pixels, six gaps of one line each.  And a change in the text
+alone fires none of the window hooks the box listens to, so
+=window-box--watch= puts the overlay back from =after-change-functions=,
+buffer-locally, doing nothing at all unless it is gone.
+
+Emacs draws the border between two windows side by side in the first
+pixel column of the window on the right, which is the column the box
+draws its left side in, and the border wins.  Measured under Xvfb: the
+left side of a boxed right hand window was 22 pixels tall where it
+should have been 300, and the pixel in the border's column was the
+border's black.  =window-divider-mode= moves the border into a column
+of its own and the side comes back — 300 pixels.  The package cannot
+do it instead: the border belongs to no buffer, and a face remap of
+=vertical-border= does not reach it, filtered to a window or not.  The
+pictures in the README turn dividers on for that reason, and the
+README names the setting.
+
+The horizontal edges differ by display, because a terminal has no
+overline and no underline:
+
+- On a graphic display an edge is an overline, an underline, or a row
+  of one pixel that the box draws itself.
+- In a terminal an edge is a row of characters.
+
+The corners are square on both displays.  Round corners were tried and
+are parked on the =feat/rounded_corners= branch: an image is placed
+against its row's baseline rather than the row's edge, so an arc has to
+be exactly as tall as the row it sits in, and the box has to measure every
+row it dresses to know that — a measurement it cannot take while the
+row is being drawn, because Emacs works a row's height out by laying
+the row out and the layout runs the =:eval= the box put there.  That
+branch carries all of it; the box here draws its ends as stretches,
+which fill a row of any height.
+
+* Where a horizontal edge goes
+
+=window-box-enclose-top= and =window-box-enclose-mode-line= say which
+rows are inside the box, and the inside is always one unbroken stack
+around the text: enclosing the tab line encloses the header line with
+it.  The box puts a horizontal edge where the inside stops.
+
+The edge goes on a row the box owns, so that its ends are the box's
+own glyphs:
+
+- The overline of the topmost row inside the box.  It marks the same
+  boundary as the underline of the row above it, and it is a row the
+  box dresses.
+- A row of the box's own, written into the row closest to the text
+  that the window leaves free — below every row the box leaves
+  outside, above every row it takes in.  This is how a row named by
+  =window-box-enclose-top= appears when the window has none.
+- The underline of the last row outside the box, where no row is
+  free.  The box owns no glyph on such a row, and draws none: the line
+  alone marks the boundary.
+
+An underline follows the text of its row, not the row's edge.  A mode
+line dressed by =spacious-padding= is taller than its text, and the
+bottom edge of the box lands on the text's descent line: measured under
+Xvfb, three pixels above the window's bottom, with the sides ending on
+the same line.  The box is closed, and the row's lower padding is below
+it.  =:position= cannot help — it moves an underline up from the
+descent line and off the row, never down: 0 drew on the descent line,
+12 drew twelve pixels higher, and 40 drew nothing at all.
+
+A terminal draws with characters, and a character needs a row of its
+own.  It follows the options as a graphic display does — a row the box
+leaves outside is not touched — but it has no line to draw between
+such a row and the text, and no row to draw one in: the box is open on
+that side there.  Enclose the mode line, or the row above the text,
+and the box closes on it.
+
+That is a plain consequence of what a terminal has.  A graphic display
+needs no row of anyone's, since an overline and an underline are the
+row's own lines, so it draws every shape the options ask for.
+
+On a graphic display the box uses the row itself:
+
+- An edge above a row is the overline of that row.
+- An edge below a row is the underline of that row, at the bottom
+  position.  This puts the line on the last pixel of the row and not
+  on the baseline.
+
+The box keeps the content, the fonts and the colors of the row.  It
+removes the underline and the border of a row that is inside it,
+because both are drawn where the box draws.  It removes them from
+each row inside the box and not only from the one that carries the
+edge, or a row would change its look when the edge moves to the row
+above it.
+
+A row the box leaves outside keeps everything: the box borrows the one
+line it needs there and nothing else.  It used to take the border as
+well, which took the padding off a mode line dressed by
+=spacious-padding= and moved the row the box was drawing against.
+
+Where no row is at the boundary, the box draws a row of its own.  A
+window without a mode line gets such a row at the bottom.  A window
+without a tab line can get one at the top.
+
+A terminal has no overline and no underline.  An edge there needs a
+row of its own:
+
+- The top edge uses the tab line row while the window shows no tabs.
+- There is no row below the mode line.
+
+The last row inside the box then shows the two corners.  Thus the
+mode line closes the box.  Where the box must draw between two rows,
+a terminal has no place for the edge, and the box has no edge on that
+side.
+
+* Where a side edge goes
+
+The side edges of the text are fringes on a graphic display and
+characters in a terminal.
+
+A row inside the box gets the side edges at its two ends.  Fringes
+and margins do not reach these rows, so the box puts its ends into
+the row itself:
+
+- On a graphic display each end is a bar of one pixel.
+- In a terminal each end is a box character.  The character is a
+  corner if the row closes the box, and a vertical edge if the box
+  continues below or above the row.
+
+The box aligns the end at the right with a computed position, and not
+with the right edge of the text area.  The margin and the fringe both
+lie outside that edge, and the row spans the two of them: a graphic
+display counts their widths in pixels, less the end's own pixel, and
+a terminal counts the margins in columns.  A terminal spends one
+column of a window on the separator to the window at its right.  That
+column is not part of the text area.
+
+A row can also be wider than its window: the default mode line fills
+it and more.  Content that reaches the edge pushes the stretch and
+the end past it, where redisplay clips them away, so the drawn
+content is cut a column short of the row.  Stock redisplay clips such
+a row at the window's edge, so the cut loses nothing that was shown.
+
+The content of the row can align something to the right edge itself.
+A header line with a button at its right hand end does this, and that
+button would fill the place of the box.  The box therefore draws the
+content with =format-mode-line= and moves each =right= in the
+alignments of the result to the row's right end — out by the margin
+and in by the end's own pixel on a graphic display, in by two columns
+in a terminal, where a window left of another spends its last column
+on the separator and a tail that compensates for the margin otherwise
+ends exactly on the corner's column.  A tail keeps across the margin
+the distance from the end that it keeps in a window without one.  The
+drawing keeps the text properties, so the button keeps its keymap and
+its face.
+
+* The dressing that the box uses
+
+The box changes only window dressing, and it gives each part back.
+
+** Window parameters
+
+The box writes to the =tab-line-format=, =header-line-format= and
+=mode-line-format= window parameters.  A window parameter does not
+change the buffer, so =tab-line-format= and the other buffer
+variables keep their values.
+
+The box uses a parameter in two ways:
+
+- For a row of its own it writes a format that draws the edge.  It
+  does this only while the window does not use that row.
+- For a row inside the box it writes a format that shows the content
+  of the row between the two ends.
+
+The old value goes into a =window-box--saved-...= parameter.  The box
+writes the old value back when the mode goes off, or when the setting
+changes.  One table, =window-box--rows=, names the three rows with
+their saved parameter, the box's own edge row and the dressed row, so
+every question about a row is a lookup in it.
+
+** Face remaps
+
+The color of the sides and the lines of the rows are face remaps of
+the buffer's, and a remap reaches every window that shows the buffer.
+The box therefore filters its specs on the window parameter it sets,
+=(:filtered (:window window-box t) SPEC)=, so they apply where the box
+is drawn and nowhere else.  One remap is not filtered: the sides are
+hidden in the buffer's background everywhere, and the filtered remap
+that colors them is added after it, so it wins where it applies.
+
+All of them are one list, compared whole against the list the buffer
+holds: nothing is done while it is the same, and a change — the box's
+color, the edge moved from one row to another, a theme with another
+background — remakes them all.
+
+** The sides, hung once
+
+The sides ride the buffer's =line-prefix= and one buffer-spanning
+overlay, plus one overlay for each gutter region of the buffer's own,
+carrying side and gutter as one string.  The refresh runs on every
+window state change, so the box remembers what it hung last and hangs
+nothing again while the prefix, the regions and the carrier are as
+they were.  Measured before: a refresh of a buffer with 500 gutter
+regions cost 5.3 ms, most of it deleting and remaking those overlays.
+
+=window-box--persist= names these parameters in
+=window-persistent-parameters=.  A window state saves the margins and
+the fringes.  The mark that says these widths belong to the box must
+travel with them.  Without the mark, a window that comes back from a
+saved state keeps the widths of a box that is no longer there.
+
+** Margins
+
+A terminal draws its sides in the margins, so the box asks for one
+column for the side and =window-box-padding= more, and puts a
+character into each.  A graphic display draws its sides in the
+fringes, so it asks for the padding alone, and for nothing at all
+where that is zero.  Either way the box saves the old widths in a
+window parameter.
+
+A window that comes from a split of a boxed window has the margins of
+the box already.  The box saves the widths of the buffer for such a
+window, because these are the widths that Emacs would give it.
+
+The widths of the fringes are the window's own.  The box does not
+change them, so a fringe keeps its width and draws its indicators
+where you can read them.
+
+The box does set the order of the two areas.  A window is born with
+its margins outside its fringes, and the box needs them the other way
+round: a side is the outermost pixel of a fringe, and with the margins
+outside it that pixel sits between the text and the padding — inside
+the box rather than on it.  The box turns the order around on a
+graphic display and gives it back when it goes.  It leaves the fourth
+answer of =window-fringes= alone, the one that says the widths survive
+a buffer change: that is the window's own answer, and a box that set
+it left the window pinned to the widths of the moment for good.
+
+A buffer can use its margins for its own text.  The log of magit
+writes the author and the date into a right margin of thirty columns,
+and =diff-hl-margin-mode= marks every changed line in two.  The box
+asks for its columns *beside* those, never instead of them, so such a
+buffer keeps its own content and gets its sides as well.  It used to
+step aside and draw no sides at all, which left the horizontal edges
+hanging on nothing.
+
+The box asks the window and the buffer for the margin widths.  Emacs
+applies =left-margin-width= when it shows a buffer.  A mode can ask
+for a margin later, and =outline-minor-mode= does this for its fold
+buttons.  The box therefore reads the widths again on each refresh
+and steps aside at that time.
+
+** The line prefix
+
+The side characters hang on the =line-prefix= and the =wrap-prefix=
+of the buffer, on both displays.  A prefix has two advantages over an
+overlay:
+
+- A prefix reaches the rows below the last line of text.  An overlay
+  stops at the end of the buffer and leaves the box open there.
+- A character for a margin stays invisible in a window without
+  margins.  The sides therefore show in the boxed windows only.
+
+The box saves the prefix of the buffer and writes it back when the
+last boxed window of that buffer loses its box.
+
+** Face remaps
+
+The box remaps the row faces for an overline or an underline, and it
+takes the overline, the underline and the border off a row that is
+inside the box, because all three are drawn where the box draws.  The
+sides carry a face of their own, =window-box--side=, which is remapped
+twice: to the background of the buffer, where nobody sees it, and to
+the color of the box in the windows the box is drawn in.
+
+A face remap belongs to the buffer.  It would reach each window that
+shows the buffer, and =window-box-window-predicate= exists for the
+case where this is wrong.  The box therefore filters each remap on
+the =window-box= window parameter with =:filtered=.  The remap then
+applies in the windows with a box, and nowhere else.
+
+* Refresh
+
+Other packages also dress windows.  A rule for a side window can set
+its parameters each time it shows a buffer, and this removes the box.
+
+The mode adds =window-box--refresh= to four hooks:
+
+- =window-buffer-change-functions=
+- =window-configuration-change-hook=
+- =after-change-major-mode-hook=
+- =window-state-change-functions=
+
+The last one gives the box the last word.  A display rule can write
+the same window parameters that the box writes, and
+=auto-side-windows= does this on each display of the buffer.  Whoever
+runs last wins.  This hook runs from the redisplay, after everything
+in the cycle has had its say.
+
+A theme change is not a window change, and it changes the color of
+the box.  The mode therefore also adds =window-box--refresh-frames=
+to =enable-theme-functions=.  That function walks each frame, because
+a theme reaches them all.
+
+The refresh walks the windows of the frame.  It draws the box where
+the buffer has the mode on and the predicate agrees.  It removes the
+box from the other windows.  It writes only the values that differ,
+because a write of the margins calls the hook again.
+
+A major mode change removes the face remaps and the saved prefix
+together with the other local variables.  The mode itself survives,
+because it is =permanent-local=.  The refresh then draws the box
+again from the start.
+
+* What the tests measure
+
+The package has three test rigs.  =make all= runs the first one, and
+the two others need a display or a pseudo terminal.
+
+** =make test=
+
+The batch suite in =test/window-box-test.el= tests the parts that
+work without a display: the edge strings, the window bookkeeping, the
+saved dressing, the enclosure settings and the round trip of the
+mode.
+
+A batch session has a frame and windows, but no graphic display.  It
+therefore behaves as a terminal.
+
+** =make gui=
+
+=test/gui-test.el= starts a graphic Emacs and exports two frames as
+PNG files.  =test/gui-check.py= reads the pixels back with pillow.
+
+The first frame has two boxed side windows.  The check asserts that
+each edge is one pixel wide and sits on the edge of the window.
+
+The second frame has one window for each enclose shape, and a split
+window.  The elisp side computes the two rows that
+the edges must use.  It computes them from the row heights that
+Emacs reports, and not from the code that draws the box.  The check
+asserts three things:
+
+- The top edge is on the computed row.
+- The bottom edge is on the computed row.
+- The side edges have no gap between the two edges.
+
+The check leaves out the first pixel column of a window that has a
+neighbour on its left.  Emacs draws its own border there.
+
+A side is one pixel of fringe wide, so the check asks each side for a
+pixel of the box color in that column of every row between the two
+horizontal edges.  The side is a periodic bitmap, which tiles a row of
+any height, so a gap is the package's fault and never the font's.
+
+** =make tty=
+
+=test/tty-test.py= runs Emacs in a pseudo terminal and feeds the
+output into a pyte screen.  =test/tty-test.el= boxes four windows: a
+window without a mode line, a window beside it, and a pair of windows
+with a header line and a mode line.
+
+The check asserts three things: the corners, the side characters on
+the rows below the last line of text, and the ends of the rows inside
+the box.  The pair of windows covers the one at the left of a
+separator.  A wrong column for the right end shows there.
+
+* Pictures
+
+=demo/README.org= describes how the pictures in the README are made.
+The recordings use a color for the box.  The default color is the
+grey of the =window-box= face, and a grey line of one pixel is hard
+to see in a picture.
