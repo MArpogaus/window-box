@@ -130,7 +130,10 @@ def check_encloses(image, windows):
         # dark, where the box's own side in the margin is the box's
         # grey, so the two do not answer for each other.
         if margin:
-            band = range(want_top + 2, want_top + 12)
+            # The header row, whatever the font makes of its height:
+            # the tail's ink sits in the middle of the row, and a font
+            # with a taller row had it below a band of ten pixels.
+            band = range(want_top + 2, want_top + 30)
             dark = [x for x in range(right - fringe - 10, right - 2)
                     if any(sum(image.getpixel((x, y))[:3]) < 300
                            for y in band)]
