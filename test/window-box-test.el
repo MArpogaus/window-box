@@ -53,8 +53,8 @@
 (ert-deftest window-box-test-edge-terminal ()
   "In a terminal the edge is corner, fill characters, corner."
   (skip-unless (not (display-graphic-p)))
-  (let ((top (window-box--top))
-        (bottom (window-box--bottom)))
+  (let ((top (window-box--edge t))
+        (bottom (window-box--edge nil)))
     (should (string-prefix-p "┌" top))
     (should (string-suffix-p "┐" top))
     (should (string-match-p "─" top))
@@ -77,11 +77,11 @@ one column too long loses its last corner off the end."
           (with-current-buffer buffer
             (set-window-margins (selected-window) 1 1)
             (let ((margins (window-margins)))
-              (should (= (string-width (window-box--top))
+              (should (= (string-width (window-box--edge t))
                          (+ (window-body-width)
                             (or (car margins) 0)
                             (or (cdr margins) 0))))
-              (should (< (string-width (window-box--top))
+              (should (< (string-width (window-box--edge t))
                          (window-total-width))))
             (set-window-margins (selected-window) nil nil)))
       (delete-other-windows)
@@ -186,7 +186,7 @@ column is a margin the box may take; wider is the buffer's own, and
     ;; the box's column beside the one the window already had
     (should (equal (window-margins (selected-window)) '(1 . 2)))
     (should (equal (window-parameter (selected-window) 'header-line-format)
-                   '(:eval (window-box--top))))
+                   '(:eval (window-box--edge t))))
     (should (overlayp window-box--prefix-overlay))
     (should (stringp (overlay-get window-box--prefix-overlay 'line-prefix)))
     (should (local-variable-p 'line-prefix))
@@ -271,20 +271,23 @@ fires for that.  `after-change-functions' does."
 
 (ert-deftest window-box-test-a-theme-change-renews-the-hiding-remap ()
   "The sides are hidden in the background the theme has now.
-The remap that hides them names a color, and a theme change alters it.
-The remaps the box filters to its own windows need no such care: their
-specs carry the box's color and `window-box--remaps' remakes a remap
-whose spec has changed."
+The remap that hides them names a color, and a theme change alters it;
+the specs the box holds are compared whole, so the remaps are remade."
   (window-box-test--with-buffer
     (window-box-mode 1)
-    (let ((cookie window-box--hidden))
-      (should cookie)
-      (should (equal window-box--hidden-color (window-box--background)))
+    (let ((cookies (cdr window-box--remaps))
+          (hidden (car (car window-box--remaps))))
+      (should cookies)
+      (should (eq (car hidden) 'window-box--side))
+      (should (equal (cdr hidden)
+                     (list :foreground (face-background 'default nil 'default))))
       ;; The theme moved on.
-      (setq window-box--hidden-color "a color no theme has")
-      (window-box--apply (selected-window))
-      (should-not (eq window-box--hidden cookie))
-      (should (equal window-box--hidden-color (window-box--background))))))
+      (cl-letf (((symbol-function 'face-background)
+                 (lambda (&rest _) "a color no theme has")))
+        (window-box--apply (selected-window))
+        (should-not (eq (cdr window-box--remaps) cookies))
+        (should (equal (cdr (car (car window-box--remaps)))
+                       '(:foreground "a color no theme has")))))))
 
 (ert-deftest window-box-test-mode-line-stays ()
   "A window with a mode line keeps it; one without gets the edge back.
@@ -304,7 +307,7 @@ edge in."
     (set-window-parameter (selected-window) 'mode-line-format 'none)
     (window-box--apply (selected-window))
     (should (equal (window-parameter (selected-window) 'mode-line-format)
-                   '(:eval (window-box--bottom))))
+                   '(:eval (window-box--edge nil))))
     (window-box--clear (selected-window))
     (should (eq (window-parameter (selected-window) 'mode-line-format)
                 'none))))
@@ -319,12 +322,12 @@ row closest to the text the window leaves free."
     (setq-local header-line-format " mine ")
     (window-box--apply (selected-window))
     (should (equal (window-parameter (selected-window) 'tab-line-format)
-                   '(:eval (window-box--top))))
+                   '(:eval (window-box--edge t))))
     (window-box--clear (selected-window))
     (setq-local header-line-format nil)
     (window-box--apply (selected-window))
     (should (equal (window-parameter (selected-window) 'header-line-format)
-                   '(:eval (window-box--top))))))
+                   '(:eval (window-box--edge t))))))
 
 (ert-deftest window-box-test-the-box-puts-itself-back ()
   "A window dressed again over the box gets the box back.
@@ -336,7 +339,7 @@ anew, and the box's top edge went with them."
     (set-window-margins (selected-window) nil nil)
     (window-box--refresh)
     (should (equal (window-parameter (selected-window) 'header-line-format)
-                   window-box--top-format))
+                   (window-box--own 'header-line-format)))
     (should (equal (window-margins (selected-window)) '(1 . 1)))
     (window-box-mode -1)))
 
@@ -354,7 +357,7 @@ in, the box puts its ends on it and the tabs show between them."
           (window-box-enclose-mode-line nil))
       (window-box--apply (selected-window))
       (should (equal (window-parameter (selected-window) 'tab-line-format)
-                     window-box--tab-row-format))
+                     (window-box--dressed 'tab-line-format)))
       (should (equal (window-box--content (selected-window) 'tab-line-format)
                      " tabs "))
       (window-box--clear (selected-window))
@@ -373,20 +376,20 @@ in, the box puts its ends on it and the tabs show between them."
   "The window parameter wins over the buffer's format."
   (window-box-test--with-buffer
     (setq-local mode-line-format "mine")
-    (should (window-box--line-visible-p (selected-window) 'mode-line-format))
+    (should (window-box--shown-p (selected-window) 'mode-line-format))
     (set-window-parameter (selected-window) 'mode-line-format 'none)
-    (should-not (window-box--line-visible-p (selected-window)
-                                            'mode-line-format))
+    (should-not (window-box--shown-p (selected-window)
+                                     'mode-line-format))
     ;; a header handed down by the window, as side window rules do
     (setq-local header-line-format nil)
     (set-window-parameter (selected-window) 'header-line-format "param")
-    (should (window-box--line-visible-p (selected-window)
-                                        'header-line-format))
+    (should (window-box--shown-p (selected-window)
+                                 'header-line-format))
     ;; a row the box put its ends on is the window's own row still
     (window-box--dress (selected-window) 'header-line-format
-                       window-box--header-row-format)
-    (should (window-box--line-visible-p (selected-window)
-                                        'header-line-format))
+                       (window-box--dressed 'header-line-format))
+    (should (window-box--shown-p (selected-window)
+                                 'header-line-format))
     (window-box--undress (selected-window) 'header-line-format)
     (set-window-parameter (selected-window) 'mode-line-format nil)
     (set-window-parameter (selected-window) 'header-line-format nil)))
@@ -636,13 +639,20 @@ back as the width the window is supposed to have."
 Without that, a window `window-box-window-predicate' spares wears
 the box's colours: measured on a graphic frame, its fringes in the
 box colour at their full eight pixel width and the box's overline on
-its mode line."
-  (with-temp-buffer
-    (window-box--remap 'fringe (list :background "red"))
-    (let ((spec (cadr (assq 'fringe face-remapping-alist))))
-      (should (eq (car-safe spec) :filtered))
-      (should (equal (nth 1 spec) '(:window window-box t)))
-      (should (equal (nth 2 spec) '(:background "red"))))))
+its mode line.  The one remap that hides the sides is for every
+window, and it comes first, so the filtered ones win where they
+apply."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (let ((wanted (car window-box--remaps)))
+      (should (equal (car (car wanted))  'window-box--side))
+      (should-not (eq (car (cdr (car wanted))) :filtered))
+      (dolist (entry (cdr wanted))
+        (should (eq (car (cdr entry)) :filtered))
+        (should (equal (nth 1 (cdr entry)) '(:window window-box t))))
+      ;; and the specs are what `face-remapping-alist' holds
+      (should (member (cdr (cadr wanted))
+                      (cdr (assq 'window-box--side face-remapping-alist)))))))
 
 (ert-deftest window-box-test-a-hidden-row-stays-hidden ()
   "A window that had hidden a row has it hidden again after the box.
@@ -656,7 +666,7 @@ it was."
     (set-window-parameter (selected-window) 'header-line-format 'none)
     (window-box--apply (selected-window))
     (should (equal (window-parameter (selected-window) 'header-line-format)
-                   window-box--top-format))
+                   (window-box--own 'header-line-format)))
     (should (eq (window-parameter (selected-window) 'tab-line-format) 'none))
     (window-box--clear (selected-window))
     (should (eq (window-parameter (selected-window) 'header-line-format)
@@ -694,16 +704,16 @@ free and leaves the closing to the row that ends the box."
         ;; the ends: a vertical edge where the box goes on, corners
         ;; where the row is the one that closes it
         (should (equal (window-box--corners window 'header-line-format)
-                       '(4 4)))
+                       "││"))
         (should (equal (window-box--corners window 'mode-line-format)
-                       '(2 3))))
+                       "└┘")))
       ;; tabs, which take the row the top edge would have used
       (setq-local tab-line-format " tabs ")
       (let ((window-box-enclose-top 'tab-line)
             (window-box-enclose-mode-line t))
         (should-not (window-box--top-edge window))
         (should (equal (window-box--corners window 'tab-line-format)
-                       '(0 1)))))))
+                       "┌┐"))))))
 
 (ert-deftest window-box-test-a-row-the-box-names-appears ()
   "A row `window-box-enclose-top' names appears where the window has none.
@@ -722,7 +732,7 @@ own glyphs instead of an underline it cannot bend."
                      '(own . header-line-format)))
       (window-box--apply window)
       (should (equal (window-parameter window 'header-line-format)
-                     window-box--top-format))
+                     (window-box--own 'header-line-format)))
       ;; and the row is given back when the box goes
       (window-box--clear window)
       (should-not (window-parameter window 'header-line-format)))
@@ -773,8 +783,8 @@ instead: a bar of one pixel fills a row of any height."
       (dolist (parameter '(tab-line-format header-line-format
                                            mode-line-format))
         (should (window-box--row parameter)))
-      (should (window-box--top))
-      (should (window-box--bottom)))))
+      (should (window-box--edge t))
+      (should (window-box--edge nil)))))
 
 (ert-deftest window-box-test-the-mode-line-option-tells-in-a-terminal ()
   "`window-box-enclose-mode-line' decides the bottom in a terminal too.
@@ -789,7 +799,7 @@ the user saw."
       (let ((window-box-enclose-mode-line t))
         (should (memq 'mode-line-format (window-box--dressed-rows window)))
         (should (equal (window-box--corners window 'mode-line-format)
-                       '(2 3))))
+                       "└┘")))
       (let ((window-box-enclose-mode-line nil))
         (should-not (memq 'mode-line-format
                           (window-box--dressed-rows window)))
@@ -806,11 +816,11 @@ the user saw."
           (window (selected-window)))
       (window-box--apply window)
       (should (equal (window-parameter window 'header-line-format)
-                     window-box--header-row-format))
+                     (window-box--dressed 'header-line-format)))
       (let ((row (window-box--row 'header-line-format)))
         (should (equal (nth 1 row) " header "))
-        (should (equal (nth 0 row) (window-box--cap 4)))
-        (should (equal (nth 3 row) (window-box--cap 4))))
+        (should (equal (nth 0 row) (window-box--cap ?│)))
+        (should (equal (nth 3 row) (window-box--cap ?│))))
       (window-box--clear window)
       (should-not (window-parameter window 'header-line-format)))))
 
@@ -862,7 +872,7 @@ the entry remains.  The next round adds another one on top."
         (window-box-mode 1)
         (window-box-mode -1))
       (should (= (length face-remapping-alist) before))
-      (should-not window-box--cookies))))
+      (should-not window-box--remaps))))
 
 (ert-deftest window-box-test-a-theme-change-renews-the-color ()
   "The box takes the color of the theme that is on now.
@@ -897,8 +907,9 @@ its underline back, under a header inside the box."
     ;; `header-line-inactive', and earlier ones with `header-line'.
     (let* ((window (selected-window))
            (faces (window-box--row-faces 'header-line-format))
+           ;; the spec inside the window filter
            (spec-of (lambda ()
-                      (nth 2 (assq (car faces) window-box--cookies)))))
+                      (nth 2 (cdr (assq (car faces) (car window-box--remaps)))))))
       (should faces)
       (window-box--apply window)
       (let ((spec (funcall spec-of)))
@@ -906,7 +917,7 @@ its underline back, under a header inside the box."
         (should (equal (plist-get spec :underline) nil))
         (should (equal (plist-get spec :box) nil)))
       ;; every face that draws the row, not the first alone
-      (should (seq-every-p (lambda (face) (assq face window-box--cookies))
+      (should (seq-every-p (lambda (face) (assq face (car window-box--remaps)))
                            faces))
       ;; tabs, which take the edge of the box over
       (setq-local tab-line-format " tabs ")
@@ -936,12 +947,12 @@ runs, after everything in the cycle has had its say."
       (window-box-mode 1)
       (should (member #'window-box--refresh window-state-change-functions))
       (should (equal (window-parameter window 'header-line-format)
-                     window-box--header-row-format))
+                     (window-box--dressed 'header-line-format)))
       ;; a display rule sets its own header, as `auto-side-windows' does
       (set-window-parameter window 'header-line-format " from a rule ")
       (window-box--refresh)
       (should (equal (window-parameter window 'header-line-format)
-                     window-box--header-row-format))
+                     (window-box--dressed 'header-line-format)))
       (should (equal (window-box--content window 'header-line-format)
                      " from a rule "))
       (window-box-mode -1)
@@ -955,12 +966,12 @@ The side goes in the outermost column, so the box ends where the
 window does, and the padding is the columns between it and the text."
   (window-box-test--with-buffer
     (let ((window-box-padding 0))
-      (should (= (window-box--width) 1))
+      (should (= (window-box--width (selected-window)) 1))
       (window-box-mode 1)
       (should (equal (window-margins (selected-window)) '(1 . 1)))
       (window-box-mode -1))
     (let ((window-box-padding 3))
-      (should (= (window-box--width) 4))
+      (should (= (window-box--width (selected-window)) 4))
       (window-box-mode 1)
       (should (equal (window-margins (selected-window)) '(4 . 4)))
       ;; the side first on the left and last on the right
@@ -1053,9 +1064,9 @@ other row is passed through by the sides."
              (lambda (&rest _) '(overline . header-line-format)))
             ((symbol-function 'window-box--bottom-edge)
              (lambda (&rest _) '(underline . mode-line-format))))
-    (should (equal (window-box--corners nil 'header-line-format) '(0 1)))
-    (should (equal (window-box--corners nil 'mode-line-format) '(2 3)))
-    (should (equal (window-box--corners nil 'tab-line-format) '(4 4)))))
+    (should (equal (window-box--corners nil 'header-line-format) "┌┐"))
+    (should (equal (window-box--corners nil 'mode-line-format) "└┘"))
+    (should (equal (window-box--corners nil 'tab-line-format) "││"))))
 
 (ert-deftest window-box-test-graphic-sides-ride-the-fringes ()
   "The graphic sides are periodic fringe bitmaps, one pixel each.
@@ -1064,7 +1075,9 @@ line; a margin image is one default line tall and dashed on taller
 ones, and one taller than the line grows every line to its height."
   (skip-unless (fboundp 'define-fringe-bitmap))
   (let* ((window (selected-window))
-         (prefix (window-box--fringe-prefix window)))
+         (prefix (cl-letf (((symbol-function 'display-graphic-p)
+                            (lambda (&rest _) t)))
+                   (window-box--prefix window 1))))
     (pcase-let ((`(,left ,right . ,_) (window-fringes window)))
       (should (equal (get-text-property 0 'display prefix)
                      `(left-fringe ,(window-box--side-bitmap 'left left)
@@ -1104,28 +1117,26 @@ two and one."
 (ert-deftest window-box-test-a-side-hides-where-no-box-is-drawn ()
   "A window the box spares shows no side, though it has the fringes.
 The sides ride the buffer's line prefix, so every window showing the
-buffer draws them: a fringe is a window's own and every window has
-one, and a buffer that keeps text in its margins keeps them in every
-window too.  The box gives the sides a face of their own, remaps it to
-the background for the buffer, and remaps it to the box's color again
-for the windows it is drawn in — the second remap is added later, so it
-wins where it applies."
+buffer draws them.  The box gives the sides a face of their own, remaps
+it to the background for the buffer, and remaps it to the box's color
+again for the windows it is drawn in — the second remap is added later,
+so it wins where it applies."
   (window-box-test--with-buffer
     (window-box-mode 1)
     (window-box--apply (selected-window))
-    ;; the buffer-wide remap, which hides the side
-    (should window-box--hidden)
-    (should (equal (cdr (assq 'window-box--side
-                              (mapcar (lambda (e) (cons (car e) (nth 2 e)))
-                                      window-box--cookies)))
-                   (list :foreground (window-box--color))))
-    ;; the colour comes back through a remap filtered to boxed windows
-    (should (eq (car-safe (nth 2 (assq 'window-box--side
-                                       window-box--cookies)))
-                :foreground))
+    (let* ((wanted (car window-box--remaps))
+           (sides (seq-filter (lambda (entry) (eq (car entry) 'window-box--side))
+                              wanted)))
+      (should (= 2 (length sides)))
+      ;; the buffer-wide remap, which hides the side
+      (should (equal (cdr (nth 0 sides))
+                     (list :foreground (face-background 'default nil 'default))))
+      ;; the colour comes back through a remap filtered to boxed windows
+      (should (equal (cdr (nth 1 sides))
+                     `(:filtered (:window window-box t)
+                                 (:foreground ,(window-box--color))))))
     (window-box-mode -1)
-    (should-not window-box--hidden)
-    (should-not window-box--cookies)))
+    (should-not window-box--remaps)))
 
 (provide 'window-box-test)
 ;;; window-box-test.el ends here
