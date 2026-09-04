@@ -765,11 +765,11 @@ instead: a bar of one pixel fills a row of any height."
     (setq-local tab-line-format " tabs "
                 mode-line-format " mode ")
     (cl-letf (((symbol-function 'window-tab-line-height)
-               (lambda (&rest _) (error "the drawing asked the tab line")))
+               (lambda (&rest _) (error "The drawing asked the tab line")))
               ((symbol-function 'window-header-line-height)
-               (lambda (&rest _) (error "the drawing asked the header")))
+               (lambda (&rest _) (error "The drawing asked the header")))
               ((symbol-function 'window-mode-line-height)
-               (lambda (&rest _) (error "the drawing asked the mode line"))))
+               (lambda (&rest _) (error "The drawing asked the mode line"))))
       (dolist (parameter '(tab-line-format header-line-format
                                            mode-line-format))
         (should (window-box--row parameter)))
