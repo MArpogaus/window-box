@@ -238,7 +238,19 @@ unused there.  A terminal draws characters, and the columns are exact."
                (make-string (max 0 (- width 2))
                             (aref window-box--glyphs 5))
                (string (aref window-box--glyphs right)))
-       'face (list :foreground (window-box--color))))))
+       ;; A row of the box's own is not the header line or the mode
+       ;; line it borrows the space of: it encloses the text, so it
+       ;; carries the background of the text.  Without `default' the
+       ;; glyphs took the background of the face that draws the row —
+       ;; measured in a terminal, the top edge sat on the
+       ;; `header-line' grey and the bottom edge on the `mode-line'
+       ;; grey while the sides beside them sat on the buffer's own.
+       ;; `:inherit' first: in an anonymous face the inherited
+       ;; attributes are merged over what stands before them, so the
+       ;; box's color has to come after or `default' takes the
+       ;; foreground as well and the edge is drawn in the text color.
+       'face (list :inherit 'default
+                   :foreground (window-box--color))))))
 
 (defun window-box--top ()
   "Return the top edge of the box."

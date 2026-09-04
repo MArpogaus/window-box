@@ -5,6 +5,7 @@ Runs Emacs in a pseudo terminal, feeds the byte stream into a pyte
 screen, and asserts the box glyphs around the boxed window.  Needs
 python3 and pyte; run through `make tty'.
 """
+import collections
 import os
 import pty
 import select
@@ -40,6 +41,33 @@ while time.time() < end:
 
 lines = screen.display
 failures = []
+# A row of the box's own borrows the space of the header line or the
+# mode line, but it encloses the text and must wear the text's
+# background: the horizontal edges did not, and the box showed a grey
+# band above the text and another below it.  The reference is a row of
+# text inside a box — its own background, and the colour its sides are
+# drawn in.  A side that crosses an enclosed header line is another
+# matter: that band keeps its background behind the side, as it does on
+# a graphic display.
+text_row = next((y for y, l in enumerate(lines)
+                 if "boxed in the terminal" in l), None)
+if text_row is None:
+    failures.append("the boxed text is not on the screen")
+else:
+    row = screen.buffer[text_row]
+    inside = next(row[x].bg for x in range(COLS)
+                  if row[x].data not in ("\u2502", " "))
+    drawn = next(row[x].fg for x in range(COLS) if row[x].data == "\u2502")
+    wrong = collections.Counter()
+    for y in range(ROWS):
+        for x in range(COLS):
+            char = screen.buffer[y][x]
+            if char.data == "\u2500" and (char.fg, char.bg) != (drawn, inside):
+                wrong[(char.fg, char.bg)] += 1
+    if wrong:
+        failures.append(
+            f"horizontal edges not drawn as the text they enclose "
+            f"(want fg {drawn} on bg {inside}): {dict(wrong)}")
 if not (lines[0].startswith("┌") and lines[0].rstrip().endswith("┐")
         and "─" in lines[0]):
     failures.append(f"top edge: {lines[0]!r}")
