@@ -296,7 +296,34 @@ The box uses a parameter in two ways:
 
 The old value goes into a =window-box--saved-...= parameter.  The box
 writes the old value back when the mode goes off, or when the setting
-changes.
+changes.  One table, =window-box--rows=, names the three rows with
+their saved parameter, the box's own edge row and the dressed row, so
+every question about a row is a lookup in it.
+
+** Face remaps
+
+The color of the sides and the lines of the rows are face remaps of
+the buffer's, and a remap reaches every window that shows the buffer.
+The box therefore filters its specs on the window parameter it sets,
+=(:filtered (:window window-box t) SPEC)=, so they apply where the box
+is drawn and nowhere else.  One remap is not filtered: the sides are
+hidden in the buffer's background everywhere, and the filtered remap
+that colors them is added after it, so it wins where it applies.
+
+All of them are one list, compared whole against the list the buffer
+holds: nothing is done while it is the same, and a change — the box's
+color, the edge moved from one row to another, a theme with another
+background — remakes them all.
+
+** The sides, hung once
+
+The sides ride the buffer's =line-prefix= and one buffer-spanning
+overlay, plus one overlay for each gutter region of the buffer's own,
+carrying side and gutter as one string.  The refresh runs on every
+window state change, so the box remembers what it hung last and hangs
+nothing again while the prefix, the regions and the carrier are as
+they were.  Measured before: a refresh of a buffer with 500 gutter
+regions cost 5.3 ms, most of it deleting and remaking those overlays.
 
 =window-box--persist= names these parameters in
 =window-persistent-parameters=.  A window state saves the margins and
