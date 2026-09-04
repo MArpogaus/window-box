@@ -145,15 +145,21 @@ line of its own."
     (set-window-buffer third (gui-test--example "*header and mode*"
                                                 'header-line t nil))
     ;; and one with padding: the box takes a column for its side and
-    ;; two more for air, and the side stays at the window's edge.
+    ;; two more for air, and the side stays at the window's edge.  Its
+    ;; header carries the tail too: the box's own margins move `right'
+    ;; just as much as a margin the buffer keeps does.
     (with-current-buffer (window-buffer second)
-      (setq-local window-box-padding 2))
+      (setq-local window-box-padding 2
+                  header-line-format gui-test-header))
     (set-window-buffer fourth (gui-test--example "*everything*" 'tab-line t t))
     ;; A buffer that keeps a margin of its own, as magit's log does:
     ;; the row spans that margin, and the end of the box has to reach
-    ;; past it.
+    ;; past it.  Its header carries a tail aligned to `right', the way
+    ;; a panel header's close button is: the tail has to keep across
+    ;; the margin the distance from the end it keeps without one.
     (with-current-buffer (window-buffer third)
-      (setq-local right-margin-width 10)
+      (setq-local right-margin-width 10
+                  header-line-format gui-test-header)
       (set-window-buffer third (current-buffer)))
     ;; One of them split, so a window that is not at the frame's right
     ;; edge is measured too: an end placed by the row's own right edge
@@ -183,7 +189,17 @@ line of its own."
                                            ;; since the box asks for its
                                            ;; columns beside whatever the
                                            ;; buffer keeps in the margins
-                                           (list 1)))
+                                           (list 1)
+                                           ;; the margin the buffer
+                                           ;; keeps and the fringe
+                                           ;; between it and the edge,
+                                           ;; for the tail of the header
+                                           ;; to be measured against
+                                           (list (or (cdr (window-margins
+                                                           window))
+                                                     0)
+                                                 (cadr (window-fringes
+                                                        window)))))
                            " ")))
                 windows "")
      nil gui-test-encloses-geometry nil 'quiet)

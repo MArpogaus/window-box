@@ -267,12 +267,14 @@ The content of the row can align something to the right edge itself.
 A header line with a button at its right hand end does this, and that
 button would fill the place of the box.  The box therefore draws the
 content with =format-mode-line= and moves each =right= in the
-alignments of the result in — by one pixel on a graphic display, by
-two columns in a terminal, where a window left of another spends its
-last column on the separator and a tail that compensates for the
-margin otherwise ends exactly on the corner's column.  The drawing
-keeps the text properties, so the button keeps its keymap and its
-face.
+alignments of the result to the row's right end — out by the margin
+and in by the end's own pixel on a graphic display, in by two columns
+in a terminal, where a window left of another spends its last column
+on the separator and a tail that compensates for the margin otherwise
+ends exactly on the corner's column.  A tail keeps across the margin
+the distance from the end that it keeps in a window without one.  The
+drawing keeps the text properties, so the button keeps its keymap and
+its face.
 
 * The dressing that the box uses
 

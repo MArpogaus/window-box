@@ -90,7 +90,8 @@ def check_encloses(image, windows):
     row it takes in.
     """
     failures, found = [], []
-    for left, top, right, bottom, want_top, want_bottom, sides in windows:
+    for (left, top, right, bottom, want_top, want_bottom, sides,
+         margin, fringe) in windows:
         edges = [y for y in range(top, bottom)
                  if sum(1 for x in range(left, right)
                         if close(image.getpixel((x, y)), BOX))
@@ -122,6 +123,21 @@ def check_encloses(image, windows):
         if gaps:
             failures.append(f"window at {left},{top}: the sides break at "
                             f"y={gaps[:5]}{' and on' if len(gaps) > 5 else ''}")
+        # A header that aligns a tail of its own to `right' — a panel
+        # header's close button, say — keeps across the margin the
+        # distance from the box's end it keeps without one: the end's
+        # pixel and the fringe between, no more.  The tail's glyph is
+        # dark, where the box's own side in the margin is the box's
+        # grey, so the two do not answer for each other.
+        if margin:
+            band = range(want_top + 2, want_top + 12)
+            dark = [x for x in range(right - fringe - 10, right - 2)
+                    if any(sum(image.getpixel((x, y))[:3]) < 300
+                           for y in band)]
+            if not dark:
+                failures.append(f"window at {left},{top}: no tail near the "
+                                f"box's end at x={right - fringe - 10}"
+                                f"..{right - 3}, the margin pushed it out")
     return failures, found
 
 

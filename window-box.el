@@ -658,17 +658,33 @@ there is no row below it."
             (t '(4 4))))))
 
 (defun window-box--indented (spec)
-  "Return SPEC with each `right' in it moved in, clear of the box's end.
+  "Return SPEC with each `right' in it moved to the row's right end.
 A window parameter is the whole row, and the box takes the last
 column of it, or the last pixel.  What the content of the row aligns
 to `right' must stop short of that, or it fills the place of the end
-and the box has a hole in that row.  A terminal moves it in by two: a
-window left of another spends its last column on the separator, and a
-tail that compensates for the margin — the reason this function
-exists — otherwise ends exactly on the cap's column.  A stretch fills
-whatever the move leaves open."
+and the box has a hole in that row.
+
+On a graphic display the row reaches past the text area to the
+window's edge, the margins and the fringe with it, while `right'
+names the text area's edge.  A tail that hugs `right' in a window
+without a margin would sit a margin short of the box's end in one
+with it — magit's log keeps thirty columns of a margin, and the
+buttons of its panel header hung thirty columns off the side — so
+`right' moves out by the margin and in by the pixel of the end: the
+tail keeps the distance from the box's end it keeps without a margin.
+
+A terminal moves it in by two: a window left of another spends its
+last column on the separator, and a tail that compensates for the
+margin — the reason this function exists — otherwise ends exactly on
+the cap's column.  A stretch fills whatever the move leaves open."
   (cond ((eq spec 'right)
-         (if (display-graphic-p) '(- right (1)) '(- right 2)))
+         (if (display-graphic-p)
+             ;; The margin is counted in columns, `right' is measured
+             ;; in pixels, and the end's own pixel goes back.
+             `(+ right
+                 (,(* (or (cdr (window-margins)) 0) (frame-char-width)))
+                 (- (1)))
+           '(- right 2)))
         ((consp spec) (mapcar #'window-box--indented spec))
         (t spec)))
 
@@ -676,9 +692,9 @@ whatever the move leaves open."
   "Return CONTENT drawn, with room for the end of the box after it.
 A header line with a button at its right hand end aligns that button
 to `right', which is where the box puts its own end.  The content is
-therefore drawn here, and the alignments it carries are moved in by
-one.  The drawing keeps the text properties, so a button still has
-its keymap and its face."
+therefore drawn here, and the alignments it carries are moved to the
+row's right end.  The drawing keeps the text properties, so a button
+still has its keymap and its face."
   (let ((row (format-mode-line content))
         (pos 0))
     ;; A session without a display draws nothing, and there is nothing

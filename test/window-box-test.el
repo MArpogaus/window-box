@@ -992,6 +992,24 @@ row and be clipped away."
       ;; 10 of margin + 8 of fringe - 1 of the end itself.
       (should (equal spec '(space :align-to (+ right (17))))))))
 
+(ert-deftest window-box-test-a-tail-keeps-its-distance-across-a-margin ()
+  "A tail of the row's own that hugs `right' stops short of the end.
+The row reaches past a margin the buffer keeps, while `right' names
+the text area's edge — magit's log keeps thirty columns of one, and a
+panel header's close button aligned to plain `right' hung thirty
+columns off the box's end.  So `right' moves out by the margin, in
+by the end's own pixel: the tail keeps the distance from the end it
+keeps in a window without a margin."
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
+            ((symbol-function 'window-margins) (lambda (&rest _) '(1 . 30)))
+            ((symbol-function 'frame-char-width) (lambda (&rest _) 8)))
+    (should (equal (window-box--indented 'right)
+                   '(+ right (240) (- (1)))))
+    ;; no margin, the move is the end's own pixel alone
+    (cl-letf (((symbol-function 'window-margins) (lambda (&rest _) nil)))
+      (should (equal (window-box--indented 'right)
+                     '(+ right (0) (- (1))))))))
+
 (ert-deftest window-box-test-a-list-shaped-stretch-is-moved-in-too ()
   "A display property that is a LIST of specs is indented like a bare one.
 A mode line that aligns its own tail to `right' with
