@@ -1,27 +1,78 @@
-* Demo Recording
+#+TITLE: The recording and the screenshots
 
-=img/demo.gif= is recorded from a real Emacs, without a screen
-recorder: =demo.el= drives a scripted session and captures one frame
-per tenth of a second through =x-export-frames=.
+This directory holds the scripts that make the pictures in the
+[[file:../README.org][README]].  Each picture comes from a real Emacs session.
+
+* The recording
+
+=img/demo.gif= comes from a scripted session.  =demo.el= drives the
+session and writes one frame each tenth of a second with
+=x-export-frames=.  There is no screen recorder.
 
 #+begin_src shell
-  Xvfb :99 -screen 0 1280x900x24 &   # when there is no display
+  Xvfb :99 -screen 0 1280x900x24 &   # if there is no display
   DISPLAY=:99 emacs -Q -l demo.el    # writes frames to /tmp/demo-wb
 #+end_src
 
-Build the animation from the frames:
+Make the animation from the frames.  Keep the size of the frames and
+do not use dithering:
 
 #+begin_src shell
   ffmpeg -framerate 13 -start_number 1 -i frames/f%04d.png \
-      -filter_complex "[0:v]scale=820:-1:flags=lanczos,split[a][b];\
-                       [a]palettegen=max_colors=128[p];[b][p]paletteuse" \
+      -filter_complex "[0:v]tpad=stop_mode=clone:stop_duration=2,\
+                       split[a][b];[a]palettegen=max_colors=256[p];\
+                       [b][p]paletteuse=dither=none" \
       -loop 0 raw.gif
-  gifsicle -O3 --lossy=80 raw.gif -o ../img/demo.gif
+  gifsicle -O3 raw.gif -o ../img/demo.gif
 #+end_src
 
-Never resample the frame rate afterwards: dropping every few frames
-makes the motion stutter.
+There are three rules.  Each rule comes from a measurement of the
+frames:
 
-The terminal box is checked without eyes: =make tty= in the top
-directory runs Emacs in a pseudo terminal and reads the screen back
-through pyte.
+- Do not scale.  The box is one pixel wide.  A resize makes two grey
+  lines out of that line.  The column of the edge is 127 in the
+  frame, and 178 after =scale=820=.
+- Do not use dithering and do not use =--lossy=.  Both add noise to
+  flat colors, and the file becomes larger: 80K with dithering and
+  lossy against 47K without them.  The lines of the box come back
+  column for column.  The palette of 256 colors costs at most five
+  levels on antialiased text.
+- Do not resample the frame rate.  The =fps= filter drops frames in
+  an irregular way, and the motion becomes uneven.
+
+Record at a width that the reader does not scale.  820 pixels fit the
+column that GitHub uses for the README, and every picture of these
+packages is that wide.
+
+* The screenshots
+
+=shots.el= makes the pictures for a graphic display.  It writes one
+frame for each picture:
+
+#+begin_src shell
+  DISPLAY=:99 emacs -Q -l shots.el   # writes ../img/screenshot.png,
+                                     # ../img/encloses-gui.png
+                                     # and ../img/windows-gui.png
+#+end_src
+
+Every picture is 820 pixels wide and shares one theme: a white
+ground, near black text, the grey of a GUI mode line, and the box in
+=#5e81ac=.  A frame is whole columns wide, so it is asked for the most
+columns that fit and the few pixels that are missing are padded with
+its own edge; the terminal picture is drawn onto a canvas of the same
+width.
+
+The picture of the terminal is not a photograph of a terminal.
+=shots.py= runs Emacs in a pseudo terminal and feeds the output into
+a [[https://github.com/selectel/pyte][pyte]] screen.  =make tty= reads the terminal box in the same way.
+The script then draws the screen into a PNG file, cell by cell:
+
+#+begin_src shell
+  python3 shots.py shots-tty.el ../img/encloses-tty.png
+#+end_src
+
+The recordings draw the box in a color with =window-box-color=.  The
+default color is the grey of the =window-box= face.  This is what the
+package draws, and it is what a line of one pixel must look like next
+to your text.  In a picture that the reader sees one time, the grey
+line is too weak.
