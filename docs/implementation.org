@@ -325,7 +325,7 @@ change hook's business, not the refresh's.  Measured before: a refresh
 of a buffer with 500 gutter regions cost 2.3 ms, half of it the scan
 for those regions; now 0.07 ms.
 
-=window-box--persist= names these parameters in
+The box names its window parameters in
 =window-persistent-parameters=.  A window state saves the margins and
 the fringes.  The mark that says these widths belong to the box must
 travel with them.  Without the mark, a window that comes back from a
@@ -406,18 +406,21 @@ applies in the windows with a box, and nowhere else.
 Other packages also dress windows.  A rule for a side window can set
 its parameters each time it shows a buffer, and this removes the box.
 
-The mode adds =window-box--refresh= to four hooks:
+The mode adds =window-box--refresh= to =window-state-change-functions=
+and nothing else for window changes: that hook runs from the redisplay
+for every kind of change — a buffer shown, a window split, a size
+changed — after everything in the cycle has had its say, which gives
+the box the last word.  A display rule can write the same window
+parameters that the box writes, and =auto-side-windows= does this on
+each display of the buffer; whoever runs last wins.  There were three
+hooks, and the other two — =window-buffer-change-functions= and
+=window-configuration-change-hook= — run from the same place for a
+subset of the same changes, so they cost a refresh each for nothing.
 
-- =window-buffer-change-functions=
-- =window-configuration-change-hook=
-- =after-change-major-mode-hook=
-- =window-state-change-functions=
-
-The last one gives the box the last word.  A display rule can write
-the same window parameters that the box writes, and
-=auto-side-windows= does this on each display of the buffer.  Whoever
-runs last wins.  This hook runs from the redisplay, after everything
-in the cycle has had its say.
+A major mode change is no window change and fires none of them; it
+clears the buffer's face remaps and its prefix, so the mode adds
+=window-box--refresh-frames= to =after-change-major-mode-hook=, and the
+mode itself is permanent-local to survive the change.
 
 A theme change is not a window change, and it changes the color of
 the box.  The mode therefore also adds =window-box--refresh-frames=
