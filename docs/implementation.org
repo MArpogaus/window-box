@@ -108,13 +108,18 @@ measured, an overlay inside another of the same priority answers for
 the lines they share, so a subtree inside a subtree keeps the deeper
 guide.
 
-Two limits.  =window-box-compose-prefix= caps how many regions are
-composed — a buffer that prefixes every line of itself would want an
-overlay for each — and past the cap the box hangs no prefix at all, so
-the gutter is drawn and the sides are not.  And an overlay arrives
+Two limits.  =window-box-compose-prefix= can cap how many regions are
+composed, and past the cap the box hangs no prefix at all, so the
+gutter is drawn and the sides are not.  It is nil by default: the cap
+was sixty-four, an agent's shell that indents every line of an answer
+crossed it in one chat, and the sides went at the next click — the
+change path had composed past the cap and the window path shed.  Both
+now ask =window-box--regions=, which answers =over= for either.  Two
+thousand regions are composed again in five milliseconds, measured, so
+a cap buys little.  And an overlay arrives
 without a hook: dirvish inserts a subtree's listing and *then* hangs
 the guide over it, so the change hook runs before there is anything to
-compose with.  =window-box--compose-soon= asks again from an idle
+compose with.  =window-box--recompose= asks again from an idle
 timer, one to a buffer however many changes arrive, which is why a
 subtree opened this instant wears its side a moment later.
 

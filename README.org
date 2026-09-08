@@ -211,10 +211,10 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
 - A line carries one =line-prefix=, so a side of the box and a gutter
   the buffer draws — dirvish's subtree guide, =org-indent-mode=, a
   shell that indents its output — are on the screen together only
-  where the box draws the two as one string.  It does that for up to
-  =window-box-compose-prefix= regions of the buffer's own, an overlay
-  for each; a buffer that prefixes every line of itself is past that,
-  and there the gutter is drawn and the sides are not.  New gutter is
+  where the box draws the two as one string.  It does that for every
+  region of the buffer's own, an overlay for each, unless
+  =window-box-compose-prefix= caps them; past a cap the gutter is
+  drawn and the sides are not.  New gutter is
   crossed once Emacs is idle: an overlay arrives without a hook, so a
   subtree opened this instant wears its side a moment later.
 - In a terminal an edge needs a row of its own, and a window has only
