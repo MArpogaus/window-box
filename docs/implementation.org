@@ -67,7 +67,7 @@ the box frames it instead:
 A continuation arrow goes with =visual-line-mode=, which most
 configurations that wrap prose already use.
 
-* The sides and their carriers
+* The sides
 
 A side hangs on =line-prefix=, which belongs to the buffer, and a
 fringe belongs to the window.  So every window showing a boxed buffer
@@ -82,59 +82,54 @@ invisible side.  The hiding remap names a color rather than carrying
 the box's, so it is the one remap a theme change makes stale: the box
 compares it with the background of the moment and makes it anew.
 
-The sides hang on two carriers at once.  The buffer-local variable
-reaches the rows below the last line of text, where an overlay ends.  A
-whole-buffer overlay outranks the prefix a line brings as a text
-property — a shell indents its output that way, and those lines went
-bare on the variable alone.  The pixel rig measures the side column
-either way, where a gap is the package's fault and never the font's.
+The sides ride the buffer-local =line-prefix= and =wrap-prefix=: the
+variable reaches every line, the rows below the last line of text
+included, where an overlay would end.  The pixel rig measures the side
+column either way, where a gap is the package's fault and never the
+font's.
 
 One prefix to a line, and two owners: a buffer that draws a gutter of
-its own puts the same property on the same lines.  dirvish's subtree
-guide is one — an overlay per subtree with a =line-prefix= of
-=dirvish-subtree-prefix= repeated per depth, and a text property on
-each line beside it — and =org-indent-mode= is another.  The box's
-overlay carries =priority 100=, which was added so that a shell's
-indent could not take a stretch of the sides away; that made it win
-over dirvish as well, and a subtree lost its indentation altogether.
+its own puts the same property on its lines, and a property beats the
+variable.  dirvish's subtree guide is one — an overlay per subtree with
+a =line-prefix= of =dirvish-subtree-prefix= repeated per depth, and a
+number in the text property beside it as bookkeeping — =org-indent-mode=
+is another, and a shell that indents its output a third.  Measured, a
+number in the property takes the line's prefix away without putting
+anything in its place: such a line went bare.
 
-Neither carrier can hold both strings, so the box draws them as one:
-=window-box--own-prefixes= collects what the buffer prefixes itself —
-a string =line-prefix= on the text or on an overlay that is not the
-box's — and =window-box--compose= hangs one overlay per region
-carrying the side and that region's own prefix concatenated, at
-=priority 101=.  Where two of those overlap the narrower wins:
-measured, an overlay inside another of the same priority answers for
-the lines they share, so a subtree inside a subtree keeps the deeper
-guide.
+So the box draws both as one: =window-box--own-prefixes= collects what
+the buffer prefixes itself — the =line-prefix= on the text or on an
+overlay that is not the box's, whatever it holds — and
+=window-box--compose= hangs one overlay per region carrying the side
+and that region's own prefix concatenated, the side alone where the
+own one is no string, at =priority 101=, above any overlay of the
+buffer's.  Where two of those overlap the narrower wins: measured, an
+overlay inside another of the same priority answers for the lines they
+share, so a subtree inside a subtree keeps the deeper guide.
 
-Two limits.  =window-box-compose-prefix= can cap how many regions are
-composed, and past the cap the box hangs no prefix at all, so the
-gutter is drawn and the sides are not.  It is nil by default: the cap
-was sixty-four, an agent's shell that indents every line of an answer
-crossed it in one chat, and the sides went at the next click — the
-change path had composed past the cap and the window path shed.  Both
-now ask =window-box--regions=, which answers =over= for either.  Two
-thousand regions are composed again in five milliseconds, measured, so
-a cap buys little.  And an overlay arrives
+There was a whole-buffer overlay under those, at =priority 100=, and a
+cap on the regions composed, sixty-four; past the cap the box shed the
+sides.  An agent's shell indents every line of an answer, one chat
+crossed the cap, and the sides went at the next click.  Measured
+without the whole-buffer overlay, every kind of line keeps its side
+once a line with a number for a prefix is composed too, so the overlay
+is gone, and with it the cap: two thousand regions are composed in
+five milliseconds.
+
+The overlays are the buffer's, and a buffer may throw its overlays
+away: symbols-outline renders its panel with =delete-all-overlays= and
+=erase-buffer=, and deletes the overlays of a region when it collapses
+a node.  A change in the text alone fires none of the window hooks the
+box listens to, so =window-box--watch= listens on
+=after-change-functions=, buffer-locally, and asks for the sides again
+from an idle timer, one to a buffer however many changes arrive.  A
+timer, because a gutter arrives on an overlay and an overlay arrives
 without a hook: dirvish inserts a subtree's listing and *then* hangs
 the guide over it, so the change hook runs before there is anything to
-compose with.  =window-box--recompose= asks again from an idle
-timer, one to a buffer however many changes arrive, which is why a
-subtree opened this instant wears its side a moment later.
-
-The overlay is the buffer's, and a buffer may throw its overlays away:
-symbols-outline renders its panel with =delete-all-overlays= and
-=erase-buffer=, and deletes the overlays of a region when it collapses
-a node.  Two things follow.  A deleted overlay is still an overlay,
-only detached from its buffer, so the box asks whether it has a buffer
-rather than whether it is an overlay — the test of =overlayp= alone
-left a carrier that carried nothing, and the sides fell back on the
-variable, which such a panel's own =line-prefix= beats: 792 of 924
-side pixels, six gaps of one line each.  And a change in the text
-alone fires none of the window hooks the box listens to, so
-=window-box--watch= puts the overlay back from =after-change-functions=,
-buffer-locally, doing nothing at all unless it is gone.
+compose with — which is why a subtree opened this instant wears its
+side a moment later.  The hook is put on when the sides are, not when
+the mode is: a major mode change kills the local hook along with the
+prefix, and the refresh that follows puts both back.
 
 Emacs draws the border between two windows side by side in the first
 pixel column of the window on the right, which is the column the box
@@ -322,15 +317,15 @@ background — remakes them all.
 
 ** The sides, hung once
 
-The sides ride the buffer's =line-prefix= and one buffer-spanning
-overlay, plus one overlay for each gutter region of the buffer's own,
-carrying side and gutter as one string.  The refresh runs on every
-window state change, so the box remembers what it hung last and hangs
-nothing again while the prefix, the regions and the carrier are as
-they were.  Measured before: a refresh of a buffer with 500 gutter
-regions cost 5.3 ms, most of it deleting and remaking those overlays.
+The sides ride the buffer's =line-prefix=, plus one overlay for each
+gutter region of the buffer's own, carrying side and gutter as one
+string.  The refresh runs on every window state change and hangs
+nothing again while the prefix is the one worn: the regions are the
+change hook's business, not the refresh's.  Measured before: a refresh
+of a buffer with 500 gutter regions cost 2.3 ms, half of it the scan
+for those regions; now 0.07 ms.
 
-=window-box--persist= names these parameters in
+The box names its window parameters in
 =window-persistent-parameters=.  A window state saves the margins and
 the fringes.  The mark that says these widths belong to the box must
 travel with them.  Without the mark, a window that comes back from a
@@ -411,18 +406,21 @@ applies in the windows with a box, and nowhere else.
 Other packages also dress windows.  A rule for a side window can set
 its parameters each time it shows a buffer, and this removes the box.
 
-The mode adds =window-box--refresh= to four hooks:
+The mode adds =window-box--refresh= to =window-state-change-functions=
+and nothing else for window changes: that hook runs from the redisplay
+for every kind of change — a buffer shown, a window split, a size
+changed — after everything in the cycle has had its say, which gives
+the box the last word.  A display rule can write the same window
+parameters that the box writes, and =auto-side-windows= does this on
+each display of the buffer; whoever runs last wins.  There were three
+hooks, and the other two — =window-buffer-change-functions= and
+=window-configuration-change-hook= — run from the same place for a
+subset of the same changes, so they cost a refresh each for nothing.
 
-- =window-buffer-change-functions=
-- =window-configuration-change-hook=
-- =after-change-major-mode-hook=
-- =window-state-change-functions=
-
-The last one gives the box the last word.  A display rule can write
-the same window parameters that the box writes, and
-=auto-side-windows= does this on each display of the buffer.  Whoever
-runs last wins.  This hook runs from the redisplay, after everything
-in the cycle has had its say.
+A major mode change is no window change and fires none of them; it
+clears the buffer's face remaps and its prefix, so the mode adds
+=window-box--refresh-frames= to =after-change-major-mode-hook=, and the
+mode itself is permanent-local to survive the change.
 
 A theme change is not a window change, and it changes the color of
 the box.  The mode therefore also adds =window-box--refresh-frames=
