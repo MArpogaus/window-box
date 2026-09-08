@@ -167,13 +167,11 @@ whatever the buffer draws there."
 
 (defun window-box--color ()
   "Return the color the box is drawn in.
-Never nil: a face with no foreground of its own — a terminal leaves
-the default face without one — would give `:overline nil', which is
-no overline at all, and an invalid `:background nil'."
+Never nil: asked with `default' to inherit from, `face-foreground'
+answers in a terminal too — measured, `unspecified-fg' in a bare
+`emacs -nw', which is a color a terminal draws."
   (or window-box-color
-      (face-foreground 'window-box nil 'default)
-      (frame-parameter nil 'foreground-color)
-      "grey50"))
+      (face-foreground 'window-box nil 'default)))
 
 (defun window-box--row-width (&optional window)
   "Return the columns a row of WINDOW spans: its body and both margins.
@@ -191,14 +189,14 @@ Called from the window parameter the box sets, so the window being
 redisplayed is the selected one.  A graphic display draws a bar of one
 pixel across the whole row, with the row's height from the display
 spec alone: a face `:height' below one in a side window's mode line
-sends Emacs into an endless measuring recursion.  Both background and
-overline, because a row of the box's own takes the background in a
-tab line but not in a mode line, where the line's own face wins.  A
-terminal draws corner, fill and corner in the columns the row has."
+sends Emacs into an endless measuring recursion.  The overline and
+not a background: measured, a background paints the row in a tab line
+and a header line but not in a mode line, where the line's own face
+wins; the overline draws in all three.  A terminal draws corner, fill
+and corner in the columns the row has."
   (if (display-graphic-p)
       (propertize " "
-                  'face (let ((color (window-box--color)))
-                          (list :background color :overline color))
+                  'face (list :overline (window-box--color))
                   ;; Larger than any row is long: the fill stops at the
                   ;; row's end, fringes and margins included.
                   'display '(space :align-to 10000 :height (1)))
@@ -248,14 +246,10 @@ whose right fringe was narrower, and `dirvish-side' gives its window
 one pixel.  One bitmap per side and width, defined on first use."
   (let* ((width (max width 1))
          (name (intern (format "window-box--%s-side-%d" side width))))
-    ;; A build without a window system has no fringes, and no function
-    ;; to define one with.
-    (unless (or (get name 'window-box--bitmap)
-                (not (fboundp 'define-fringe-bitmap)))
+    (unless (fringe-bitmap-p name)
       (define-fringe-bitmap name
         (vector (if (eq side 'left) (ash 1 (1- width)) 1))
-        1 width '(center t))
-      (put name 'window-box--bitmap t))
+        1 width '(center t)))
     name))
 
 (defun window-box--prefix (window right)
@@ -351,7 +345,7 @@ stack."
   (pcase parameter
     ('tab-line-format (eq window-box-enclose-top 'tab-line))
     ('header-line-format (memq window-box-enclose-top '(tab-line header-line)))
-    ('mode-line-format (and window-box-enclose-mode-line t))))
+    ('mode-line-format window-box-enclose-mode-line)))
 
 (defun window-box--free-slot (window)
   "Return the row above WINDOW's text the box may take for an edge of its own.
@@ -637,18 +631,15 @@ puts its ends on, as an alist of face and spec."
   "Return the remaps the box wants, in COLOR, as an alist of face and spec.
 TOP and BOTTOM are the edges the box chose and DRESSED the rows it
 puts its ends on.  First the remap that hides the sides in the buffer's
-background everywhere, where the display names one; then, filtered to
-the windows the box is drawn in, the sides in COLOR and the lines of
-the rows."
-  (let ((background (or (face-background 'default nil 'default)
-                        (frame-parameter nil 'background-color))))
-    (append
-     (and background
-          (list (cons 'window-box--side (list :foreground background))))
-     (mapcar (lambda (entry)
-               (cons (car entry) `(:filtered (:window window-box t) ,(cdr entry))))
-             (cons (cons 'window-box--side (list :foreground color))
-                   (window-box--edge-remaps color top bottom dressed))))))
+background everywhere — `face-background' answers in a terminal too,
+`unspecified-bg' at the least; then, filtered to the windows the box
+is drawn in, the sides in COLOR and the lines of the rows."
+  (cons (cons 'window-box--side
+              (list :foreground (face-background 'default nil 'default)))
+        (mapcar (lambda (entry)
+                  (cons (car entry) `(:filtered (:window window-box t) ,(cdr entry))))
+                (cons (cons 'window-box--side (list :foreground color))
+                      (window-box--edge-remaps color top bottom dressed)))))
 
 ;;;; The sides on the lines
 
