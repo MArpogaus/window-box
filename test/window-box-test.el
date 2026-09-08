@@ -123,27 +123,27 @@ its indentation."
       (overlay-put own 'line-prefix "| ")
       (should (= 1 (length (window-box--own-prefixes))))
       (window-box-mode 1)
-      ;; the composed overlay carries both, above the box's own carrier
-      (should (= 1 (length window-box--composed)))
-      (let ((both (overlay-get (car window-box--composed) 'line-prefix)))
+      ;; the composed overlay carries both, above the buffer's own
+      (should (= 1 (length (window-box--composed))))
+      (let ((both (overlay-get (car (window-box--composed)) 'line-prefix)))
         (should (string-suffix-p "| " both))
         (should (> (length both) 2)))
-      (should (> (overlay-get (car window-box--composed) 'priority)
-                 (overlay-get window-box--prefix-overlay 'priority)))
+      (should (> (overlay-get (car (window-box--composed)) 'priority)
+                 (or (overlay-get own 'priority) 0)))
       ;; and what redisplay reads at such a line is the composed one
       (should (equal (get-char-property (point-min) 'line-prefix)
-                     (overlay-get (car window-box--composed) 'line-prefix)))
+                     (overlay-get (car (window-box--composed)) 'line-prefix)))
       (window-box-mode -1)
-      (should-not window-box--composed)
+      (should-not (window-box--composed))
       (should (equal (get-char-property (point-min) 'line-prefix) "| ")))))
 
 (ert-deftest window-box-test-a-growing-gutter-keeps-its-sides ()
   "A buffer that prefixes every line it prints keeps the sides.
 An agent's shell indents each line of an answer with a `line-prefix' of
-its own; measured, sixty-four of those was the cap, the change composed
-past it and the next window event shed the sides, so a chat lost its
-edges at the first click after the sixty-fifth line.  No cap by
-default, and the two paths agree on what there is."
+its own; measured, sixty-four of those was once a cap, the change
+composed past it and the next window event shed the sides, so a chat
+lost its edges at the first click after the sixty-fifth line.  There
+is no cap: two thousand regions are composed in five milliseconds."
   (window-box-test--with-buffer
     (window-box-mode 1)
     (dotimes (i 100)
@@ -152,65 +152,25 @@ default, and the two paths agree on what there is."
                           'line-prefix (copy-sequence "  "))))
     ;; the change path, as the idle timer runs it
     (window-box--recompose (current-buffer))
-    (should (= 100 (length window-box--composed)))
-    ;; and the window path agrees
+    (should (= 100 (length (window-box--composed))))
+    ;; and a window event leaves them as they are
     (window-box--apply (selected-window))
-    (should (= 100 (length window-box--composed)))
+    (should (= 100 (length (window-box--composed))))
     (should (local-variable-p 'line-prefix))
     (window-box-mode -1)))
 
-(ert-deftest window-box-test-the-cap-holds-on-both-paths ()
-  "Past a cap the change path sheds the sides as the window path does."
+(ert-deftest window-box-test-a-number-as-a-prefix-gets-the-sides-alone ()
+  "A line whose own `line-prefix' is no string still wears the sides.
+dirvish keeps a number in that property as bookkeeping; measured, a
+number takes the line's prefix away without putting anything in its
+place, and the sides went with it."
   (window-box-test--with-buffer
-    (let ((window-box-compose-prefix 1))
-      (window-box-mode 1)
-      (should (local-variable-p 'line-prefix))
-      (dotimes (i 2)
-        ;; a string of its own for each: `eq' values merge into one region
-      (insert (propertize (format "line %d\n" i)
-                          'line-prefix (copy-sequence "  "))))
-      (window-box--recompose (current-buffer))
-      (should-not window-box--composed)
-      (should-not (local-variable-p 'line-prefix))
-      (window-box-mode -1))))
-
-(ert-deftest window-box-test-too-much-gutter-keeps-the-lines ()
-  "Past `window-box-compose-prefix' the lines are left to their owner.
-An overlay for every region of a buffer that prefixes each line of
-itself is more than the box will make."
-  (window-box-test--with-buffer
-    (let ((window-box-compose-prefix 1))
-      (dotimes (i 2)
-        (let ((ov (make-overlay (+ (point-min) i) (+ (point-min) i 1))))
-          (overlay-put ov 'line-prefix "| ")))
-      (window-box-mode 1)
-      (should-not window-box--composed)
-      (should-not window-box--prefix-overlay)
-      (should-not (local-variable-p 'line-prefix))
-      ;; the box is still on the window: the horizontal edges are drawn
-      (should (window-box--boxed-p (selected-window)))
-      (window-box-mode -1))))
-
-(ert-deftest window-box-test-no-composing-keeps-the-sides ()
-  "A `window-box-compose-prefix' of zero draws the sides and not the gutter.
-Zero composes nothing, which is what the box did before the option:
-the sides win and the gutter waits under the box.  Zero used to read
-as a cap the buffer was already past, and the box gave those lines up
-instead — the sides went missing altogether."
-  (window-box-test--with-buffer
-    (let ((window-box-compose-prefix 0)
-          (own (make-overlay (point-min) (point-max))))
-      (overlay-put own 'line-prefix "| ")
-      (window-box-mode 1)
-      (should-not window-box--composed)
-      ;; The sides are worn: the carrier is there and the prefix with it
-      (should (overlayp window-box--prefix-overlay))
-      (should (local-variable-p 'line-prefix))
-      (should (stringp line-prefix))
-      ;; and the box's own prefix is what redisplay reads at such a line
-      (should (equal (get-char-property (point-min) 'line-prefix)
-                     line-prefix))
-      (window-box-mode -1))))
+    (put-text-property (point-min) (point-max) 'line-prefix 5)
+    (window-box-mode 1)
+    (should (= 1 (length (window-box--composed))))
+    (should (equal (get-char-property (point-min) 'line-prefix) line-prefix))
+    (window-box-mode -1)
+    (should (equal (get-char-property (point-min) 'line-prefix) 5))))
 
 (ert-deftest window-box-test-mode-round-trip ()
   "The mode dresses the window and takes the dressing back.
@@ -224,8 +184,8 @@ column is a margin the box may take; wider is the buffer's own, and
     (should (equal (window-margins (selected-window)) '(1 . 2)))
     (should (equal (window-parameter (selected-window) 'header-line-format)
                    '(:eval (window-box--edge t))))
-    (should (overlayp window-box--prefix-overlay))
-    (should (stringp (overlay-get window-box--prefix-overlay 'line-prefix)))
+    (should window-box--saved-prefix)
+    (should (stringp line-prefix))
     (should (local-variable-p 'line-prefix))
     (window-box-mode -1)
     (should (equal (window-margins (selected-window)) '(nil . 1)))
@@ -234,74 +194,46 @@ column is a margin the box may take; wider is the buffer's own, and
     (should-not (window-parameter (selected-window) 'header-line-format))
     (should-not (window-parameter (selected-window)
                                   'window-box--saved-margins))
-    (should-not window-box--prefix-overlay)
+    (should-not window-box--saved-prefix)
     (should-not (local-variable-p 'line-prefix))
     (set-window-margins (selected-window) nil nil)))
 
 (ert-deftest window-box-test-a-prefix-of-your-own-comes-back ()
   "A buffer that had a line prefix gets it back once the box is gone.
-The sides ride the variable — for the rows below the last line — and
-a buffer-spanning overlay, which outranks the prefix a single line
-brings as a text property, where the variable loses."
+The sides ride the buffer-local variable, so the rows below the last
+line wear them too."
   (window-box-test--with-buffer
     (setq-local line-prefix "> " wrap-prefix "| ")
     (window-box-mode 1)
     (should-not (equal line-prefix "> "))
-    (should (overlayp window-box--prefix-overlay))
-    (should (= (overlay-start window-box--prefix-overlay) (point-min)))
-    (should (= (overlay-end window-box--prefix-overlay) (point-max)))
-    ;; Text added at the end wears the sides too.
-    (save-excursion (goto-char (point-max)) (insert "three\n"))
-    (should (= (overlay-end window-box--prefix-overlay) (point-max)))
+    (should (stringp line-prefix))
     (window-box-mode -1)
-    (should-not window-box--prefix-overlay)
+    (should-not window-box--saved-prefix)
     (should (equal line-prefix "> "))
     (should (equal wrap-prefix "| "))))
 
-(ert-deftest window-box-test-the-prefix-overlay-survives-a-re-render ()
-  "A buffer that throws its overlays away gets the sides back.
+(ert-deftest window-box-test-a-render-that-deletes-the-overlays-is-noticed ()
+  "The sides over a buffer's own prefixes come back after a re-render.
 symbols-outline renders its panel with `delete-all-overlays' and
-`erase-buffer', and it puts a `line-prefix' of its own on the lines it
-draws.  A deleted overlay is still an overlay — only detached — so a
-test of `overlayp' alone left the box with a carrier that carried
-nothing, and every line with a prefix of its own lost its sides."
+`erase-buffer', and puts a `line-prefix' of its own on the lines it
+draws.  None of the window hooks fires for a change in the text alone;
+`after-change-functions' does, and asks for the sides once Emacs is
+idle — one timer to a buffer however many changes arrive."
   (window-box-test--with-buffer
+    (put-text-property (point-min) (point-max) 'line-prefix "| ")
     (window-box-mode 1)
-    (let ((overlay window-box--prefix-overlay))
-      (should (overlay-buffer overlay))
-      (delete-all-overlays)
-      (should (overlayp overlay))
-      (should-not (overlay-buffer overlay))
-      ;; What every refresh does.
-      (window-box--apply (selected-window))
-      (should (overlay-buffer window-box--prefix-overlay))
-      (should (= (overlay-start window-box--prefix-overlay) (point-min)))
-      (should (= (overlay-end window-box--prefix-overlay) (point-max)))
-      (should (stringp (overlay-get window-box--prefix-overlay 'line-prefix))))
-    ;; And after the text is replaced, the overlay spans the new text.
-    (erase-buffer)
-    (insert "one\ntwo\nthree\n")
-    (window-box--apply (selected-window))
-    (should (= (overlay-end window-box--prefix-overlay) (point-max)))))
-
-(ert-deftest window-box-test-a-render-that-deletes-the-overlay-is-noticed ()
-  "The sides come back without waiting for a window to change.
-A panel that renders itself — `delete-all-overlays', `erase-buffer',
-insert — changes its text and nothing else, and none of the window hooks
-fires for that.  `after-change-functions' does."
-  (window-box-test--with-buffer
-    (window-box-mode 1)
-    (should (overlay-buffer window-box--prefix-overlay))
+    (should (= 1 (length (window-box--composed))))
     (delete-all-overlays)
-    (should-not (overlay-buffer window-box--prefix-overlay))
+    (should-not (window-box--composed))
     ;; The render writes its text; no window has changed.
     (erase-buffer)
-    (insert "symbol one\nsymbol two\n")
-    (should (overlay-buffer window-box--prefix-overlay))
-    (should (= (overlay-start window-box--prefix-overlay) (point-min)))
-    (should (= (overlay-end window-box--prefix-overlay) (point-max)))
-    (should (equal (overlay-get window-box--prefix-overlay 'line-prefix)
-                   line-prefix))
+    (insert (propertize "symbol one\nsymbol two\n" 'line-prefix "| "))
+    (should (timerp window-box--compose-timer))
+    (insert "more\n")
+    (window-box--recompose (current-buffer))
+    (should-not window-box--compose-timer)
+    (should (= 1 (length (window-box--composed))))
+    (should (string-suffix-p "| " (get-char-property (point-min) 'line-prefix)))
     ;; And the watcher goes with the mode.
     (window-box-mode -1)
     (should-not (memq #'window-box--watch after-change-functions))))
@@ -458,7 +390,7 @@ on nothing."
           (window-box-mode 1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(2 . 31)))
-          (should (overlayp window-box--prefix-overlay))
+          (should window-box--saved-prefix)
           ;; and unboxing gives the window its own margins back
           (window-box-mode -1)
           (window-box--refresh)
@@ -481,14 +413,14 @@ the box are saved once, the first time the box takes them."
           (window-box-mode 1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 1)))
-          (should (overlayp window-box--prefix-overlay))
+          (should window-box--saved-prefix)
           ;; the buffer asks for two columns of its own now
           (setq left-margin-width 2)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(3 . 1)))
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(3 . 1)))
-          (should (overlayp window-box--prefix-overlay)))
+          (should window-box--saved-prefix))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
@@ -548,14 +480,14 @@ every boxed window of that buffer at once."
             (set-window-buffer other buffer)
             (window-box-mode 1)
             (window-box--refresh)
-            (should (overlayp window-box--prefix-overlay))
+            (should window-box--saved-prefix)
             ;; one of the two is no longer a window to box
             (let ((window-box-window-predicate
                    (lambda (window) (not (eq window other)))))
               (window-box--refresh)
               (should-not (window-parameter other 'window-box))
               (should (window-parameter (selected-window) 'window-box))
-              (should (overlayp window-box--prefix-overlay)))
+              (should window-box--saved-prefix))
             (delete-window other)))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
@@ -576,11 +508,11 @@ buttons use."
           (window-box-mode 1)
           (window-box--refresh)
           (should (equal (window-margins (selected-window)) '(1 . 1)))
-          (should (overlayp window-box--prefix-overlay))
+          (should window-box--saved-prefix)
           ;; the buffer asks for two columns of its own
           (setq left-margin-width 2)
           (window-box--refresh)
-          (should (overlayp window-box--prefix-overlay))
+          (should window-box--saved-prefix)
           ;; and the window shows the buffer's width and the box's
           (should (equal (window-margins (selected-window)) '(3 . 1)))
           ;; unboxed, the buffer's own width is what is left
@@ -603,14 +535,15 @@ after the buffer is displayed, so every such panel came up bare."
           (window-box-mode 1)
           (window-box--refresh)
           (should (window-parameter (selected-window) 'window-box))
-          (should (overlayp window-box--prefix-overlay))
+          (should window-box--saved-prefix)
           (emacs-lisp-mode)
           ;; the mode survives the change
           (should window-box-mode)
           (should (window-parameter (selected-window) 'window-box))
-          ;; the overlay that carries the sides lives in the buffer,
-          ;; and its variable is permanent-local, so nothing is lost
-          (should (overlayp window-box--prefix-overlay)))
+          ;; the sides are worn again, and the watcher with them: the
+          ;; change killed the local hook along with the prefix
+          (should window-box--saved-prefix)
+          (should (memq #'window-box--watch after-change-functions)))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
@@ -1142,12 +1075,10 @@ two and one."
   ;; A fringe of no pixels still names a bitmap, rather than one of no
   ;; width, which `define-fringe-bitmap' will not take.
   (should (eq (window-box--side-bitmap 'left 0) 'window-box--left-side-1))
-  ;; Each name has been defined as a bitmap — asked of the package's own
-  ;; mark, not of `fringe-bitmap-p', which a build without fringes does
-  ;; not define at all — and the two sides are not the same bitmap:
-  ;; their set pixel sits at opposite ends.
-  (should (get (window-box--side-bitmap 'left 4) 'window-box--bitmap))
-  (should (get (window-box--side-bitmap 'right 4) 'window-box--bitmap))
+  ;; Each name has been defined as a bitmap, and the two sides are not
+  ;; the same bitmap: their set pixel sits at opposite ends.
+  (should (fringe-bitmap-p (window-box--side-bitmap 'left 4)))
+  (should (fringe-bitmap-p (window-box--side-bitmap 'right 4)))
   (should-not (eq (window-box--side-bitmap 'left 4)
                   (window-box--side-bitmap 'right 4))))
 
