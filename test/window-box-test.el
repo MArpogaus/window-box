@@ -137,6 +137,43 @@ its indentation."
       (should-not window-box--composed)
       (should (equal (get-char-property (point-min) 'line-prefix) "| ")))))
 
+(ert-deftest window-box-test-a-growing-gutter-keeps-its-sides ()
+  "A buffer that prefixes every line it prints keeps the sides.
+An agent's shell indents each line of an answer with a `line-prefix' of
+its own; measured, sixty-four of those was the cap, the change composed
+past it and the next window event shed the sides, so a chat lost its
+edges at the first click after the sixty-fifth line.  No cap by
+default, and the two paths agree on what there is."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (dotimes (i 100)
+      ;; a string of its own for each: `eq' values merge into one region
+      (insert (propertize (format "line %d\n" i)
+                          'line-prefix (copy-sequence "  "))))
+    ;; the change path, as the idle timer runs it
+    (window-box--recompose (current-buffer))
+    (should (= 100 (length window-box--composed)))
+    ;; and the window path agrees
+    (window-box--apply (selected-window))
+    (should (= 100 (length window-box--composed)))
+    (should (local-variable-p 'line-prefix))
+    (window-box-mode -1)))
+
+(ert-deftest window-box-test-the-cap-holds-on-both-paths ()
+  "Past a cap the change path sheds the sides as the window path does."
+  (window-box-test--with-buffer
+    (let ((window-box-compose-prefix 1))
+      (window-box-mode 1)
+      (should (local-variable-p 'line-prefix))
+      (dotimes (i 2)
+        ;; a string of its own for each: `eq' values merge into one region
+      (insert (propertize (format "line %d\n" i)
+                          'line-prefix (copy-sequence "  "))))
+      (window-box--recompose (current-buffer))
+      (should-not window-box--composed)
+      (should-not (local-variable-p 'line-prefix))
+      (window-box-mode -1))))
+
 (ert-deftest window-box-test-too-much-gutter-keeps-the-lines ()
   "Past `window-box-compose-prefix' the lines are left to their owner.
 An overlay for every region of a buffer that prefixes each line of

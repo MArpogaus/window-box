@@ -86,18 +86,21 @@ again applies it."
   :type '(choice (const :tag "Face foreground" nil) color)
   :local t)
 
-(defcustom window-box-compose-prefix 64
+(defcustom window-box-compose-prefix nil
   "How many prefixes of the buffer's own the box draws its sides over.
 A line carries one `line-prefix', so a side of the box and a gutter the
 buffer draws — dirvish's subtree guide, `org-indent-mode', a shell that
 indents its output — are on the screen together only where the box
-draws the two of them as one string.  It does that for up to this many
-regions of the buffer's own, with an overlay for each.
+draws the two of them as one string.  It does that for every region of
+the buffer's own, with an overlay for each: measured, two thousand of
+them are drawn again in five milliseconds.
 
-Beyond that many the box gives those lines up instead of making an
-overlay for each: the gutter is drawn and the sides are not.  Nil
-composes however many there are.  Zero composes none: the sides win
-and the gutter waits under the box.
+A number caps it.  Beyond that many the box gives the lines up instead
+of making an overlay for each: the gutter is drawn and the sides are
+not — and a buffer that grows, an agent's shell indenting every line it
+prints, loses its sides the moment it crosses the cap, which is why the
+default is no cap.  Zero composes none: the sides win and the gutter
+waits under the box.
 
 The horizontal edges are drawn whatever this says: they ride the
 window's rows, not the buffer's lines."
@@ -712,6 +715,29 @@ bookkeeping beside the overlay that carries the guide."
           (setq pos next))))
     found))
 
+(defun window-box--regions ()
+  "Return the prefix regions of the buffer to draw the sides over.
+The symbol `over' where there are more of them than
+`window-box-compose-prefix' allows: the caller sheds the sides then,
+whichever way it came — from a window event or from a change in the
+text.  Measured, the two paths disagreed: the change composed past the
+cap and the next window event shed, so the sides of a growing buffer
+went at the first click after it crossed."
+  (let ((regions (unless (eql window-box-compose-prefix 0)
+                   (window-box--own-prefixes))))
+    (if (and window-box-compose-prefix
+             (> (length regions) window-box-compose-prefix))
+        'over
+      regions)))
+
+(defun window-box--compose (prefix)
+  "Hang PREFIX, the sides, over the buffer's own prefixes, or shed it.
+Shed where the buffer has more of its own than the cap allows."
+  (let ((regions (window-box--regions)))
+    (if (eq regions 'over)
+        (window-box--shed)
+      (window-box--wear prefix regions))))
+
 (defun window-box--uncompose ()
   "Take the box's composed overlays off the buffer, and its timer with them."
   (when (timerp window-box--compose-timer)
@@ -794,7 +820,7 @@ change hook runs before there is anything to compose with."
     (with-current-buffer buffer
       (setq window-box--compose-timer nil)
       (when (and window-box--saved-prefix (stringp line-prefix))
-        (window-box--wear line-prefix (window-box--own-prefixes))))))
+        (window-box--compose line-prefix)))))
 
 (defun window-box--watch (_beginning _end _before)
   "Put the sides back when a change has taken them away.
@@ -814,7 +840,7 @@ every one of them."
           (setq window-box--compose-timer
                 (run-with-idle-timer 0.1 nil #'window-box--recompose
                                      (current-buffer))))
-      (window-box--wear line-prefix (window-box--own-prefixes)))))
+      (window-box--compose line-prefix))))
 
 ;;;; Dressing a window
 
@@ -888,26 +914,24 @@ belong; the widths are not touched, and the window gets its order back
 when the box goes.  More gutter of the buffer's own than
 `window-box-compose-prefix' allows leaves those lines to their owner:
 no margins taken and no prefix hung."
-  (if-let* ((regions (unless (eql window-box-compose-prefix 0)
-                       (window-box--own-prefixes)))
-            (cap window-box-compose-prefix)
-            ((> (length regions) cap)))
-      (window-box--shed)
-    (let* ((width (window-box--width window))
-           (own (window-box--own-margins window width))
-           (left (+ (or (nth 0 own) left-margin-width 0) width))
-           (right (+ (or (nth 1 own) right-margin-width 0) width)))
-      (unless (or (zerop width)
-                  (equal (window-margins window) (cons left right)))
-        (set-window-margins window left right))
-      (when (and (display-graphic-p (window-frame window))
-                 (not (nth 2 (window-fringes window))))
-        (set-window-parameter window 'window-box--saved-order t)
-        ;; Four arguments, not five: the fifth would pin the widths
-        ;; across every later `set-window-buffer'.
-        (set-window-fringes window (car (window-fringes window))
-                            (cadr (window-fringes window)) t))
-      (window-box--wear (window-box--prefix window right) regions))))
+  (let ((regions (window-box--regions)))
+    (if (eq regions 'over)
+        (window-box--shed)
+      (let* ((width (window-box--width window))
+             (own (window-box--own-margins window width))
+             (left (+ (or (nth 0 own) left-margin-width 0) width))
+             (right (+ (or (nth 1 own) right-margin-width 0) width)))
+        (unless (or (zerop width)
+                    (equal (window-margins window) (cons left right)))
+          (set-window-margins window left right))
+        (when (and (display-graphic-p (window-frame window))
+                   (not (nth 2 (window-fringes window))))
+          (set-window-parameter window 'window-box--saved-order t)
+          ;; Four arguments, not five: the fifth would pin the widths
+          ;; across every later `set-window-buffer'.
+          (set-window-fringes window (car (window-fringes window))
+                              (cadr (window-fringes window)) t))
+        (window-box--wear (window-box--prefix window right) regions)))))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
