@@ -320,6 +320,11 @@ the format that puts the box's ends on the window's row.")
   "Return the format that puts the box's ends on the row PARAMETER."
   (nth 3 (assq parameter window-box--rows)))
 
+(defun window-box--own-row-p (window parameter)
+  "Return non-nil when the row PARAMETER of WINDOW is one the box wrote."
+  (member (window-parameter window parameter)
+          (cddr (assq parameter window-box--rows))))
+
 (defun window-box--content (window parameter)
   "Return what WINDOW shows in the row PARAMETER names, box aside.
 The window parameter wins over the buffer's variable, as it does in
@@ -327,7 +332,7 @@ redisplay.  A value of the box's own is not the window's, so the one
 the box put away answers in its place.  The answer can be `none',
 which is how a window says it hides the row."
   (let ((param (window-parameter window parameter)))
-    (if (or (null param) (member param (cddr (assq parameter window-box--rows))))
+    (if (or (null param) (window-box--own-row-p window parameter))
         (or (window-parameter window (window-box--saved parameter))
             (buffer-local-value parameter (window-buffer window)))
       param)))
@@ -775,8 +780,7 @@ What was there is the window's own value, never one of the box's: a
 box that changes its mind about a row — from an edge of its own to
 the ends on the window's — must still give back what it found."
   (unless (equal (window-parameter window parameter) format)
-    (unless (member (window-parameter window parameter)
-                    (cddr (assq parameter window-box--rows)))
+    (unless (window-box--own-row-p window parameter)
       (set-window-parameter window (window-box--saved parameter)
                             (window-parameter window parameter)))
     (set-window-parameter window parameter format)))
@@ -799,7 +803,7 @@ otherwise.  TOP and BOTTOM are the edges the box chose."
                          ((memq parameter dressed)
                           (window-box--dressed parameter)))))
       (cond (format (window-box--dress window parameter format))
-            ((member (window-parameter window parameter) (cddr entry))
+            ((window-box--own-row-p window parameter)
              (window-box--undress window parameter))))))
 
 (defun window-box--own-margins (window width)
@@ -870,7 +874,7 @@ Call it with the window's buffer current."
 The face remaps are the buffer's and go when the mode turns off."
   (set-window-parameter window 'window-box nil)
   (dolist (entry window-box--rows)
-    (when (member (window-parameter window (car entry)) (cddr entry))
+    (when (window-box--own-row-p window (car entry))
       (window-box--undress window (car entry))))
   (when (window-parameter window 'window-box--saved-order)
     (set-window-fringes window (car (window-fringes window))
