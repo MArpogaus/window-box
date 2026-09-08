@@ -44,8 +44,9 @@
 ;; air between a side and the text, and a buffer that keeps text in
 ;; its own margins keeps them, inside the box.
 ;;
-;; Only window dressing is used: the buffer's `line-prefix' and one
-;; buffer-spanning overlay carry the sides, and the window parameters
+;; Only window dressing is used: the buffer's `line-prefix', with an
+;; overlay over each prefix of the buffer's own, carries the sides, and
+;; the window parameters
 ;; `tab-line-format', `header-line-format' and `mode-line-format' carry
 ;; the horizontal edges, so the buffer's own formats are not touched.
 ;; docs/implementation.org in the repository says why each part is
@@ -85,27 +86,6 @@ Set it buffer-locally for a box color per buffer; turning the mode on
 again applies it."
   :type '(choice (const :tag "Face foreground" nil) color)
   :local t)
-
-(defcustom window-box-compose-prefix nil
-  "How many prefixes of the buffer's own the box draws its sides over.
-A line carries one `line-prefix', so a side of the box and a gutter the
-buffer draws — dirvish's subtree guide, `org-indent-mode', a shell that
-indents its output — are on the screen together only where the box
-draws the two of them as one string.  It does that for every region of
-the buffer's own, with an overlay for each: measured, two thousand of
-them are drawn again in five milliseconds.
-
-A number caps it.  Beyond that many the box gives the lines up instead
-of making an overlay for each: the gutter is drawn and the sides are
-not — and a buffer that grows, an agent's shell indenting every line it
-prints, loses its sides the moment it crosses the cap, which is why the
-default is no cap.  Zero composes none: the sides win and the gutter
-waits under the box.
-
-The horizontal edges are drawn whatever this says: they ride the
-window's rows, not the buffer's lines."
-  :type '(choice (const :tag "However many there are" nil) natnum)
-  :group 'window-box)
 
 (defcustom window-box-window-predicate nil
   "Which windows of a boxed buffer get the box, or nil for all of them.
@@ -254,8 +234,9 @@ padding inside it; a graphic display draws the sides in the fringes,
 so its margins carry `window-box-padding' alone — and none at all
 where that is zero.  The frame of WINDOW decides, not the selected
 one: a daemon serves a graphic frame and a terminal frame at once."
-  (let ((padding (if (natnump window-box-padding) window-box-padding 0)))
-    (if (display-graphic-p (window-frame window)) padding (1+ padding))))
+  (if (display-graphic-p (window-frame window))
+      window-box-padding
+    (1+ window-box-padding)))
 
 (defun window-box--side-bitmap (side width)
   "Return the bitmap that draws SIDE in a fringe WIDTH pixels wide.
@@ -664,95 +645,98 @@ the rows."
              (cons (cons 'window-box--side (list :foreground color))
                    (window-box--edge-remaps color top bottom dressed))))))
 
-;;;; The sides' carriers
-
-(defvar-local window-box--prefix-overlay nil
-  "The overlay that carries the sides over lines with prefixes of their own.
-A line that brings a `line-prefix' as a text property — a shell that
-indents its output does — beats the buffer-local variable, and its
-stretch of the sides would go missing.  An overlay's prefix outranks
-the line's.  The overlay cannot carry the sides alone: it ends at the
-last line of text, and the rows below it show only what the variable
-says — so the sides ride both.")
-(put 'window-box--prefix-overlay 'permanent-local t)
+;;;; The sides on the lines
 
 (defvar-local window-box--saved-prefix nil
   "What the buffer's line and wrap prefix were before the box.
 A list (LINE WRAP LOCAL), where LOCAL says the buffer had a prefix of
 its own, so it goes back as a buffer-local value; without it the
-variables are killed again.")
-
-(defvar-local window-box--worn nil
-  "What the sides were last hung with, as (PREFIX . REGIONS).
-A refresh runs on every window state change, and hanging the same
-prefix again would remake every composed overlay each time.")
-
-(defvar-local window-box--composed nil
-  "The overlays that carry a side and a prefix of the buffer's as one.")
+variables are killed again.  Non-nil while the sides are worn.")
 
 (defvar-local window-box--compose-timer nil
   "The idle timer that will draw the sides over new gutter, if any.")
 
 (defun window-box--own-prefixes ()
-  "Return the prefix regions the buffer draws itself, as (BEG END PREFIX).
-A `line-prefix' on the text, or on an overlay that is neither the box's
-carrier nor one of its own composed ones.  Only a string: a side is
-concatenated to it, and dirvish keeps a number in that property as
-bookkeeping beside the overlay that carries the guide."
+  "Return the prefix regions the buffer draws itself, as (BEG END OWN).
+A `line-prefix' on the text or on an overlay of the buffer's, the
+box's own composed ones aside.  OWN is whatever the property holds:
+dirvish keeps a number there as bookkeeping beside the overlay that
+carries the guide, and measured, a number takes the line's prefix
+away without putting anything in its place — so such a line gets the
+sides alone."
   (let (found)
     (dolist (ov (overlays-in (point-min) (point-max)))
-      (let ((own (overlay-get ov 'line-prefix)))
-        (when (and (stringp own)
-                   (not (eq ov window-box--prefix-overlay))
-                   (not (memq ov window-box--composed)))
-          (push (list (overlay-start ov) (overlay-end ov) own) found))))
+      (when-let* (((not (overlay-get ov 'window-box--own)))
+                  (own (overlay-get ov 'line-prefix)))
+        (push (list (overlay-start ov) (overlay-end ov) own) found)))
     (let ((pos (point-min)))
       (while (< pos (point-max))
         (let ((own (get-text-property pos 'line-prefix))
               (next (or (next-single-property-change pos 'line-prefix)
                         (point-max))))
-          (when (stringp own) (push (list pos next own) found))
+          (when own (push (list pos next own) found))
           (setq pos next))))
     found))
 
-(defun window-box--regions ()
-  "Return the prefix regions of the buffer to draw the sides over.
-The symbol `over' where there are more of them than
-`window-box-compose-prefix' allows: the caller sheds the sides then,
-whichever way it came — from a window event or from a change in the
-text.  Measured, the two paths disagreed: the change composed past the
-cap and the next window event shed, so the sides of a growing buffer
-went at the first click after it crossed."
-  (let ((regions (unless (eql window-box-compose-prefix 0)
-                   (window-box--own-prefixes))))
-    (if (and window-box-compose-prefix
-             (> (length regions) window-box-compose-prefix))
-        'over
-      regions)))
+(defun window-box--composed ()
+  "Return the overlays the box composed over prefixes of the buffer's own."
+  (seq-filter (lambda (ov) (overlay-get ov 'window-box--own))
+              (overlays-in (point-min) (point-max))))
 
-(defun window-box--compose (prefix)
-  "Hang PREFIX, the sides, over the buffer's own prefixes, or shed it.
-Shed where the buffer has more of its own than the cap allows."
-  (let ((regions (window-box--regions)))
-    (if (eq regions 'over)
-        (window-box--shed)
-      (window-box--wear prefix regions))))
+(defun window-box--compose ()
+  "Draw the sides over every prefix of the buffer's own, as one string.
+A line carries one `line-prefix', and a line that brings its own — a
+shell that indents its output, dirvish's subtree guide — beats the
+buffer-local variable the sides ride, so its stretch of the sides would
+go missing.  Each such region gets an overlay carrying the side and the
+region's own prefix as one string, above every overlay of the
+buffer's.  Where two overlap the narrower one wins, as Emacs resolves
+a tie between overlays of one priority, so a subtree inside a subtree
+keeps the deeper guide.  Measured, two thousand regions are composed
+in five milliseconds."
+  (save-restriction
+    (widen)
+    (mapc #'delete-overlay (window-box--composed))
+    (pcase-dolist (`(,beg ,end ,own) (window-box--own-prefixes))
+      (let* ((own (if (stringp own) own ""))
+             (ov (make-overlay beg end))
+             (both (concat line-prefix own)))
+        (overlay-put ov 'window-box--own own)
+        (overlay-put ov 'priority 101)
+        (overlay-put ov 'line-prefix both)
+        (overlay-put ov 'wrap-prefix both)))))
 
-(defun window-box--uncompose ()
-  "Take the box's composed overlays off the buffer, and its timer with them."
+(defun window-box--wear (prefix)
+  "Hang PREFIX, the sides, on the lines of the current buffer.
+Nothing is done where PREFIX is worn already.  What the buffer wore
+before is kept once, for the mode to give back.  The sides ride the
+buffer-local `line-prefix' and `wrap-prefix', so the rows below
+the last line of text wear them too, and composed overlays over the
+prefixes of the buffer's own."
+  (unless (and window-box--saved-prefix
+               (equal-including-properties prefix line-prefix))
+    (unless window-box--saved-prefix
+      (setq window-box--saved-prefix
+            (list line-prefix wrap-prefix (local-variable-p 'line-prefix)))
+      ;; A change in the text alone fires none of the window hooks, and
+      ;; a buffer that renders itself again deletes the overlays the
+      ;; sides ride.  Here and not in the mode: a major mode change
+      ;; takes the local hook away with the prefix, and both come back
+      ;; together.
+      (add-hook 'after-change-functions #'window-box--watch nil t))
+    (setq-local line-prefix prefix
+                wrap-prefix prefix)
+    (window-box--compose)))
+
+(defun window-box--shed ()
+  "Take the sides off the current buffer, and give its prefix back."
   (when (timerp window-box--compose-timer)
     (cancel-timer window-box--compose-timer))
   (setq window-box--compose-timer nil)
-  (mapc #'delete-overlay window-box--composed)
-  (setq window-box--composed nil
-        window-box--worn nil))
-
-(defun window-box--shed ()
-  "Take the box's prefix off the current buffer, every carrier."
-  (window-box--uncompose)
-  (when (overlayp window-box--prefix-overlay)
-    (delete-overlay window-box--prefix-overlay))
-  (setq window-box--prefix-overlay nil)
+  (remove-hook 'after-change-functions #'window-box--watch t)
+  (save-restriction
+    (widen)
+    (mapc #'delete-overlay (window-box--composed)))
   (when-let* ((saved window-box--saved-prefix))
     (if (nth 2 saved)
         (setq-local line-prefix (nth 0 saved)
@@ -761,57 +745,8 @@ Shed where the buffer has more of its own than the cap allows."
       (kill-local-variable 'wrap-prefix))
     (setq window-box--saved-prefix nil)))
 
-(defun window-box--wear (prefix regions)
-  "Hang PREFIX, the sides, on the current buffer, on both carriers.
-REGIONS are the prefixes the buffer draws itself: each gets an overlay
-of its own carrying the side and that region's prefix as one string,
-above the box's own carrier.  Where two overlap the narrower one wins,
-as Emacs resolves a tie between overlays of one priority, so a subtree
-inside a subtree keeps the deeper guide.
-
-Nothing is done where the same PREFIX and REGIONS are worn already and
-the carrier is live and spans the buffer.  A live carrier is moved
-rather than remade, and a dead one is remade: `delete-overlay' leaves
-an overlay that is still an overlay, only detached, and a buffer that
-renders itself again throws every overlay away.  What the buffer wore
-before is kept once, for the mode to give back."
-  (unless window-box--saved-prefix
-    (setq window-box--saved-prefix
-          (list line-prefix wrap-prefix (local-variable-p 'line-prefix))))
-  (save-restriction
-    (widen)
-    (let ((live (and (overlayp window-box--prefix-overlay)
-                     (overlay-buffer window-box--prefix-overlay))))
-      (unless (and live
-                   (= (overlay-start window-box--prefix-overlay) (point-min))
-                   (= (overlay-end window-box--prefix-overlay) (point-max))
-                   (equal-including-properties prefix (car window-box--worn))
-                   (equal regions (cdr window-box--worn)))
-        (setq-local line-prefix prefix
-                    wrap-prefix prefix)
-        (if live
-            (move-overlay window-box--prefix-overlay (point-min) (point-max))
-          (setq window-box--prefix-overlay
-                ;; Rear-advance, so text added at the end wears it too.
-                (make-overlay (point-min) (point-max) nil nil t)))
-        ;; Above every other overlay: a shell that draws an indent
-        ;; gutter puts prefixes on overlays of its own, and a tie
-        ;; between overlays falls whichever way redisplay walks them.
-        (overlay-put window-box--prefix-overlay 'priority 100)
-        (overlay-put window-box--prefix-overlay 'line-prefix prefix)
-        (overlay-put window-box--prefix-overlay 'wrap-prefix prefix)
-        (window-box--uncompose)
-        (pcase-dolist (`(,beg ,end ,own) regions)
-          (let ((ov (make-overlay beg end))
-                (both (concat prefix own)))
-            (overlay-put ov 'priority 101)
-            (overlay-put ov 'line-prefix both)
-            (overlay-put ov 'wrap-prefix both)
-            (push ov window-box--composed)))
-        (setq window-box--worn (cons prefix regions))))))
-
 (defun window-box--recompose (buffer)
-  "Hang the sides of BUFFER again, over the prefixes it draws itself now.
+  "Draw the sides of BUFFER again, over the prefixes it draws itself now.
 From an idle timer, because the gutter of a buffer arrives on an
 overlay and an overlay arrives without a hook: dirvish opens a subtree
 by inserting its listing and then hanging the guide over it, so the
@@ -819,28 +754,18 @@ change hook runs before there is anything to compose with."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (setq window-box--compose-timer nil)
-      (when (and window-box--saved-prefix (stringp line-prefix))
-        (window-box--compose line-prefix)))))
+      (when window-box--saved-prefix
+        (window-box--compose)))))
 
 (defun window-box--watch (_beginning _end _before)
-  "Put the sides back when a change has taken them away.
-For `after-change-functions', buffer-locally, while the box is worn.  A
-buffer that renders itself again throws every overlay away and then
-writes its text — symbols-outline calls `delete-all-overlays' and
-`erase-buffer' on every refresh — and none of the window hooks the box
-listens to fires for a change in the text alone.  A dead carrier is
-remade at once, before the redisplay; a live one is asked about new
-gutter once Emacs is idle, one timer to a buffer however many changes
-arrive, so a shell writing its output does not walk its overlays on
-every one of them."
-  (when (and window-box--saved-prefix (stringp line-prefix))
-    (if (and (overlayp window-box--prefix-overlay)
-             (overlay-buffer window-box--prefix-overlay))
-        (unless window-box--compose-timer
-          (setq window-box--compose-timer
-                (run-with-idle-timer 0.1 nil #'window-box--recompose
-                                     (current-buffer))))
-      (window-box--compose line-prefix))))
+  "Ask for the sides to be drawn again once Emacs is idle.
+For `after-change-functions', buffer-locally, while the sides are
+worn.  One timer to a buffer however many changes arrive, so a shell
+writing its output does not walk its overlays on every one of them."
+  (when (and window-box--saved-prefix (not window-box--compose-timer))
+    (setq window-box--compose-timer
+          (run-with-idle-timer 0.1 nil #'window-box--recompose
+                               (current-buffer)))))
 
 ;;;; Dressing a window
 
@@ -911,27 +836,22 @@ column right margin, `diff-hl-margin-mode' marks every changed line in
 two on the left, and the box's side sits outside all of it.  On a
 graphic display the fringes go outside the margins, where the sides
 belong; the widths are not touched, and the window gets its order back
-when the box goes.  More gutter of the buffer's own than
-`window-box-compose-prefix' allows leaves those lines to their owner:
-no margins taken and no prefix hung."
-  (let ((regions (window-box--regions)))
-    (if (eq regions 'over)
-        (window-box--shed)
-      (let* ((width (window-box--width window))
-             (own (window-box--own-margins window width))
-             (left (+ (or (nth 0 own) left-margin-width 0) width))
-             (right (+ (or (nth 1 own) right-margin-width 0) width)))
-        (unless (or (zerop width)
-                    (equal (window-margins window) (cons left right)))
-          (set-window-margins window left right))
-        (when (and (display-graphic-p (window-frame window))
-                   (not (nth 2 (window-fringes window))))
-          (set-window-parameter window 'window-box--saved-order t)
-          ;; Four arguments, not five: the fifth would pin the widths
-          ;; across every later `set-window-buffer'.
-          (set-window-fringes window (car (window-fringes window))
-                              (cadr (window-fringes window)) t))
-        (window-box--wear (window-box--prefix window right) regions)))))
+when the box goes."
+  (let* ((width (window-box--width window))
+         (own (window-box--own-margins window width))
+         (left (+ (or (nth 0 own) left-margin-width 0) width))
+         (right (+ (or (nth 1 own) right-margin-width 0) width)))
+    (unless (or (zerop width)
+                (equal (window-margins window) (cons left right)))
+      (set-window-margins window left right))
+    (when (and (display-graphic-p (window-frame window))
+               (not (nth 2 (window-fringes window))))
+      (set-window-parameter window 'window-box--saved-order t)
+      ;; Four arguments, not five: the fifth would pin the widths
+      ;; across every later `set-window-buffer'.
+      (set-window-fringes window (car (window-fringes window))
+                          (cadr (window-fringes window)) t))
+    (window-box--wear (window-box--prefix window right))))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
@@ -1039,38 +959,32 @@ for how the box is built."
         ;; rules, for one — sets its own over the box's every time it
         ;; displays.  So the box puts itself back on every window
         ;; change, and only ever changes what differs, or setting the
-        ;; margins here would call this back forever.  The state change
-        ;; hook runs from the redisplay, after everything in the cycle
-        ;; has had its say, which gives the box the last word.  The
-        ;; hooks stay for the session: they walk the windows of one
+        ;; margins here would call this back forever.  This one hook:
+        ;; it runs from the redisplay for every kind of window change,
+        ;; buffer and configuration included, after everything in the
+        ;; cycle has had its say, which gives the box the last word.
+        ;; The hooks stay for the session: they walk the windows of one
         ;; frame and read a buffer-local variable.
-        (add-hook 'window-buffer-change-functions #'window-box--refresh)
-        (add-hook 'window-configuration-change-hook #'window-box--refresh)
         (add-hook 'window-state-change-functions #'window-box--refresh)
         ;; A major mode change clears the face remaps and the saved
-        ;; prefix along with every other local variable, and neither
-        ;; event above fires for it.  The mode itself survives, being
+        ;; prefix along with every other local variable, and no window
+        ;; event fires for it.  The mode itself survives, being
         ;; permanent-local, so the box is drawn again from scratch — on
-        ;; every frame, because the overlay that carries the sides is
-        ;; permanent-local as well and would show them in `shadow'
-        ;; wherever the buffer is.
+        ;; every frame, because the overlays that carry the sides
+        ;; survive too and would show them in `shadow' wherever the
+        ;; buffer is.
         (add-hook 'after-change-major-mode-hook
                   #'window-box--refresh-frames)
         ;; A theme change is not a window change, and the color of the
         ;; box comes from a face.
         (add-hook 'enable-theme-functions #'window-box--refresh-frames)
-        ;; A change in the text alone fires none of the window hooks, and
-        ;; a buffer that renders itself again deletes the overlay the
-        ;; sides ride.  Buffer-local.
-        (add-hook 'after-change-functions #'window-box--watch nil t)
-        ;; The predicate has the same say here as in the refresh: the
-        ;; mode is the buffer's and the box is the window's.
-        (dolist (window (get-buffer-window-list nil nil t))
-          (when (window-box--boxed-p window)
-            (window-box--apply window))))
-    (remove-hook 'after-change-functions #'window-box--watch t)
-    (dolist (window (get-buffer-window-list nil nil t))
-      (window-box--clear window))
+        ;; The refresh is what draws the box, here as on every window
+        ;; change: the predicate has the same say both times.
+        (window-box--refresh-frames))
+    ;; The same refresh takes the box off every window of the buffer,
+    ;; the mode being off now; what is the buffer's rather than a
+    ;; window's goes here.
+    (window-box--refresh-frames)
     (window-box--remap nil)
     (window-box--shed)))
 
