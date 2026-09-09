@@ -59,6 +59,7 @@
 ;;; Code:
 
 (require 'face-remap)
+(require 'fringe)
 (require 'seq)
 
 (defgroup window-box nil
