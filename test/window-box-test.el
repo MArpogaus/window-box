@@ -137,6 +137,34 @@ its indentation."
       (should-not (window-box--composed))
       (should (equal (get-char-property (point-min) 'line-prefix) "| ")))))
 
+(ert-deftest window-box-test-a-guide-wins-over-the-bookkeeping-beside-it ()
+  "A line that carries a guide and a number keeps the guide.
+dirvish leaves a number as `line-prefix' on every line of an open
+subtree — bookkeeping, and a number draws no prefix at all — beside the
+overlay whose guide spans the whole subtree.  Both are composed, and
+Emacs settles a tie between overlays of one priority on the narrower
+one: the number is a line and the guide is the subtree, so the guide
+lost and every folder inside a folder stood unindented."
+  (window-box-test--with-buffer
+    (goto-char (point-min))
+    (let* ((second (line-beginning-position 2))
+           (guide (make-overlay (point-min) (point-max)))
+           (number (make-overlay second (line-end-position 2))))
+      (overlay-put guide 'line-prefix " │")
+      (overlay-put number 'line-prefix 2)
+      (window-box-mode 1)
+      (let ((shown (get-char-property second 'line-prefix)))
+        (should (stringp shown))
+        ;; the sides, and the guide after them
+        (should (string-suffix-p " │" shown))
+        (should (> (length shown) 2)))
+      ;; the line with the number alone still wears the sides
+      (let ((only (make-overlay (point-min) (line-end-position 1))))
+        (delete-overlay guide)
+        (overlay-put only 'line-prefix 1)
+        (window-box--compose)
+        (should (stringp (get-char-property (point-min) 'line-prefix)))))))
+
 (ert-deftest window-box-test-a-growing-gutter-keeps-its-sides ()
   "A buffer that prefixes every line it prints keeps the sides.
 An agent's shell indents each line of an answer with a `line-prefix' of

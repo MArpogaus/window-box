@@ -694,11 +694,20 @@ in five milliseconds."
     (widen)
     (mapc #'delete-overlay (window-box--composed))
     (pcase-dolist (`(,beg ,end ,own) (window-box--own-prefixes))
-      (let* ((own (if (stringp own) own ""))
+      (let* ((carries (stringp own))
+             (own (if carries own ""))
              (ov (make-overlay beg end))
              (both (concat line-prefix own)))
         (overlay-put ov 'window-box--own own)
-        (overlay-put ov 'priority 101)
+        ;; A region that carries something goes above one that carries
+        ;; nothing.  dirvish leaves a number on every line of an open
+        ;; subtree — bookkeeping, and a `line-prefix' of a number draws
+        ;; no prefix at all — beside the overlay whose guide spans the
+        ;; whole subtree.  Both are composed, and Emacs settles a tie
+        ;; between overlays of one priority on the narrower: the number
+        ;; is one line and the guide is the subtree, so the guide lost
+        ;; and every folder inside a folder stood unindented.
+        (overlay-put ov 'priority (if carries 102 101))
         (overlay-put ov 'line-prefix both)
         (overlay-put ov 'wrap-prefix both)))))
 
