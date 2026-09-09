@@ -102,10 +102,18 @@ the buffer prefixes itself — the =line-prefix= on the text or on an
 overlay that is not the box's, whatever it holds — and
 =window-box--compose= hangs one overlay per region carrying the side
 and that region's own prefix concatenated, the side alone where the
-own one is no string, at =priority 101=, above any overlay of the
-buffer's.  Where two of those overlap the narrower wins: measured, an
-overlay inside another of the same priority answers for the lines they
-share, so a subtree inside a subtree keeps the deeper guide.
+own one is no string, above any overlay of the buffer's.  Where two of
+those overlap the narrower wins: measured, an overlay inside another of
+the same priority answers for the lines they share, so a subtree inside
+a subtree keeps the deeper guide.
+
+That tie is why a region carrying a prefix sits at =priority 102= and
+one carrying nothing at =101=.  dirvish leaves a number on every line
+of an open subtree — bookkeeping, and a =line-prefix= of a number draws
+no prefix at all — beside the overlay whose guide spans the whole
+subtree.  Both are composed, and on one priority the narrower answers:
+the number is one line and the guide is the subtree, so the guide lost
+and every folder inside a folder stood unindented.
 
 There was a whole-buffer overlay under those, at =priority 100=, and a
 cap on the regions composed, sixty-four; past the cap the box shed the
