@@ -1071,7 +1071,10 @@ other row is passed through by the sides."
 A bitmap repeats over every line's full height, however tall the
 line; a margin image is one default line tall and dashed on taller
 ones, and one taller than the line grows every line to its height."
-  (skip-unless (fboundp 'define-fringe-bitmap))
+  ;; A build without fringes still has `define-fringe-bitmap': fringe.el
+  ;; defines one that defines nothing.  Whether a standard bitmap is
+  ;; there says whether one can be made at all.
+  (skip-unless (fringe-bitmap-p 'left-arrow))
   (let* ((window (selected-window))
          (prefix (cl-letf (((symbol-function 'display-graphic-p)
                             (lambda (&rest _) t)))
@@ -1094,7 +1097,10 @@ missing in every window whose right fringe was narrower — a window
 the old eight pixel bitmap drew at a fringe of eight and at no width
 below it, and a bitmap of the fringe's own width drew at eight, four,
 two and one."
-  (skip-unless (fboundp 'define-fringe-bitmap))
+  ;; A build without fringes still has `define-fringe-bitmap': fringe.el
+  ;; defines one that defines nothing.  Whether a standard bitmap is
+  ;; there says whether one can be made at all.
+  (skip-unless (fringe-bitmap-p 'left-arrow))
   ;; One name per side and width, and the name says which.
   (should (eq (window-box--side-bitmap 'right 1) 'window-box--right-side-1))
   (should (eq (window-box--side-bitmap 'left 8) 'window-box--left-side-8))
