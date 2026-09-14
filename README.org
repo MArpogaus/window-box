@@ -111,21 +111,32 @@ to box:
   (add-hook 'help-mode-hook #'window-box-mode)
 #+end_src
 
-The package works well together with [[https://github.com/MArpogaus/auto-side-windows][auto-side-windows]].  Box the
-buffers that go into a side window, and the frame reads as a set of
-panels.
+A box usually belongs to a place, not to a buffer.  Then turn on the
+global mode and name the places with a predicate.  Every window the
+predicate accepts gets a box, whatever buffer it shows.  A buffer that
+arrives in such a window gets the box.  A buffer that leaves it keeps
+nothing.
 
 #+begin_src emacs-lisp
-  (add-hook 'auto-side-windows-after-display-hook
-            (lambda (buffer &rest _)
-              (with-current-buffer buffer (window-box-mode 1))))
-
-  ;; The mode belongs to the buffer.  Emacs can show one buffer in a
-  ;; panel and in a usual window at the same time.  A box usually
-  ;; belongs to the place:
-  (setq window-box-window-predicate
-        (lambda (window) (window-parameter window 'window-side)))
+  (use-package window-box
+    :ensure t
+    :custom
+    ;; the side windows are the places
+    (window-box-window-predicate
+     (lambda (window) (window-parameter window 'window-side)))
+    :config
+    (global-window-box-mode 1))
 #+end_src
+
+This works well together with [[https://github.com/MArpogaus/auto-side-windows][auto-side-windows]]: the frame reads as a
+set of panels.  It also holds when a package puts a new buffer into
+its side window without =display-buffer=, as dirvish does when it
+changes directory.  A hook that turns on =window-box-mode= for each
+displayed buffer does not see such a change.
+
+The predicate also applies to =window-box-mode=.  Emacs can show one
+buffer in a panel and in a usual window at the same time, and the
+predicate says which of the two gets the box.
 
 The picture below shows one buffer in two windows.  Only one of the
 two windows has a box.
@@ -143,7 +154,7 @@ The package has few options:
 | =window-box-enclose-top=       | the topmost row inside the box                       |
 | =window-box-enclose-mode-line= | whether the mode line is inside                      |
 | =window-box-padding=           | columns between a side and the text                  |
-| =window-box-window-predicate=  | the windows of a boxed buffer that get a box         |
+| =window-box-window-predicate=  | the windows that get a box                           |
 
 The box is one pixel on every side, and one shape: the horizontal
 edges are one pixel because an overline cannot be thicker, and a side

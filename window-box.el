@@ -27,8 +27,10 @@
 ;;; Commentary:
 
 ;; `window-box-mode' draws a rectangular box around every window that
-;; shows the buffer.  Nothing more: what your header line and your
-;; mode line say stays yours, and `window-box-enclose-top' and
+;; shows the buffer, and `global-window-box-mode' around every window
+;; that `window-box-window-predicate' accepts, whatever buffer it
+;; shows.  Nothing more: what your header line and your mode line say
+;; stays yours, and `window-box-enclose-top' and
 ;; `window-box-enclose-mode-line' say whether they are inside the box
 ;; or outside it.  The inside is always one unbroken stack of rows
 ;; around the text.
@@ -100,7 +102,12 @@ box usually belongs to the place rather than to the text, and this is
 how a configuration says which places:
 
   (setq window-box-window-predicate
-        (lambda (window) (window-parameter window \\='window-side)))"
+        (lambda (window) (window-parameter window \\='window-side)))
+
+`global-window-box-mode' asks the same question of every window, so
+with it the predicate alone says where the boxes are: a buffer that
+lands in such a place is boxed without a mode of its own, and one that
+leaves it takes nothing along."
   :type '(choice (const :tag "Every window showing the buffer" nil)
                  function))
 
@@ -653,6 +660,13 @@ variables are killed again.  Non-nil while the sides are worn.")
 (defvar-local window-box--compose-timer nil
   "The idle timer that will draw the sides over new gutter, if any.")
 
+(defvar window-box--worn nil
+  "The buffers that wear the sides.
+A boxed place changes its buffer, and the one that left keeps the
+sides and the remaps until this list is walked: `window-box--refresh'
+sheds every buffer here that no boxed window shows and that has no
+`window-box-mode' of its own.")
+
 (defun window-box--own-prefixes ()
   "Return the prefix regions the buffer draws itself, as (BEG END OWN).
 A `line-prefix' on the text or on an overlay of the buffer's, the
@@ -724,6 +738,8 @@ prefixes of the buffer's own."
     (unless window-box--saved-prefix
       (setq window-box--saved-prefix
             (list line-prefix wrap-prefix (local-variable-p 'line-prefix)))
+      (unless (memq (current-buffer) window-box--worn)
+        (push (current-buffer) window-box--worn))
       ;; A change in the text alone fires none of the window hooks, and
       ;; a buffer that renders itself again deletes the overlays the
       ;; sides ride.  Here and not in the mode: a major mode change
@@ -749,7 +765,8 @@ prefixes of the buffer's own."
                     wrap-prefix (nth 1 saved))
       (kill-local-variable 'line-prefix)
       (kill-local-variable 'wrap-prefix))
-    (setq window-box--saved-prefix nil)))
+    (setq window-box--saved-prefix nil))
+  (setq window-box--worn (delq (current-buffer) window-box--worn)))
 
 (defun window-box--recompose (buffer)
   "Draw the sides of BUFFER again, over the prefixes it draws itself now.
@@ -888,13 +905,16 @@ The face remaps are the buffer's and go when the mode turns off."
     (set-window-margins window (nth 0 saved) (nth 1 saved))
     (set-window-parameter window 'window-box--saved-margins nil))
   (with-current-buffer (window-buffer window)
-    ;; The sides hang on one overlay of the buffer's, so they serve
+    ;; The sides and the remaps are the buffer's, so they serve
     ;; every boxed window at once.
-    (unless (seq-some (lambda (other)
-                        (and (not (eq other window))
-                             (window-parameter other 'window-box)))
-                      (get-buffer-window-list nil 'no-minibuffer t))
+    (unless (window-box--shown-boxed-p (current-buffer))
+      (window-box--remap nil)
       (window-box--shed))))
+
+(defun window-box--shown-boxed-p (buffer)
+  "Return non-nil when a window with a box shows BUFFER, on any frame."
+  (seq-some (lambda (window) (window-parameter window 'window-box))
+            (get-buffer-window-list buffer 'no-minibuffer t)))
 
 ;; `window-state-get' saves the margins, so what the box set travels
 ;; with a hidden side window.  The marks that say those settings are
@@ -914,23 +934,45 @@ The face remaps are the buffer's and go when the mode turns off."
 
 ;;;; Refresh
 
+(defvar window-box-mode)
+(defvar global-window-box-mode)
+
 (defun window-box--boxed-p (window)
-  "Return non-nil when WINDOW is one to draw a box around."
-  (and (buffer-local-value 'window-box-mode (window-buffer window))
+  "Return non-nil when WINDOW is one to draw a box around.
+Every window while `global-window-box-mode' is on, else the windows of
+a buffer with `window-box-mode' on; `window-box-window-predicate' has
+the last say either way."
+  (and (or global-window-box-mode
+           (buffer-local-value 'window-box-mode (window-buffer window)))
        (or (null window-box-window-predicate)
            (funcall window-box-window-predicate window))))
+
+(defun window-box--shed-orphans ()
+  "Take the sides and the remaps off every buffer no boxed window shows.
+A buffer with `window-box-mode' of its own is left alone: its sides
+wait with it while it is hidden, as they always did.  The others wore
+the box for the place they were shown in, and the place shows another
+buffer now."
+  (dolist (buffer window-box--worn)
+    (if (not (buffer-live-p buffer))
+        (setq window-box--worn (delq buffer window-box--worn))
+      (with-current-buffer buffer
+        (unless (or window-box-mode (window-box--shown-boxed-p buffer))
+          (window-box--remap nil)
+          (window-box--shed))))))
 
 (defun window-box--refresh (&optional frame)
   "Box and unbox the windows of FRAME to match their buffers.
 Showing a buffer resets the window's fringes and margins, so boxed
 windows also get theirs back here; only what this package drew is
-taken away."
+taken away, and a buffer that left every boxed window is undressed."
   (dolist (window (window-list frame 'no-minibuffer))
     (if (window-box--boxed-p window)
         (with-current-buffer (window-buffer window)
           (window-box--apply window))
       (when (window-parameter window 'window-box)
-        (window-box--clear window)))))
+        (window-box--clear window))))
+  (window-box--shed-orphans))
 
 (defun window-box--refresh-frames (&rest _)
   "Draw the box again in each window of each frame.
@@ -941,7 +983,33 @@ windows may be on any frame."
   (dolist (frame (frame-list))
     (window-box--refresh frame)))
 
-;;;; The mode
+;;;; The modes
+
+(defun window-box--hook ()
+  "Add the hooks the box is drawn from.
+They stay for the session: they walk the windows of one frame and
+read a buffer-local variable, and either mode may still be on.
+
+Displaying a buffer resets the window's fringes, margins and
+parameters, and a package that dresses windows — side window rules,
+for one — sets its own over the box's every time it displays.  So the
+box puts itself back on every window change, and only ever changes
+what differs, or setting the margins would call it back forever.
+`window-state-change-functions' alone: it runs from the redisplay for
+every kind of window change, buffer and configuration included, after
+everything in the cycle has had its say, which gives the box the last
+word.
+
+A major mode change clears the face remaps and the saved prefix along
+with every other local variable, and no window event fires for it.
+`window-box-mode' survives it, being permanent-local, so the box is
+drawn again from scratch — on every frame, because the overlays that
+carry the sides survive too and would show them in `shadow' wherever
+the buffer is.  A theme change is not a window change either, and the
+color of the box comes from a face."
+  (add-hook 'window-state-change-functions #'window-box--refresh)
+  (add-hook 'after-change-major-mode-hook #'window-box--refresh-frames)
+  (add-hook 'enable-theme-functions #'window-box--refresh-frames))
 
 ;; Before the mode, so that loading the package sets it whether or not
 ;; the mode has ever been on: a major mode change would otherwise clear
@@ -955,43 +1023,34 @@ What your header line and your mode line show stays yours;
 `window-box-enclose-top' and `window-box-enclose-mode-line' say
 which of the rows around the text are inside the box.  A row that is
 inside gets the ends of the box at its two sides.  See the commentary
-for how the box is built."
+for how the box is built.
+
+The box goes on the windows `window-box-window-predicate' accepts.
+Where the box belongs to a place rather than to a buffer — a side
+window, whatever it shows — `global-window-box-mode' is the mode to
+turn on."
   :lighter ""
-  (if window-box-mode
-      (progn
-        ;; Displaying a buffer resets the window's fringes, margins and
-        ;; parameters, and a package that dresses windows — side window
-        ;; rules, for one — sets its own over the box's every time it
-        ;; displays.  So the box puts itself back on every window
-        ;; change, and only ever changes what differs, or setting the
-        ;; margins here would call this back forever.  This one hook:
-        ;; it runs from the redisplay for every kind of window change,
-        ;; buffer and configuration included, after everything in the
-        ;; cycle has had its say, which gives the box the last word.
-        ;; The hooks stay for the session: they walk the windows of one
-        ;; frame and read a buffer-local variable.
-        (add-hook 'window-state-change-functions #'window-box--refresh)
-        ;; A major mode change clears the face remaps and the saved
-        ;; prefix along with every other local variable, and no window
-        ;; event fires for it.  The mode itself survives, being
-        ;; permanent-local, so the box is drawn again from scratch — on
-        ;; every frame, because the overlays that carry the sides
-        ;; survive too and would show them in `shadow' wherever the
-        ;; buffer is.
-        (add-hook 'after-change-major-mode-hook
-                  #'window-box--refresh-frames)
-        ;; A theme change is not a window change, and the color of the
-        ;; box comes from a face.
-        (add-hook 'enable-theme-functions #'window-box--refresh-frames)
-        ;; The refresh is what draws the box, here as on every window
-        ;; change: the predicate has the same say both times.
-        (window-box--refresh-frames))
-    ;; The same refresh takes the box off every window of the buffer,
-    ;; the mode being off now; what is the buffer's rather than a
-    ;; window's goes here.
-    (window-box--refresh-frames)
-    (window-box--remap nil)
-    (window-box--shed)))
+  (when window-box-mode (window-box--hook))
+  ;; The refresh is what draws the box, here as on every window
+  ;; change: the predicate has the same say both times.  With the mode
+  ;; off it takes the box off every window that had it for the
+  ;; buffer's sake, and undresses the buffer unless a place still
+  ;; boxes it.
+  (window-box--refresh-frames))
+
+;;;###autoload
+(define-minor-mode global-window-box-mode
+  "Draw a box around every window `window-box-window-predicate' accepts.
+The box belongs to the place: a window the predicate accepts is boxed
+whatever buffer it shows, a buffer that lands there gets the box
+without a mode of its own, and one that leaves takes nothing along.
+With a nil predicate every window is boxed.  `window-box-mode' boxes
+the windows of one buffer the same way, and the two can be on at
+once."
+  :global t
+  :lighter ""
+  (when global-window-box-mode (window-box--hook))
+  (window-box--refresh-frames))
 
 (provide 'window-box)
 ;;; window-box.el ends here
