@@ -494,6 +494,56 @@ framed."
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
 
+(ert-deftest window-box-test-the-global-mode-boxes-the-place ()
+  "The global mode boxes a window the predicate accepts, whatever it shows.
+A buffer swapped into the place wears the box without a mode of its
+own — dirvish puts a new listing into its side window behind
+the back of `display-buffer', and that window used to stand bare — and the
+buffer that left is undressed, remaps and all."
+  (let* ((first (generate-new-buffer "*window-box test*"))
+         (second (generate-new-buffer "*window-box test*"))
+         (window (selected-window))
+         (window-box-window-predicate (lambda (w) (eq w window))))
+    (unwind-protect
+        (progn
+          (set-window-buffer window first)
+          (global-window-box-mode 1)
+          (should (window-parameter window 'window-box))
+          (should (buffer-local-value 'window-box--saved-prefix first))
+          (set-window-buffer window second)
+          (window-box--refresh)
+          (should (window-parameter window 'window-box))
+          (should (buffer-local-value 'window-box--saved-prefix second))
+          (should-not (buffer-local-value 'window-box--saved-prefix first))
+          (should-not (buffer-local-value 'window-box--remaps first))
+          (global-window-box-mode -1)
+          (should-not (window-parameter window 'window-box))
+          (should-not (buffer-local-value 'window-box--saved-prefix second))
+          (should-not (buffer-local-value 'window-box--remaps second)))
+      (global-window-box-mode -1)
+      (set-window-margins window nil nil)
+      (kill-buffer first)
+      (kill-buffer second))))
+
+(ert-deftest window-box-test-the-buffer-mode-outlives-the-global-one ()
+  "A buffer with the mode of its own keeps its box when the global mode goes.
+And turning the buffer's mode off leaves the box where the place still
+asks for it."
+  (window-box-test--with-buffer
+    (let ((window-box-window-predicate nil))
+      (window-box-mode 1)
+      (global-window-box-mode 1)
+      (global-window-box-mode -1)
+      (should (window-parameter (selected-window) 'window-box))
+      (should window-box--saved-prefix)
+      ;; the place keeps the box after the buffer gives its mode up
+      (global-window-box-mode 1)
+      (window-box-mode -1)
+      (should (window-parameter (selected-window) 'window-box))
+      (should window-box--saved-prefix)
+      (global-window-box-mode -1)
+      (should-not window-box--saved-prefix))))
+
 (ert-deftest window-box-test-two-windows-share-the-prefix ()
   "Unboxing one window leaves the other window's sides alone.
 In a terminal the sides hang on the buffer's own prefix, which serves

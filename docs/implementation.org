@@ -436,9 +436,25 @@ to =enable-theme-functions=.  That function walks each frame, because
 a theme reaches them all.
 
 The refresh walks the windows of the frame.  It draws the box where
-the buffer has the mode on and the predicate agrees.  It removes the
-box from the other windows.  It writes only the values that differ,
-because a write of the margins calls the hook again.
+the predicate agrees and either =global-window-box-mode= is on or the
+buffer has =window-box-mode= on.  It removes the box from the other
+windows.  It writes only the values that differ, because a write of
+the margins calls the hook again.
+
+The sides and the face remaps are the buffer's.  With the global mode
+the box belongs to the window, and a window changes its buffer: the
+buffer that left still wears the sides, and no window event names it.
+So =window-box--worn= lists every buffer that wears them, and the
+refresh ends with =window-box--shed-orphans=: a buffer on the list
+that no boxed window shows and that has no =window-box-mode= of its
+own gives its prefix and its remaps back.  A buffer with the mode of
+its own keeps its sides while it is hidden, as before, because the
+mode says the box is the buffer's.
+
+The two modes share the hooks, and =window-box--hook= adds them.  The
+hooks stay for the session; turning a mode off is a refresh like any
+other, which removes the boxes the mode asked for and leaves the ones
+the other mode still asks for.
 
 A major mode change removes the face remaps and the saved prefix
 together with the other local variables.  The mode itself survives,
