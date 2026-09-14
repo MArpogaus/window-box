@@ -266,6 +266,28 @@ idle — one timer to a buffer however many changes arrive."
     (window-box-mode -1)
     (should-not (memq #'window-box--watch after-change-functions))))
 
+(ert-deftest window-box-test-a-command-composes-its-gutter-at-its-end ()
+  "New gutter wears its side when the command ends, not a tenth of a second later.
+dirvish opens a subtree by inserting the listing and hanging the guide
+over it; by the end of the command the guide is there.  Composed from
+the idle timer alone, the new lines stood without a side for one
+redisplay."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (goto-char (point-max))
+    (insert "three\n")
+    (should (timerp window-box--compose-timer))
+    (let ((ov (make-overlay (- (point-max) 6) (point-max))))
+      (overlay-put ov 'line-prefix "| "))
+    (run-hooks 'post-command-hook)
+    (should-not window-box--compose-timer)
+    (should (= 1 (length (window-box--composed))))
+    (should (string-suffix-p "| " (get-char-property (- (point-max) 6)
+                                                     'line-prefix)))
+    ;; and the hook goes with the sides
+    (window-box-mode -1)
+    (should-not (memq #'window-box--recompose-now post-command-hook))))
+
 (ert-deftest window-box-test-a-theme-change-renews-the-hiding-remap ()
   "The sides are hidden in the background the theme has now.
 The remap that hides them names a color, and a theme change alters it;

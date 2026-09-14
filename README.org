@@ -223,8 +223,9 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   shell that indents its output — are on the screen together only
   where the box draws the two as one string, an overlay for each
   region of the buffer's own.  New gutter is
-  crossed once Emacs is idle: an overlay arrives without a hook, so a
-  subtree opened this instant wears its side a moment later.
+  crossed when the command that made it ends, before the screen shows
+  it.  Gutter that arrives from a process, for example a shell's
+  output, is crossed once Emacs is idle.
 - In a terminal an edge needs a row of its own, and a window has only
   so many rows.  The top edge uses the tab line row if the window
   shows no tabs.  There is no row below the mode line.  The box has

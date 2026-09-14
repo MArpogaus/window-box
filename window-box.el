@@ -745,7 +745,8 @@ prefixes of the buffer's own."
       ;; sides ride.  Here and not in the mode: a major mode change
       ;; takes the local hook away with the prefix, and both come back
       ;; together.
-      (add-hook 'after-change-functions #'window-box--watch nil t))
+      (add-hook 'after-change-functions #'window-box--watch nil t)
+      (add-hook 'post-command-hook #'window-box--recompose-now nil t))
     (setq-local line-prefix prefix
                 wrap-prefix prefix)
     (window-box--compose)))
@@ -756,6 +757,7 @@ prefixes of the buffer's own."
     (cancel-timer window-box--compose-timer))
   (setq window-box--compose-timer nil)
   (remove-hook 'after-change-functions #'window-box--watch t)
+  (remove-hook 'post-command-hook #'window-box--recompose-now t)
   (save-restriction
     (widen)
     (mapc #'delete-overlay (window-box--composed)))
@@ -770,10 +772,12 @@ prefixes of the buffer's own."
 
 (defun window-box--recompose (buffer)
   "Draw the sides of BUFFER again, over the prefixes it draws itself now.
-From an idle timer, because the gutter of a buffer arrives on an
-overlay and an overlay arrives without a hook: dirvish opens a subtree
-by inserting its listing and then hanging the guide over it, so the
-change hook runs before there is anything to compose with."
+Not from the change hook itself, because the gutter of a buffer arrives
+on an overlay and an overlay arrives without a hook: dirvish opens a
+subtree by inserting its listing and then hanging the guide over it, so
+the change hook runs before there is anything to compose with.  From
+the end of the command instead, or from an idle timer where no command
+made the change."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (setq window-box--compose-timer nil)
@@ -781,7 +785,7 @@ change hook runs before there is anything to compose with."
         (window-box--compose)))))
 
 (defun window-box--watch (_beginning _end _before)
-  "Ask for the sides to be drawn again once Emacs is idle.
+  "Ask for the sides to be drawn again, once the command ends or Emacs is idle.
 For `after-change-functions', buffer-locally, while the sides are
 worn.  One timer to a buffer however many changes arrive, so a shell
 writing its output does not walk its overlays on every one of them."
@@ -789,6 +793,18 @@ writing its output does not walk its overlays on every one of them."
     (setq window-box--compose-timer
           (run-with-idle-timer 0.1 nil #'window-box--recompose
                                (current-buffer)))))
+
+(defun window-box--recompose-now ()
+  "Draw the sides again now, where a change of this command asked for it.
+For `post-command-hook', buffer-locally, while the sides are worn.  A
+command that opened a subtree has hung its guide by the time it ends,
+so the sides go over it before the redisplay that shows it — from the
+timer alone the new lines stood without a side for a tenth of a second.
+The timer stays for a change no command made: a shell's output arrives
+from a process filter."
+  (when (timerp window-box--compose-timer)
+    (cancel-timer window-box--compose-timer)
+    (window-box--recompose (current-buffer))))
 
 ;;;; Dressing a window
 

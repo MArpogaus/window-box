@@ -130,14 +130,18 @@ away: symbols-outline renders its panel with =delete-all-overlays= and
 a node.  A change in the text alone fires none of the window hooks the
 box listens to, so =window-box--watch= listens on
 =after-change-functions=, buffer-locally, and asks for the sides again
-from an idle timer, one to a buffer however many changes arrive.  A
-timer, because a gutter arrives on an overlay and an overlay arrives
-without a hook: dirvish inserts a subtree's listing and *then* hangs
-the guide over it, so the change hook runs before there is anything to
-compose with — which is why a subtree opened this instant wears its
-side a moment later.  The hook is put on when the sides are, not when
-the mode is: a major mode change kills the local hook along with the
-prefix, and the refresh that follows puts both back.
+later: from =post-command-hook= when the command ends, or from an idle
+timer, one to a buffer however many changes arrive, where no command
+made the change — a shell's output comes from a process filter.  Not
+from the change hook itself, because a gutter arrives on an overlay and
+an overlay arrives without a hook: dirvish inserts a subtree's listing
+and *then* hangs the guide over it, so the change hook runs before
+there is anything to compose with.  By the end of the command the guide
+is there, and the sides go over it before the redisplay that shows the
+subtree; from the timer alone the new lines stood without a side for a
+tenth of a second.  The hooks are put on when the sides are, not when
+the mode is: a major mode change kills the local hooks along with the
+prefix, and the refresh that follows puts them back.
 
 Emacs draws the border between two windows side by side in the first
 pixel column of the window on the right, which is the column the box
