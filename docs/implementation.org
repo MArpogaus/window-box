@@ -97,7 +97,7 @@ is another, and a shell that indents its output a third.  Measured, a
 number in the property takes the line's prefix away without putting
 anything in its place: such a line went bare.
 
-So the box draws both as one: =window-box--own-prefixes= collects what
+So the box draws both as one: =window-box--buffer-prefixes= collects what
 the buffer prefixes itself — the =line-prefix= on the text or on an
 overlay that is not the box's, whatever it holds — and
 =window-box--compose= hangs one overlay per region carrying the side
@@ -458,7 +458,10 @@ mode says the box is the buffer's.
 The two modes share the hooks, and =window-box--hook= adds them.  The
 hooks stay for the session; turning a mode off is a refresh like any
 other, which removes the boxes the mode asked for and leaves the ones
-the other mode still asks for.
+the other mode still asks for.  The refresh after a major mode change
+walks every frame: the overlays that carry the sides survive the
+change, and without a refresh they would show in =shadow= wherever the
+buffer is.
 
 A major mode change removes the face remaps and the saved prefix
 together with the other local variables.  The mode itself survives,

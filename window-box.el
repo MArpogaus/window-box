@@ -310,7 +310,9 @@ wears the sides of the one drawn last."
   "The three rows a window shows besides its text, top to bottom.
 Each entry names the window parameter, the parameter the box keeps the
 row's own value in, the format of an edge row of the box's own, and
-the format that puts the box's ends on the window's row.")
+the format that puts the box's ends on the window's row.  The formats
+live here and nowhere else: `window-box--own-row-p' tells a row of the
+box's from the window's by comparing with these.")
 
 (defun window-box--saved (parameter)
   "Return the parameter the value of the row PARAMETER is kept in."
@@ -668,7 +670,7 @@ sides and the remaps until this list is walked: `window-box--refresh'
 sheds every buffer here that no boxed window shows and that has no
 `window-box-mode' of its own.")
 
-(defun window-box--own-prefixes ()
+(defun window-box--buffer-prefixes ()
   "Return the prefix regions the buffer draws itself, as (BEG END OWN).
 A `line-prefix' on the text or on an overlay of the buffer's, the
 box's own composed ones aside.  OWN is whatever the property holds:
@@ -709,7 +711,7 @@ in five milliseconds."
   (save-restriction
     (widen)
     (mapc #'delete-overlay (window-box--composed))
-    (pcase-dolist (`(,beg ,end ,own) (window-box--own-prefixes))
+    (pcase-dolist (`(,beg ,end ,own) (window-box--buffer-prefixes))
       (let* ((carries (stringp own))
              (own (if carries own ""))
              (ov (make-overlay beg end))
@@ -841,7 +843,7 @@ otherwise.  TOP and BOTTOM are the edges the box chose."
             ((window-box--own-row-p window parameter)
              (window-box--undress window parameter))))))
 
-(defun window-box--own-margins (window width)
+(defun window-box--window-margins (window width)
   "Return the margins WINDOW would wear without the box, as (LEFT RIGHT).
 Either can be nil, which is how a window says the buffer's own
 `left-margin-width' and `right-margin-width' decide.  The answer is
@@ -860,6 +862,8 @@ dropped."
                         (buffer-local-value 'right-margin-width buffer)))
              (mine (cons (+ (or (nth 0 own) 0) width)
                          (+ (or (nth 1 own) 0) width)))
+             ;; A window that already wears the box's columns is one
+             ;; split off a boxed window: the buffer's own widths decide.
              (theirs (if (equal margins mine)
                          '(nil nil)
                        (list (car margins) (cdr margins)))))
@@ -877,7 +881,7 @@ belong; the widths are not touched, and the window gets its order back
 when the box goes."
   (let ((width (window-box--width window)))
     (unless (zerop width)
-      (let* ((own (window-box--own-margins window width))
+      (let* ((own (window-box--window-margins window width))
              (left (+ (or (nth 0 own) left-margin-width 0) width))
              (right (+ (or (nth 1 own) right-margin-width 0) width)))
         (unless (equal (window-margins window) (cons left right))
@@ -1004,26 +1008,13 @@ windows may be on any frame."
 
 (defun window-box--hook ()
   "Add the hooks the box is drawn from.
-They stay for the session: they walk the windows of one frame and
-read a buffer-local variable, and either mode may still be on.
-
-Displaying a buffer resets the window's fringes, margins and
-parameters, and a package that dresses windows — side window rules,
-for one — sets its own over the box's every time it displays.  So the
-box puts itself back on every window change, and only ever changes
-what differs, or setting the margins would call it back forever.
-`window-state-change-functions' alone: it runs from the redisplay for
-every kind of window change, buffer and configuration included, after
-everything in the cycle has had its say, which gives the box the last
-word.
-
-A major mode change clears the face remaps and the saved prefix along
-with every other local variable, and no window event fires for it.
-`window-box-mode' survives it, being permanent-local, so the box is
-drawn again from scratch — on every frame, because the overlays that
-carry the sides survive too and would show them in `shadow' wherever
-the buffer is.  A theme change is not a window change either, and the
-color of the box comes from a face."
+One window hook, `window-state-change-functions': it runs from the
+redisplay after every kind of window change, so the box has the last
+word over whatever dressed the window before it.  Two that are not
+window changes and still move the box: a major mode change clears the
+buffer's remaps and prefix, a theme change its color.  The hooks stay
+for the session, since either mode may still be on; the document says
+why each is the one it is."
   (add-hook 'window-state-change-functions #'window-box--refresh)
   (add-hook 'after-change-major-mode-hook #'window-box--refresh-frames)
   (add-hook 'enable-theme-functions #'window-box--refresh-frames))

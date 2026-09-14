@@ -120,10 +120,10 @@ side and the gutter as one string.  dirvish's subtree guide is such a
 gutter, and the box's own carrier used to win over it: a subtree lost
 its indentation."
   (window-box-test--with-buffer
-    (should-not (window-box--own-prefixes))
+    (should-not (window-box--buffer-prefixes))
     (let ((own (make-overlay (point-min) (point-max))))
       (overlay-put own 'line-prefix "| ")
-      (should (= 1 (length (window-box--own-prefixes))))
+      (should (= 1 (length (window-box--buffer-prefixes))))
       (window-box-mode 1)
       ;; the composed overlay carries both, above the buffer's own
       (should (= 1 (length (window-box--composed))))
