@@ -90,7 +90,7 @@ one column too long loses its last corner off the end."
 (ert-deftest window-box-test-prefix ()
   "The line prefix puts one vertical edge into each margin."
   (skip-unless (not (display-graphic-p)))
-  (let ((prefix (window-box--prefix (selected-window) 1)))
+  (let ((prefix (window-box--prefix (selected-window))))
     (should (equal (car (get-text-property 0 'display prefix))
                    '(margin left-margin)))
     (should (equal (car (get-text-property 1 'display prefix))
@@ -103,8 +103,10 @@ The side belongs in the outermost column of it, so the string is as
 wide as the whole margin: with magit's thirty column margin the side
 sat thirty columns inside the window and the corners did not meet."
   (skip-unless (not (display-graphic-p)))
-  (let* ((prefix (window-box--prefix (selected-window) 30))
+  (set-window-margins (selected-window) 1 30)
+  (let* ((prefix (window-box--prefix (selected-window)))
          (right (cadr (get-text-property 1 'display prefix))))
+    (set-window-margins (selected-window) nil nil)
     (should (= (string-width right) 30))
     (should (string-suffix-p "│" right))
     (should (string-match-p "\\`  *│\\'" right))))
@@ -1045,7 +1047,7 @@ window does, and the padding is the columns between it and the text."
       (window-box-mode 1)
       (should (equal (window-margins (selected-window)) '(4 . 4)))
       ;; the side first on the left and last on the right
-      (let ((prefix (window-box--prefix (selected-window) 4)))
+      (let ((prefix (window-box--prefix (selected-window))))
         (should (string-match-p "\\`│   "
                                 (cadr (get-text-property 0 'display prefix))))
         (should (string-match-p "   │\\'"
@@ -1150,7 +1152,7 @@ ones, and one taller than the line grows every line to its height."
   (let* ((window (selected-window))
          (prefix (cl-letf (((symbol-function 'display-graphic-p)
                             (lambda (&rest _) t)))
-                   (window-box--prefix window 1))))
+                   (window-box--prefix window))))
     (pcase-let ((`(,left ,right . ,_) (window-fringes window)))
       (should (equal (get-text-property 0 'display prefix)
                      `(left-fringe ,(window-box--side-bitmap 'left left)

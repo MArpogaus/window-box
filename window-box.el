@@ -71,8 +71,9 @@
 
 (defface window-box '((t :inherit shadow))
   "Face of the box.
-The foreground is the line color.  Remap it buffer-locally for a box
-color per buffer.")
+The foreground is the line color.  For a color per buffer set
+`window-box-color': the color is read off the face, and a face remap
+is not read, only drawn.")
 
 (defface window-box--side '((t :inherit window-box))
   "Face the sides of the box are drawn in.
@@ -80,8 +81,8 @@ A fringe bitmap and a margin character are drawn in the foreground of
 the face their display spec names, and the sides ride the buffer's
 prefix into every window that shows it, the ones without a box too.
 So the box remaps this face to the background for the buffer and to
-the box's color for the windows it is drawn in.  Do not set it: remap
-the `window-box' face, or set `window-box-color'.")
+the box's color for the windows it is drawn in.  Do not set it: set
+the `window-box' face, or `window-box-color'.")
 
 (defcustom window-box-color nil
   "Color of the box, or nil for the foreground of the `window-box' face.
@@ -91,10 +92,10 @@ again applies it."
   :local t)
 
 (defcustom window-box-window-predicate nil
-  "Which windows of a boxed buffer get the box, or nil for all of them.
-A function called with one window, whose buffer has `window-box-mode'
-on; a nil answer leaves that window alone and takes an existing box
-off it again.
+  "Which windows get the box, or nil for every window that is asked.
+A function called with one window — of a buffer with `window-box-mode'
+on, or any window while `global-window-box-mode' is on; a nil answer
+leaves that window alone and takes an existing box off it again.
 
 The mode is a buffer's, and a buffer is often shown twice: a help
 buffer in a side window and the same one in an ordinary window.  A
@@ -210,9 +211,9 @@ and corner in the columns the row has."
                   'display '(space :align-to 10000 :height (1)))
     (let ((corners (if top "┌┐" "└┘")))
       (propertize
-       (concat (substring corners 0 1)
+       (concat (string (aref corners 0))
                (make-string (max 0 (- (window-box--row-width) 2)) ?─)
-               (substring corners 1))
+               (string (aref corners 1)))
        ;; The row encloses the text, so it carries the background of
        ;; the text and not the grey of the header or mode line whose
        ;; row it borrows.  `:inherit' first, or `default' takes the
@@ -260,17 +261,17 @@ one pixel.  One bitmap per side and width, defined on first use."
         1 width '(center t)))
     name))
 
-(defun window-box--prefix (window right)
+(defun window-box--prefix (window)
   "Return the line prefix that draws the sides of the box in WINDOW.
 On a graphic display a one pixel periodic bitmap at the outermost pixel
 of each fringe, which repeats over the whole height of every line; the
 fringes keep their width, so a line whose fringe shows an indicator of
 its own shows that instead of the side.  In a terminal a character in
-the outermost column of each margin.  RIGHT is the whole right margin
-in columns: a margin display string is laid out from the *inner* edge
-of the right margin, so the string is as wide as the margin — with
-magit's thirty column author and date margin the side sat thirty
-columns inside the window's edge.
+the outermost column of each margin, and the string for the right
+margin is as wide as that margin: a margin display string is laid out
+from the *inner* edge of the right margin — with magit's thirty column
+author and date margin the side sat thirty columns inside the window's
+edge.
 
 The prefix belongs to the buffer and serves every window that shows
 it, so a buffer shown in two windows whose fringes or margins differ
@@ -285,12 +286,13 @@ wears the sides of the one drawn last."
                      `(right-fringe ,(window-box--side-bitmap 'right right)
                                     window-box--side))))
     (let ((side (propertize "│" 'face 'window-box--side))
-          (padding (make-string (1- (window-box--width window)) ?\s)))
+          (padding (make-string (1- (window-box--width window)) ?\s))
+          (right (or (cdr (window-margins window)) 1)))
       (concat
        (propertize " " 'display `((margin left-margin)
                                   ,(concat side padding)))
        (propertize " " 'display `((margin right-margin)
-                                  ,(concat (make-string (max 0 (1- right)) ?\s)
+                                  ,(concat (make-string (1- right) ?\s)
                                            side)))))))
 
 ;;;; The rows a window shows
@@ -485,8 +487,9 @@ still has its keymap and its face."
   (let ((row (format-mode-line content))
         (pos 0))
     ;; A session without a display draws nothing, and there is nothing
-    ;; to fit: the content goes back as it came.
-    (setq row (and row (not (string-empty-p row)) (copy-sequence row)))
+    ;; to fit: the content goes back as it came.  The drawn row is a
+    ;; fresh string, so its properties can be changed in place.
+    (setq row (and row (not (string-empty-p row)) row))
     (while (and row
                 (setq pos (text-property-not-all pos (length row)
                                                  'display nil row)))
@@ -609,26 +612,24 @@ keeps everything but the one line it borrows — stripping its border
 took the padding off a mode line dressed by `spacious-padding' and
 moved the row the box was drawing against.")
 
-(defun window-box--line-spec (edge parameter color dressed)
-  "Return the spec that draws EDGE as a line of the row PARAMETER, in COLOR.
-EDGE is `overline' or `underline'; the underline is asked for the bottom
-position, at the row's very last pixel, so the same row can be inside
-the box or outside it.  DRESSED are the rows inside the box, whose own
-lines go."
-  (plist-put (copy-sequence (and (memq parameter dressed) window-box--bare-lines))
-             (if (eq edge 'overline) :overline :underline)
-             (if (eq edge 'overline) color (list :color color :position 0))))
-
 (defun window-box--edge-remaps (color top bottom dressed)
   "Return the remaps that draw the box's edges as lines of the rows, in COLOR.
 TOP and BOTTOM are the edges the box chose and DRESSED the rows it
-puts its ends on, as an alist of face and spec."
+puts its ends on, as an alist of face and spec.  An underline is asked
+for the bottom position, at the row's very last pixel, so the same row
+can be inside the box or outside it; a row inside gives its own lines
+up with the edge."
   (let (wanted)
     (pcase-dolist (`(,edge . ,parameter) (list top bottom))
       (when (memq edge '(overline underline))
-        (dolist (face (window-box--row-faces parameter))
-          (push (cons face (window-box--line-spec edge parameter color dressed))
-                wanted))))
+        (let ((spec (plist-put (copy-sequence (and (memq parameter dressed)
+                                                   window-box--bare-lines))
+                               (if (eq edge 'overline) :overline :underline)
+                               (if (eq edge 'overline)
+                                   color
+                                 (list :color color :position 0)))))
+          (dolist (face (window-box--row-faces parameter))
+            (push (cons face spec) wanted)))))
     (dolist (parameter dressed)
       (dolist (face (window-box--row-faces parameter))
         (unless (assq face wanted)
@@ -848,12 +849,11 @@ saved the first time the box takes the margins, so the box never adds
 its own WIDTH columns to columns of its own — and a window split off a
 boxed one, which arrives wearing them, is recognised by them.
 
-A WIDTH of zero takes no margins and saves none: what the window wore
-then is not the box's to give back, and writing those numbers back at
-the end would pin a margin the buffer has since dropped."
-  (or (and (zerop width) (list (car (window-margins window))
-                               (cdr (window-margins window))))
-      (window-parameter window 'window-box--saved-margins)
+Asked only where WIDTH is above zero: what a window wears while the
+box takes no margins is not the box's to give back, and writing those
+numbers back at the end would pin a margin the buffer has since
+dropped."
+  (or (window-parameter window 'window-box--saved-margins)
       (let* ((margins (window-margins window))
              (buffer (window-buffer window))
              (own (list (buffer-local-value 'left-margin-width buffer)
@@ -875,13 +875,13 @@ two on the left, and the box's side sits outside all of it.  On a
 graphic display the fringes go outside the margins, where the sides
 belong; the widths are not touched, and the window gets its order back
 when the box goes."
-  (let* ((width (window-box--width window))
-         (own (window-box--own-margins window width))
-         (left (+ (or (nth 0 own) left-margin-width 0) width))
-         (right (+ (or (nth 1 own) right-margin-width 0) width)))
-    (unless (or (zerop width)
-                (equal (window-margins window) (cons left right)))
-      (set-window-margins window left right))
+  (let ((width (window-box--width window)))
+    (unless (zerop width)
+      (let* ((own (window-box--own-margins window width))
+             (left (+ (or (nth 0 own) left-margin-width 0) width))
+             (right (+ (or (nth 1 own) right-margin-width 0) width)))
+        (unless (equal (window-margins window) (cons left right))
+          (set-window-margins window left right))))
     (when (and (display-graphic-p (window-frame window))
                (not (nth 2 (window-fringes window))))
       (set-window-parameter window 'window-box--saved-order t)
@@ -889,7 +889,7 @@ when the box goes."
       ;; across every later `set-window-buffer'.
       (set-window-fringes window (car (window-fringes window))
                           (cadr (window-fringes window)) t))
-    (window-box--wear (window-box--prefix window right))))
+    (window-box--wear (window-box--prefix window))))
 
 (defun window-box--apply (window)
   "Draw the box around WINDOW.
@@ -905,7 +905,8 @@ Call it with the window's buffer current."
 
 (defun window-box--clear (window)
   "Remove the box from WINDOW.
-The face remaps are the buffer's and go when the mode turns off."
+The sides and the face remaps are the buffer's: they go with the last
+boxed window that shows it."
   (set-window-parameter window 'window-box nil)
   (dolist (entry window-box--rows)
     (when (window-box--own-row-p window (car entry))
