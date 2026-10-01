@@ -904,11 +904,11 @@ the margins; a terminal hangs them on the buffer's line prefix."
           (set-window-margins window left right)))))
   (if (display-graphic-p (window-frame window))
       (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
-        ;; What the window wore, for the box to give back: a package
-        ;; may have set fringes of its own. Saved once, before the
-        ;; box's own go on; a window split off a boxed one arrives
-        ;; with those already and saves nothing.
-        (unless (window-parameter window 'window-box--saved-fringes)
+        ;; Fringes a package pinned on the window, for the box to give
+        ;; back. Fringes that are not pinned follow the buffer and the
+        ;; frame, so a snapshot of them would go stale.
+        (when (and (nth 3 (window-fringes window))
+                   (not (window-parameter window 'window-box--saved-fringes)))
           (set-window-parameter window 'window-box--saved-fringes
                                 (window-fringes window)))
         ;; Four arguments, not five: the fifth would pin the widths
@@ -940,9 +940,8 @@ boxed window that shows it."
   (dolist (entry window-box--rows)
     (when (window-box--own-row-p window (car entry))
       (window-box--undress window (car entry))))
-  ;; The fringes the window wore before the box, or, for a window
-  ;; that arrived with the box's own from a split, the ones its buffer
-  ;; and its frame give it.
+  ;; The fringes a package pinned on the window before the box, or the
+  ;; ones its buffer and its frame give it.
   (let ((saved (window-parameter window 'window-box--saved-fringes)))
     (if saved
         (apply #'set-window-fringes window saved)

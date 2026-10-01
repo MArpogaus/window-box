@@ -255,7 +255,33 @@ has fringes, so this is checked here and not in the batch suite."
       (unless (equal (window-fringes window) '(0 0 nil t))
         (error "Unboxing lost the window's own fringes: %S"
                (window-fringes window)))
-      (set-window-fringes window nil nil nil nil))
+      (set-window-fringes window nil nil nil nil)
+      ;; Fringes that are not pinned follow the frame after unboxing.
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (let ((wide (frame-parameter nil 'left-fringe)))
+        (set-frame-parameter nil 'left-fringe 20)
+        (unless (= (car (window-fringes window)) 20)
+          (error "An unboxed window does not follow the frame: %S"
+                 (window-fringes window)))
+        (set-frame-parameter nil 'left-fringe wide))
+      ;; A window that leaves a boxed buffer for one with fringes of its
+      ;; own wears that buffer's fringes.
+      (let ((other (get-buffer-create "*narrow fringes*")))
+        (with-current-buffer other
+          (setq-local left-fringe-width 0 right-fringe-width 0))
+        (with-current-buffer buffer (window-box-mode 1))
+        (window-box--refresh)
+        (set-window-buffer window other)
+        (window-box--refresh)
+        (unless (equal (seq-take (window-fringes window) 2) '(0 0))
+          (error "A window kept the boxed buffer's fringes: %S"
+                 (window-fringes window)))
+        (with-current-buffer buffer (window-box-mode -1))
+        (set-window-buffer window buffer)
+        (kill-buffer other)))
     (delete-other-windows)
     (kill-buffer buffer)))
 
