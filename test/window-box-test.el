@@ -1054,26 +1054,21 @@ window does, and the padding is the columns between it and the text."
                                 (cadr (get-text-property 1 'display prefix)))))
       (window-box-mode -1))))
 
-(ert-deftest window-box-test-the-row-end-reaches-past-margin-and-fringe ()
-  "A dressed row's stretch counts the fringe as well as the margin.
+(ert-deftest window-box-test-the-row-end-reaches-past-the-margin ()
+  "A dressed row's stretch reaches past the right margin.
 `right' in a row's display spec is the right edge of the text area,
-and both the margin and the fringe lie between it and the row's end.
-A stretch that counts only the margin parks the box's end a fringe
-short of the side below it — the header's right edge sat seven pixels
-left of the side.  The reach is less the end's own pixel: a glyph
-aligned to the row's very last pixel boundary would start outside the
-row and be clipped away."
+and the margin and the fringe of one pixel lie between it and the
+row's end.  The end goes on that last pixel, above the side."
   (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
             ((symbol-function 'window-margins) (lambda (&rest _) '(1 . 1)))
-            ((symbol-function 'window-fringes) (lambda (&rest _) '(8 8 nil t)))
             ((symbol-function 'frame-char-width) (lambda (&rest _) 10))
             ((symbol-function 'window-box--content) (lambda (&rest _) ""))
             ((symbol-function 'window-box--fitted) (lambda (content _) content)))
     (let* ((row (window-box--row 'header-line-format))
            (stretch (nth 2 row))
            (spec (get-text-property 0 'display stretch)))
-      ;; 10 of margin + 8 of fringe - 1 of the end itself.
-      (should (equal spec '(space :align-to (+ right (17))))))))
+      ;; 10 of margin, then the fringe's pixel, which is the end's.
+      (should (equal spec '(space :align-to (+ right (10))))))))
 
 (ert-deftest window-box-test-a-tail-keeps-its-distance-across-a-margin ()
   "A tail stops at the box's padding, past a margin the buffer keeps.
@@ -1103,8 +1098,8 @@ box's end."
   "The tail after the last right-aligned stretch is measured.
 mood-line aligns its tail with its length in characters, and a glyph
 wider than a column ran it over the box's end, which then fell off
-the row.  Whatever the content claims, in whatever shape — one spec
-or a list of them, the margin counted by hand — the tail ends inside
+the row.  Whatever the content claims, in whatever shape (one spec
+or a list of them, the margin counted by hand), the tail ends inside
 the box.  A batch session is a terminal: columns."
   (dolist (spec '((space :align-to (- right 3))
                   ((space :align-to (- right (- 0 right-margin) 13)))
@@ -1159,7 +1154,7 @@ fringe one pixel wide in the box's color is a side no row can break."
     (should-not window-box--remaps)))
 
 (ert-deftest window-box-test-a-side-hides-where-no-box-is-drawn ()
-  "A window the box spares shows no side, though it has the fringes.
+  "A window the box spares shows no terminal side, though it shows the buffer.
 The sides ride the buffer's line prefix, so every window showing the
 buffer draws them.  The box gives the sides a face of their own, remaps
 it to the background for the buffer, and remaps it to the box's color

@@ -167,8 +167,8 @@ whatever the buffer draws there."
 ;; down every row of the window whatever is on it: a character leaves
 ;; the font's bare pixel rows between lines, a margin column is as wide
 ;; as a character, a margin image is one line tall, and a periodic
-;; fringe bitmap is at most 255 pixels tall, so a taller row — an image
-;; — kept bare pixels above and below it.
+;; fringe bitmap is at most 255 pixels tall, so a row taller than that,
+;; such as an image, keeps bare pixels above and below it.
 
 (defun window-box--color ()
   "Return the color the box is drawn in.
@@ -439,7 +439,7 @@ A display property is one spec or a list of them."
 In pixels on a graphic display, in the row's own face, and in columns
 in a terminal.  Measured, not taken from the content's own alignment:
 mood-line counts its tail in characters, and a check mark or an icon
-wider than a column made the tail run over the end of the box."
+wider than a column can make the tail run over the end of the box."
   (if (display-graphic-p)
       (let ((faces (window-box--row-faces parameter))
             (tail (copy-sequence tail)))
@@ -452,27 +452,32 @@ wider than a column made the tail run over the end of the box."
         (string-pixel-width tail))
     (string-width tail)))
 
+(defun window-box--right-margin-pixels ()
+  "Return how wide the right margin of the selected window is, in pixels."
+  (* (or (cdr (window-margins)) 0) (frame-char-width)))
+
 (defun window-box--tail-end ()
   "Return the position the tail of a row ends at, inside the box's end.
 On a graphic display the row reaches past the text area to the
 window's edge, the margins and the fringe with it, while `right'
 names the text area's edge.  The tail goes past the margin the buffer
-keeps — magit's log keeps thirty columns of one — and stops at the
+keeps (magit's log keeps thirty columns of one) and stops at the
 box's own padding, less the pixel of the end, the way it stops at the
 fringe of a window without a box.  A terminal stops two columns short
 of `right': a window left of another spends its last column on the
 separator."
   (if (display-graphic-p)
-      `(+ right (,(1- (* (- (or (cdr (window-margins)) 0)
-                            (window-box--width (selected-window)))
-                         (frame-char-width)))))
+      `(+ right (,(- (window-box--right-margin-pixels)
+                     (* (window-box--width (selected-window))
+                        (frame-char-width))
+                     1)))
     '(- right 2)))
 
 (defun window-box--fitted (content parameter)
   "Return CONTENT drawn for the row PARAMETER, with room for the box's end.
 A header line with a button at its right hand end aligns that button
 to the right edge, which is where the box puts its own end, and it
-works the button's width out by itself — often wrongly: a character
+works the button's width out by itself, often wrongly: a character
 count, or a glyph that renders wider than its column.  So the content
 is drawn here, the last stretch aligned to the right edge is found,
 and the tail after it is measured and aligned to end inside the box.
@@ -546,15 +551,10 @@ each, and exactly on a terminal, where they are a column each."
                       (if graphic
                           ;; `right' is the right edge of the text
                           ;; area; the row spans the margin and the
-                          ;; fringe outside it, less the end's own
-                          ;; pixel: a glyph aligned to the row's very
-                          ;; end would start outside it and be clipped.
+                          ;; fringe of one pixel outside it, which is
+                          ;; the end's own pixel.
                           `(space :align-to
-                                  (+ right
-                                     (,(+ (* (or (cdr (window-margins)) 0)
-                                             (frame-char-width))
-                                          (cadr (window-fringes))
-                                          -1))))
+                                  (+ right (,(window-box--right-margin-pixels))))
                         ;; A terminal spends a column of a window left
                         ;; of another on the separator, and `right'
                         ;; does not count it: a stretch to `right'
@@ -655,8 +655,8 @@ over the full height of each row in that face, remapped for the
 window's buffer and filtered for the window, so a fringe one pixel
 wide is a side that no row can break.  The foreground goes with it,
 so an indicator of the fringe's own draws in the side's color.  An
-indicator that names a face of its own — flymake, diff-hl — draws in
-that face, and its row shows the indicator's pixel instead."
+indicator that names a face of its own, as flymake's and diff-hl's
+do, draws in that face, and its row shows the indicator's pixel instead."
   (cons (cons 'window-box--side
               (list :foreground (face-background 'default nil 'default)))
         (mapcar (lambda (entry)
@@ -678,9 +678,9 @@ variables are killed again.  Non-nil while the sides are worn.")
   "The idle timer that will draw the sides over new gutter, if any.")
 
 (defvar window-box--worn nil
-  "The buffers that wear the sides.
+  "The buffers that wear the sides of a terminal on their line prefix.
 A boxed place changes its buffer, and the one that left keeps the
-sides and the remaps until this list is walked: `window-box--refresh'
+prefix and the remaps until this list is walked: `window-box--refresh'
 sheds every buffer here that no boxed window shows and that has no
 `window-box-mode' of its own.")
 
@@ -900,14 +900,10 @@ the margins; a terminal hangs them on the buffer's line prefix."
         (unless (equal (window-margins window) (cons left right))
           (set-window-margins window left right)))))
   (if (display-graphic-p (window-frame window))
-      (progn
-        ;; Marked whether or not the widths change: a window split off
-        ;; a boxed one arrives with the box's fringes already.
-        (set-window-parameter window 'window-box--fringes t)
-        (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
-          ;; Four arguments, not five: the fifth would pin the widths
-          ;; across every later `set-window-buffer'.
-          (set-window-fringes window 1 1 t)))
+      (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
+        ;; Four arguments, not five: the fifth would pin the widths
+        ;; across every later `set-window-buffer'.
+        (set-window-fringes window 1 1 t))
     ;; ponytail: a buffer boxed in a terminal frame wears the prefix,
     ;; and a graphic window of a daemon that shows it with margins
     ;; draws the terminal's side there too.
@@ -935,11 +931,9 @@ boxed window that shows it."
       (window-box--undress window (car entry))))
   ;; The fringes the buffer and the frame give a window: what the
   ;; window wore before may be a box's own, inherited from a split.
-  (when (window-parameter window 'window-box--fringes)
-    (with-current-buffer (window-buffer window)
-      (set-window-fringes window left-fringe-width right-fringe-width
-                          fringes-outside-margins))
-    (set-window-parameter window 'window-box--fringes nil))
+  (with-current-buffer (window-buffer window)
+    (set-window-fringes window left-fringe-width right-fringe-width
+                        fringes-outside-margins))
   ;; The margins the window wore without the box, nil and all: nil is
   ;; how a window leaves the width to the buffer, and a number the box
   ;; wrote over would take that away.
@@ -967,7 +961,6 @@ boxed window that shows it."
 ;; can hold a closure, so those travel within the session only.
 (dolist (entry '((window-box . writable)
                  (window-box--saved-margins . writable)
-                 (window-box--fringes . writable)
                  (window-box--saved-tab-line . t)
                  (window-box--saved-header-line . t)
                  (window-box--saved-mode-line . t)))
