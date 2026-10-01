@@ -1068,7 +1068,7 @@ row and be clipped away."
             ((symbol-function 'window-fringes) (lambda (&rest _) '(8 8 nil t)))
             ((symbol-function 'frame-char-width) (lambda (&rest _) 10))
             ((symbol-function 'window-box--content) (lambda (&rest _) ""))
-            ((symbol-function 'window-box--fitted) (lambda (content) content)))
+            ((symbol-function 'window-box--fitted) (lambda (content _) content)))
     (let* ((row (window-box--row 'header-line-format))
            (stretch (nth 2 row))
            (spec (get-text-property 0 'display stretch)))
@@ -1076,43 +1076,45 @@ row and be clipped away."
       (should (equal spec '(space :align-to (+ right (17))))))))
 
 (ert-deftest window-box-test-a-tail-keeps-its-distance-across-a-margin ()
-  "A tail of the row's own that hugs `right' stops short of the end.
-The row reaches past a margin the buffer keeps, while `right' names
-the text area's edge — magit's log keeps thirty columns of one, and a
-panel header's close button aligned to plain `right' hung thirty
-columns off the box's end.  So `right' moves out by the margin the
-buffer keeps, in by the end's own pixel, and the box's padding stays
-between the tail and the end."
+  "A tail stops at the box's padding, past a margin the buffer keeps.
+The row reaches past that margin, while `right' names the text area's
+edge — magit's log keeps thirty columns of one, and a panel header's
+close button aligned to plain `right' hung thirty columns off the
+box's end."
   (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
             ((symbol-function 'window-margins) (lambda (&rest _) '(2 . 31)))
             ((symbol-function 'frame-char-width) (lambda (&rest _) 8)))
     ;; thirty columns of the buffer's, one of the box's padding
-    (should (equal (window-box--indented 'right)
-                   '(+ right (240) (- (1)))))
+    (should (equal (window-box--tail-end) '(+ right (239))))
     ;; no padding, the margin is the buffer's alone
     (let ((window-box-padding 0))
-      (should (equal (window-box--indented 'right)
-                     '(+ right (248) (- (1))))))))
+      (should (equal (window-box--tail-end) '(+ right (247)))))))
 
-(ert-deftest window-box-test-a-list-shaped-stretch-is-moved-in-too ()
-  "A display property that is a LIST of specs is indented like a bare one.
-A mode line that aligns its own tail to `right' with
-\((space :align-to (- right ...))) fills the row to its very end when
-the spec slips through unmoved, and the box's end lands past the row,
-where it is clipped — in a terminal, into the separator column."
-  (let* ((drawn (concat (propertize " " 'display
-                                    '((space :align-to
-                                             (- right (- 0 right-margin) 13))))
-                        "tail"))
+(defun window-box-test--fitted-tail (spec tail)
+  "Return the display spec the box gives a stretch SPEC before TAIL."
+  (let* ((drawn (concat "head" (propertize " " 'display spec) tail))
          (row (cl-letf (((symbol-function 'format-mode-line)
                          (lambda (&rest _) drawn)))
-                (window-box--fitted "irrelevant")))
-         (pos (text-property-not-all 0 (length row) 'display nil row))
-         (spec (get-text-property pos 'display row)))
-    (should (equal spec
-                   (if (display-graphic-p)
-                       '((space :align-to (- (- right (1)) (- 0 right-margin) 13)))
-                     '((space :align-to (- (- right 2) (- 0 right-margin) 13))))))))
+                (window-box--fitted "irrelevant" 'mode-line-format))))
+    (get-text-property (text-property-not-all 0 (length row) 'display nil row)
+                       'display row)))
+
+(ert-deftest window-box-test-a-tail-is-measured-not-trusted ()
+  "The tail after the last right-aligned stretch is measured.
+mood-line aligns its tail with its length in characters, and a glyph
+wider than a column ran it over the box's end, which then fell off
+the row.  Whatever the content claims, in whatever shape — one spec
+or a list of them, the margin counted by hand — the tail ends inside
+the box.  A batch session is a terminal: columns."
+  (dolist (spec '((space :align-to (- right 3))
+                  ((space :align-to (- right (- 0 right-margin) 13)))
+                  (space :align-to (- right-fringe 1))))
+    (should (equal (window-box-test--fitted-tail spec "✓ main")
+                   `(space :align-to (- ,(window-box--tail-end)
+                                        ,(string-width "✓ main"))))))
+  ;; a stretch that does not name the right edge is left alone
+  (should (equal (window-box-test--fitted-tail '(space :align-to 20) "tail")
+                 '(space :align-to 20))))
 
 (ert-deftest window-box-test-a-row-too-wide-is-cut-for-the-end ()
   "A drawn row wider than its window is cut, so the end survives.

@@ -420,45 +420,67 @@ it."
 
 ;;;; A row with the box's ends on it
 
-(defun window-box--indented (spec)
-  "Return SPEC with each `right' in it moved to the row's right end.
-A window parameter is the whole row, and the box takes the last
-column of it, or the last pixel.  What the content of the row aligns
-to `right' must stop short of that, or it fills the place of the end
-and the box has a hole in that row.
+(defun window-box--names-right-p (form)
+  "Return non-nil when FORM, a position of a display spec, names the right edge."
+  (if (consp form)
+      (seq-some #'window-box--names-right-p form)
+    (memq form '(right right-margin right-fringe))))
 
+(defun window-box--right-aligned-p (spec)
+  "Return non-nil when SPEC, a display property, aligns to the right edge.
+A display property is one spec or a list of them."
+  (seq-some (lambda (one)
+              (and (eq (car-safe one) 'space)
+                   (window-box--names-right-p (plist-get (cdr one) :align-to))))
+            (if (consp (car-safe spec)) spec (list spec))))
+
+(defun window-box--tail-width (tail parameter)
+  "Return how wide TAIL is drawn in the row PARAMETER names.
+In pixels on a graphic display, in the row's own face, and in columns
+in a terminal.  Measured, not taken from the content's own alignment:
+mood-line counts its tail in characters, and a check mark or an icon
+wider than a column made the tail run over the end of the box."
+  (if (display-graphic-p)
+      (let ((faces (window-box--row-faces parameter))
+            (tail (copy-sequence tail)))
+        (add-face-text-property 0 (length tail)
+                                (if (or (mode-line-window-selected-p)
+                                        (null (cdr faces)))
+                                    (car faces)
+                                  (cadr faces))
+                                t tail)
+        (string-pixel-width tail))
+    (string-width tail)))
+
+(defun window-box--tail-end ()
+  "Return the position the tail of a row ends at, inside the box's end.
 On a graphic display the row reaches past the text area to the
 window's edge, the margins and the fringe with it, while `right'
-names the text area's edge.  A tail that hugs `right' in a window
-without a margin would sit a margin short of the box's end in one
-with it — magit's log keeps thirty columns of a margin, and the
-buttons of a panel header hung thirty columns off the side — so
-`right' moves out by the margin the buffer keeps, and in by the pixel
-of the end.  The box's own padding stays between the tail and the end,
-as the fringe of a window without a box does.  A terminal moves it in
-by two: a window left of another spends its last column on the
-separator, and a tail that compensates for the margin otherwise ends
-exactly on the cap's column."
-  (cond ((eq spec 'right)
-         (if (display-graphic-p)
-             `(+ right
-                 (,(* (- (or (cdr (window-margins)) 0)
-                         (window-box--width (selected-window)))
-                      (frame-char-width)))
-                 (- (1)))
-           '(- right 2)))
-        ((consp spec) (mapcar #'window-box--indented spec))
-        (t spec)))
+names the text area's edge.  The tail goes past the margin the buffer
+keeps — magit's log keeps thirty columns of one — and stops at the
+box's own padding, less the pixel of the end, the way it stops at the
+fringe of a window without a box.  A terminal stops two columns short
+of `right': a window left of another spends its last column on the
+separator."
+  (if (display-graphic-p)
+      `(+ right (,(1- (* (- (or (cdr (window-margins)) 0)
+                            (window-box--width (selected-window)))
+                         (frame-char-width)))))
+    '(- right 2)))
 
-(defun window-box--fitted (content)
-  "Return CONTENT drawn, with room for the end of the box after it.
+(defun window-box--fitted (content parameter)
+  "Return CONTENT drawn for the row PARAMETER, with room for the box's end.
 A header line with a button at its right hand end aligns that button
-to `right', which is where the box puts its own end.  The content is
-therefore drawn here, and the alignments it carries are moved to the
-row's right end.  The drawing keeps the text properties, so a button
-still has its keymap and its face."
+to the right edge, which is where the box puts its own end, and it
+works the button's width out by itself — often wrongly: a character
+count, or a glyph that renders wider than its column.  So the content
+is drawn here, the last stretch aligned to the right edge is found,
+and the tail after it is measured and aligned to end inside the box.
+The drawing keeps the text properties, so a button still has its
+keymap and its face."
   (let ((row (format-mode-line content))
-        (pos 0))
+        (pos 0)
+        last)
     ;; A session without a display draws nothing, and there is nothing
     ;; to fit: the content goes back as it came.  The drawn row is a
     ;; fresh string, so its properties can be changed in place.
@@ -466,15 +488,20 @@ still has its keymap and its face."
     (while (and row
                 (setq pos (text-property-not-all pos (length row)
                                                  'display nil row)))
-      (let ((spec (get-text-property pos 'display row))
-            (end (next-single-property-change pos 'display row (length row))))
-        ;; A display property is one spec or a list of them, and one
-        ;; that slips through unmoved fills the row to its very end
-        ;; and pushes the box's end off it.
-        (when (or (eq (car-safe spec) 'space)
-                  (and (consp spec) (consp (car-safe spec))))
-          (put-text-property pos end 'display (window-box--indented spec) row))
+      (let ((end (next-single-property-change pos 'display row (length row))))
+        (when (window-box--right-aligned-p (get-text-property pos 'display row))
+          (setq last (cons pos end)))
         (setq pos end)))
+    (when last
+      (let ((width (window-box--tail-width (substring row (cdr last))
+                                           parameter)))
+        (put-text-property (car last) (cdr last) 'display
+                           `(space :align-to
+                                   (- ,(window-box--tail-end)
+                                      ,(if (display-graphic-p)
+                                           (list width)
+                                         width)))
+                           row)))
     (or row content)))
 
 (defun window-box--trimmed (row limit)
@@ -509,7 +536,8 @@ each, and exactly on a terminal, where they are a column each."
                   (- (window-box--row-width window) 2))))
     (list (window-box--cap (aref corners 0))
           (window-box--trimmed
-           (window-box--fitted (window-box--content window parameter))
+           (window-box--fitted (window-box--content window parameter)
+                               parameter)
            limit)
           ;; The stretch reaches the last column, or the last pixel,
           ;; and the end goes after it — where the side edge of the
