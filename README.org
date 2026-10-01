@@ -32,11 +32,11 @@ terminal a character sits in the outermost column of each margin.
 The horizontal edges are drawn on the rows the window has.
 
 The mode asks for its own columns of margin beside whatever the
-buffer keeps there: magit's log holds its dates in
-a wide right margin, =diff-hl-margin-mode= marks changed lines on the
-left, and both keep their columns inside the box.  The mode does not change what
-your header line and your mode line show, and =window-box-padding=
-buys air between the box and the text.
+buffer keeps there: magit's log holds its dates in a wide right
+margin, =diff-hl-margin-mode= marks changed lines on the left, and
+both keep their columns inside the box.  The mode does not change
+what your header line and your mode line show, and
+=window-box-padding= buys air between the box and the text.
 
 [[file:img/demo.gif]]
 
@@ -182,8 +182,8 @@ The box is made of characters, so it also works in =emacs -nw=.
 
 #+begin_example
   ┌──────────────────────────────────────────────┐
-  │boxed in the terminal                         │
-  │second line                                   │
+  │ boxed in the terminal                        │
+  │ second line                                  │
   └──────────────────────────────────────────────┘
 #+end_example
 
@@ -194,7 +194,7 @@ corners and closes the box.
 #+begin_example
   ┌──────────────────────────────────────────────┐
   │ a header line of my own                      │
-  │boxed around its own rows                     │
+  │ boxed around its own rows                    │
   │                                              │
   └ a mode line of my own                        ┘
 #+end_example

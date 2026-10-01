@@ -4,8 +4,6 @@
                                                 load-file-name)))
 (require 'window-box)
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
-;; The fringes stay as they are: the box draws its sides in the
-;; margins and leaves the fringes to their indicators.
 (menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
 ;; Window dividers.  Without them Emacs paints `vertical-border' over
 ;; the first column of a right hand window's left fringe, which is

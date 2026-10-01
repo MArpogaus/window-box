@@ -29,7 +29,7 @@ whatever is on it, the rows below the last line of text included.
 Nothing else survives every buffer.  A character's ink height is the
 font's business.  A filled margin column is as wide as a character.
 A margin image is one default line tall.  A periodic fringe bitmap is
-stored at most 255 pixels tall (an eight bit field), and Emacs centres
+stored at most 255 pixels tall (an eight bit field), and Emacs centers
 it in the row, so a row taller than that, an image or a figure, keeps
 bare pixels above and below it.  A bitmap also has to ride the
 buffer's =line-prefix=, which a buffer with prefixes of its own fights
@@ -49,9 +49,7 @@ side rides the line prefix, which a row shows before anything the
 buffer puts in the margin.  So the side sits outside the buffer's own
 marks in the left margin, and the buffer's own content sits outside
 the side in the right margin, where that same order puts the box's
-glyph first.  The box used to draw no sides at all in such a window,
-which left its horizontal edges hanging on nothing — every file of a
-configuration that marks changed lines in the margin.
+glyph first.
 
 A fringe of one pixel has no room for an indicator.  An indicator
 the fringe draws in its own face, as a truncation arrow, takes the
@@ -76,9 +74,9 @@ configurations that wrap prose already use.
 
 A terminal has no fringes.  A side there hangs on =line-prefix=, which
 belongs to the buffer, and a margin belongs to the window.  So every
-window showing a boxed buffer
-draws the sides — the windows =window-box-window-predicate= spares as
-well, and a buffer shown twice is one buffer.  The box therefore draws
+window showing a boxed buffer draws the sides, the windows
+=window-box-window-predicate= spares as well, and a buffer shown twice
+is one buffer.  The box therefore draws
 the sides in a face of their own, =window-box--side=, and remaps that
 face twice: to the default background for the buffer, which is a side
 nobody sees, and to the box's color for the windows the box is drawn
@@ -234,9 +232,8 @@ edge, or a row would change its look when the edge moves to the row
 above it.
 
 A row the box leaves outside keeps everything: the box borrows the one
-line it needs there and nothing else.  It used to take the border as
-well, which took the padding off a mode line dressed by
-=spacious-padding= and moved the row the box was drawing against.
+line it needs there and nothing else.  Its border stays, so a mode
+line dressed by =spacious-padding= keeps its padding.
 
 Where no row is at the boundary, the box draws a row of its own.  A
 window without a mode line gets such a row at the bottom.  A window
@@ -368,11 +365,10 @@ window, because these are the widths that Emacs would give it.
 ** Fringes
 
 On a graphic display the box gives each boxed window fringes of one
-pixel, outside the margins, and marks the window with the
-=window-box--fringes= parameter.  The mark goes on every boxed window,
-also on one whose fringes have that width already: a window split off
-a boxed one inherits its fringes.  When the box goes, the window gets
-the fringes its buffer and its frame give it, from
+pixel, outside the margins.  When the box goes, the window gets the
+fringes its buffer and its frame give it, not the ones it wore before:
+a window split off a boxed one inherits the box's fringes.  They come
+from
 =left-fringe-width=, =right-fringe-width= and
 =fringes-outside-margins=.  The box never sets the fifth argument of
 =set-window-fringes=, so a buffer change gives a window its usual
@@ -382,9 +378,7 @@ A buffer can use its margins for its own text.  The log of magit
 writes the author and the date into a right margin of thirty columns,
 and =diff-hl-margin-mode= marks every changed line in two.  The box
 asks for its columns *beside* those, never instead of them, so such a
-buffer keeps its own content and gets its sides as well.  It used to
-step aside and draw no sides at all, which left the horizontal edges
-hanging on nothing.
+buffer keeps its own content and gets its sides as well.
 
 The box asks the window and the buffer for the margin widths.  Emacs
 applies =left-margin-width= when it shows a buffer.  A mode can ask

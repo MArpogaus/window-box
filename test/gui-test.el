@@ -149,10 +149,9 @@ line of its own."
     (set-window-buffer second (gui-test--example "*header*" 'header-line nil nil))
     (set-window-buffer third (gui-test--example "*header and mode*"
                                                 'header-line t nil))
-    ;; and one with padding: the box takes a column for its side and
-    ;; two more for air, and the side stays at the window's edge.  Its
-    ;; header carries the tail too: the box's own margins move `right'
-    ;; just as much as a margin the buffer keeps does.
+    ;; and one with padding: two columns of air between the side and
+    ;; the text, and the side stays at the window's edge.  Its header
+    ;; carries the tail too, which stops at the padding.
     (with-current-buffer (window-buffer second)
       (setq-local window-box-padding 2
                   header-line-format gui-test-header))
@@ -220,7 +219,7 @@ line of its own."
       (with-current-buffer (window-buffer window) (window-box-mode -1)))
     (delete-other-windows)))
 
-(defun gui-test--order ()
+(defun gui-test--fringe-sides ()
   "Check the fringes the box gives a window and gives back.
 The sides are the fringes, one pixel wide and outside the margins.
 Unboxing gives the window what its buffer and the frame give it, all
@@ -229,7 +228,7 @@ widths survive a buffer change, and a box that set it left the window
 pinned to the widths of the moment for good.  Only a graphic display
 has fringes, so this is checked here and not in the batch suite."
   (set-frame-size (selected-frame) 700 520 t)
-  (let ((buffer (get-buffer-create "*order*")))
+  (let ((buffer (get-buffer-create "*fringe sides*")))
     (with-current-buffer buffer
       (erase-buffer)
       (insert "fringes as they were\n"))
@@ -253,7 +252,7 @@ has fringes, so this is checked here and not in the batch suite."
   "Box two side windows, export the frame and exit."
   (set-frame-size (selected-frame) 700 520 t)
   (gui-test--fringes)
-  (gui-test--order)
+  (gui-test--fringe-sides)
   (switch-to-buffer (get-buffer-create "*main*"))
   (delete-other-windows)
   (insert "The main window keeps its own dressing.\n")
