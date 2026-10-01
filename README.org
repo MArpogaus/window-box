@@ -19,6 +19,7 @@
   - [[#comparison-with-buffer-box][Comparison with buffer-box]]
   - [[#how-it-works][How It Works]]
   - [[#contributions][Contributions]]
+  - [[#use-of-llm-coding-tools][Use of LLM Coding Tools]]
   - [[#license][License]]
   - [[#contact][Contact]]
 
@@ -282,6 +283,12 @@ the box gives them back, and lists what the tests measure.
 
 Contributions are greatly appreciated!  Feel free to check the
 [[https://github.com/MArpogaus/window-box/issues][issues page]] or submit a [[https://github.com/MArpogaus/window-box/pulls][pull request]].
+
+** Use of LLM Coding Tools
+
+Parts of this package were written with the help of a large
+language model (LLM) coding assistant.  A person reviewed and tested
+every change before it was committed.
 
 ** License
 
