@@ -613,22 +613,26 @@ keeps everything but the one line it borrows — stripping its border
 took the padding off a mode line dressed by `spacious-padding' and
 moved the row the box was drawing against.")
 
+(defun window-box--line-spec (edge color inside)
+  "Return the face spec that draws EDGE, `overline' or `underline', in COLOR.
+An underline is asked for the bottom position, at the row's very last
+pixel, so the same row can be inside the box or outside it.  A row
+INSIDE the box gives its own lines up with the edge."
+  (plist-put (copy-sequence (and inside window-box--bare-lines))
+             (if (eq edge 'overline) :overline :underline)
+             (if (eq edge 'overline)
+                 color
+               (list :color color :position 0))))
+
 (defun window-box--edge-remaps (color top bottom dressed)
   "Return the remaps that draw the box's edges as lines of the rows, in COLOR.
 TOP and BOTTOM are the edges the box chose and DRESSED the rows it
-puts its ends on, as an alist of face and spec.  An underline is asked
-for the bottom position, at the row's very last pixel, so the same row
-can be inside the box or outside it; a row inside gives its own lines
-up with the edge."
+puts its ends on, as an alist of face and spec."
   (let (wanted)
     (pcase-dolist (`(,edge . ,parameter) (list top bottom))
       (when (memq edge '(overline underline))
-        (let ((spec (plist-put (copy-sequence (and (memq parameter dressed)
-                                                   window-box--bare-lines))
-                               (if (eq edge 'overline) :overline :underline)
-                               (if (eq edge 'overline)
-                                   color
-                                 (list :color color :position 0)))))
+        (let ((spec (window-box--line-spec edge color
+                                           (memq parameter dressed))))
           (dolist (face (window-box--row-faces parameter))
             (push (cons face spec) wanted)))))
     (dolist (parameter dressed)
