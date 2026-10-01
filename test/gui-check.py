@@ -108,12 +108,12 @@ def check_encloses(image, windows):
                             f"y={want_bottom}, edges at {edges}")
         # The sides are a character in the outermost column of the
         # margin, and how much of that cell the character covers is
-        # the font's business.  So the check asks each side for a
+        # the font's business. So the check asks each side for a
         # pixel of the box's colour somewhere in that column.
         #
         # The first column of a window that has a neighbour on its
         # left belongs to Emacs: it draws its own border there, in the
-        # frame's colour.  That column is not the box's to answer for.
+        # frame's colour. That column is not the box's to answer for.
         cells = [range(left, left + CELL)] if not left else []
         cells.append(range(right - CELL, right))
         gaps = [] if not sides else [
@@ -126,7 +126,7 @@ def check_encloses(image, windows):
         # A header that aligns a tail of its own to `right' — a panel
         # header's close button, say — keeps across the margin the
         # distance from the box's end it keeps without one: the end's
-        # pixel and the box's padding between, no more.  The tail's glyph is
+        # pixel and the box's padding between, no more. The tail's glyph is
         # dark, where the box's own side in the margin is the box's
         # grey, so the two do not answer for each other.
         if margin:

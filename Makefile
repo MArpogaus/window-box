@@ -1,4 +1,4 @@
-# Development tasks.  Run `make' to check everything, as the CI does.
+# Development tasks. Run `make' to check everything, as the CI does.
 #
 #   make compile   byte-compile, warnings are errors
 #   make lint      package-lint, the MELPA rules
@@ -24,7 +24,7 @@ DEPS    ?= package-lint relint
 
 SRC  := $(filter-out %-autoloads.el %-pkg.el,$(wildcard *.el))
 # gui-test.el is left out on purpose: it runs only on a graphic
-# display and calls functions a console build does not define.  The
+# display and calls functions a console build does not define. The
 # `gui' target loads it, so a mistake there still shows up.
 TEST := $(filter-out test/gui-test.el,$(wildcard test/*.el))
 
@@ -71,12 +71,12 @@ tty:
 	@EMACS=$(EMACS) python3 test/tty-test.py
 
 # The pixel test needs a display; `xvfb-run' provides one where there
-# is none.  Without it the Emacs below falls back to a terminal and
+# is none. Without it the Emacs below falls back to a terminal and
 # dies on the missing tty.
 XVFB := $(shell command -v xvfb-run 2>/dev/null)
 
 # The exported frame shows what a user on a graphic display really
-# sees, down to the pixel.  It doubles as the screenshot in the README.
+# sees, down to the pixel. It doubles as the screenshot in the README.
 gui:
 	@$(XVFB) $(EMACS) -Q -L . -L test -l test/gui-test.el
 	@python3 test/gui-check.py

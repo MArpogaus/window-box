@@ -162,7 +162,7 @@ whatever the buffer draws there."
 
 ;;;; The edges
 
-;; There is no option for the look of the graphic sides.  A fringe one
+;; There is no option for the look of the graphic sides. A fringe one
 ;; pixel wide, painted in the box's color, is the only shape that runs
 ;; down every row of the window whatever is on it: a character leaves
 ;; the font's bare pixel rows between lines, a margin column is as wide
@@ -212,7 +212,7 @@ and corner in the columns the row has."
                (string (aref corners 1)))
        ;; The row encloses the text, so it carries the background of
        ;; the text and not the grey of the header or mode line whose
-       ;; row it borrows.  `:inherit' first, or `default' takes the
+       ;; row it borrows. `:inherit' first, or `default' takes the
        ;; foreground as well and the edge is drawn in the text color.
        'face (list :inherit 'default :foreground (window-box--color))))))
 
@@ -490,7 +490,7 @@ keymap and its face."
         (pos 0)
         last)
     ;; A session without a display draws nothing, and there is nothing
-    ;; to fit: the content goes back as it came.  The drawn row is a
+    ;; to fit: the content goes back as it came. The drawn row is a
     ;; fresh string, so its properties can be changed in place.
     (setq row (and row (not (string-empty-p row)) row))
     (while (and row
@@ -561,7 +561,7 @@ each, and exactly on a terminal, where they are a column each."
                         ;; A terminal spends a column of a window left
                         ;; of another on the separator, and `right'
                         ;; does not count it: a stretch to `right'
-                        ;; swallows the end.  The column is counted
+                        ;; swallows the end. The column is counted
                         ;; from the text area outwards instead.
                         `(space :align-to
                                 ,(- (window-box--row-width)
@@ -735,10 +735,10 @@ in five milliseconds."
              (both (concat line-prefix own)))
         (overlay-put ov 'window-box--own own)
         ;; A region that carries something goes above one that carries
-        ;; nothing.  dirvish leaves a number on every line of an open
+        ;; nothing. dirvish leaves a number on every line of an open
         ;; subtree — bookkeeping, and a `line-prefix' of a number draws
         ;; no prefix at all — beside the overlay whose guide spans the
-        ;; whole subtree.  Both are composed, and Emacs settles a tie
+        ;; whole subtree. Both are composed, and Emacs settles a tie
         ;; between overlays of one priority on the narrower: the number
         ;; is one line and the guide is the subtree, so the guide lost
         ;; and every folder inside a folder stood unindented.
@@ -762,7 +762,7 @@ prefixes of the buffer's own."
         (push (current-buffer) window-box--worn))
       ;; A change in the text alone fires none of the window hooks, and
       ;; a buffer that renders itself again deletes the overlays the
-      ;; sides ride.  Here and not in the mode: a major mode change
+      ;; sides ride. Here and not in the mode: a major mode change
       ;; takes the local hook away with the prefix, and both come back
       ;; together.
       (add-hook 'after-change-functions #'window-box--watch nil t)
@@ -905,7 +905,7 @@ the margins; a terminal hangs them on the buffer's line prefix."
   (if (display-graphic-p (window-frame window))
       (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
         ;; What the window wore, for the box to give back: a package
-        ;; may have set fringes of its own.  Saved once, before the
+        ;; may have set fringes of its own. Saved once, before the
         ;; box's own go on; a window split off a boxed one arrives
         ;; with those already and saves nothing.
         (unless (window-parameter window 'window-box--saved-fringes)
@@ -969,7 +969,7 @@ boxed window that shows it."
             (get-buffer-window-list buffer 'no-minibuffer t)))
 
 ;; `window-state-get' saves the margins, so what the box set travels
-;; with a hidden side window.  The marks that say those settings are
+;; with a hidden side window. The marks that say those settings are
 ;; the box's have to travel too, or a mode turned off while such a
 ;; window is away leaves it wearing the box's margins with no box.
 ;; The widths and the marks are numbers and t, which a state written
@@ -1071,7 +1071,7 @@ turn on."
   :lighter ""
   (when window-box-mode (window-box--hook))
   ;; The refresh is what draws the box, here as on every window
-  ;; change: the predicate has the same say both times.  With the mode
+  ;; change: the predicate has the same say both times. With the mode
   ;; off it takes the box off every window that had it for the
   ;; buffer's sake, and undresses the buffer unless a place still
   ;; boxes it.

@@ -24,7 +24,7 @@
   (when font (set-frame-font (format "%s 13" font) nil t)))
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
-;; land inside it.  Off, as a configuration that wants boxes has it.
+;; land inside it. Off, as a configuration that wants boxes has it.
 (menu-bar-mode -1)
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
@@ -150,7 +150,7 @@ line of its own."
     (set-window-buffer third (gui-test--example "*header and mode*"
                                                 'header-line t nil))
     ;; and one with padding: two columns of air between the side and
-    ;; the text, and the side stays at the window's edge.  Its header
+    ;; the text, and the side stays at the window's edge. Its header
     ;; carries the tail too, which stops at the padding.
     (with-current-buffer (window-buffer second)
       (setq-local window-box-padding 2
@@ -158,7 +158,7 @@ line of its own."
     (set-window-buffer fourth (gui-test--example "*everything*" 'tab-line t t))
     ;; A buffer that keeps a margin of its own, as magit's log does:
     ;; the row spans that margin, and the end of the box has to reach
-    ;; past it.  Its header carries a tail aligned to `right', the way
+    ;; past it. Its header carries a tail aligned to `right', the way
     ;; a panel header's close button is: the tail has to keep across
     ;; the margin the distance from the end it keeps without one.
     (with-current-buffer (window-buffer third)

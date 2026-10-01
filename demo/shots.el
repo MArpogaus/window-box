@@ -6,11 +6,11 @@
 (setq inhibit-startup-screen t ring-bell-function #'ignore)
 (menu-bar-mode -1) (tool-bar-mode -1) (scroll-bar-mode -1)
 (blink-cursor-mode -1)
-;; Window dividers.  Without them Emacs paints `vertical-border' over
+;; Window dividers. Without them Emacs paints `vertical-border' over
 ;; the first column of a right hand window's left fringe, which is
 ;; where the box draws its left side: the border wins and the picture
-;; shows a box with a side missing.  A divider has a column of its own
-;; and leaves the fringe alone.  One pixel keeps the picture tight.
+;; shows a box with a side missing. A divider has a column of its own
+;; and leaves the fringe alone. One pixel keeps the picture tight.
 (setq window-divider-default-places 'right-only
       window-divider-default-right-width 1)
 (window-divider-mode 1)
