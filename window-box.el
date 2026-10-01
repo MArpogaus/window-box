@@ -443,6 +443,9 @@ wider than a column can make the tail run over the end of the box."
   (if (display-graphic-p)
       (let ((faces (window-box--row-faces parameter))
             (tail (copy-sequence tail)))
+        ;; A row inside the box gives its border up, so the border is
+        ;; not measured either: `spacious-padding' gives it a width.
+        (add-face-text-property 0 (length tail) '(:box nil) t tail)
         (add-face-text-property 0 (length tail)
                                 (if (or (mode-line-window-selected-p)
                                         (null (cdr faces)))
