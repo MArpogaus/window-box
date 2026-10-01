@@ -452,7 +452,14 @@ wider than a column can make the tail run over the end of the box."
                                     (car faces)
                                   (cadr faces))
                                 t tail)
-        (string-pixel-width tail))
+        ;; With the buffer's face remaps, as the row is drawn: a
+        ;; header that remaps its active and inactive faces alike
+        ;; moved its buttons when the focus moved.  Emacs 29 has no
+        ;; BUFFER argument and measures without the remaps.
+        (if (>= emacs-major-version 30)
+            (with-suppressed-warnings ((callargs string-pixel-width))
+              (string-pixel-width tail (current-buffer)))
+          (string-pixel-width tail)))
     (string-width tail)))
 
 (defun window-box--right-margin-pixels ()
