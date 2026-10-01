@@ -17,27 +17,29 @@ The text uses these terms:
 
 * The two displays
 
-A graphic display draws the sides in the fringes: a one pixel
-periodic bitmap at the outermost pixel of each fringe, repeating over
-every line's full height.  Nothing else survives every buffer.  A
-character's ink height is the font's business — FiraCode draws a
-block character over the whole line, Noto Sans Mono four pixels
-short, and =font-get-glyphs= cannot tell the two apart in advance.  A
-filled margin column is unbroken but ten pixels wide against
-horizontal edges of one.  A margin image with only its outermost
-pixel column inked is one default line tall, and a line taller than
-that — a banner drawn from images, a LaTeX preview — keeps bare
-pixels above and below it, while an image taller than the line grows
-every line to its own height.  The periodic bitmap alone tiles
-whatever the line is.
+A graphic display draws the sides in the fringes.  Each fringe of a
+boxed window is one pixel wide and outside the margins, and a face
+remap of =fringe=, filtered to the boxed windows, paints it in the
+box's color.  Emacs clears a fringe over the full visible height of
+every row in the =fringe= face, as the remap of the window's buffer
+and the window's filter give it (=draw_fringe_bitmap_1= in
+=fringe.c=), so the side runs down every row whatever its height and
+whatever is on it, the rows below the last line of text included.
 
-The margins are therefore left to their owners.  A buffer that keeps
-text in them — magit's log holds its dates in a thirty column margin,
-=diff-hl-margin-mode= marks every changed line in two columns — keeps
-them, and with the default order, fringes outside margins, the sides
-still frame that content.  =window-box-padding= only ever adds blank
-margins between the fringe and the text.  A line whose fringe shows an
-indicator of its own shows that instead of the side, and a frame
+Nothing else survives every buffer.  A character's ink height is the
+font's business.  A filled margin column is as wide as a character.
+A margin image is one default line tall.  A periodic fringe bitmap is
+stored at most 255 pixels tall (an eight bit field), and Emacs centres
+it in the row, so a row taller than that, an image or a figure, keeps
+bare pixels above and below it.  A bitmap also has to ride the
+buffer's =line-prefix=, which a buffer with prefixes of its own fights
+for.
+
+The margins are left to their owners.  A buffer that keeps text in
+them, as magit's log keeps its dates in a thirty column margin, keeps
+them, and the sides still frame that content.  =window-box-padding=
+adds blank margins between the fringe and the text, one column by
+default, which is the air a fringe of normal width gives.  A frame
 without fringes shows no sides.
 
 A terminal has no fringes, so its sides live in the margins, and it
@@ -51,8 +53,11 @@ glyph first.  The box used to draw no sides at all in such a window,
 which left its horizontal edges hanging on nothing — every file of a
 configuration that marks changed lines in the margin.
 
-A fringe shows one bitmap per line, so an indicator and a side cannot
-share one.  Every common indicator has a home in the margins, where
+A fringe of one pixel has no room for an indicator.  An indicator
+the fringe draws in its own face, as a truncation arrow, takes the
+side's color and disappears into it.  An indicator with a face of its
+own, as flymake's and diff-hl's, shows that face on its row instead
+of the side.  Every common indicator has a home in the margins, where
 the box frames it instead:
 
 #+begin_src emacs-lisp
@@ -67,10 +72,11 @@ the box frames it instead:
 A continuation arrow goes with =visual-line-mode=, which most
 configurations that wrap prose already use.
 
-* The sides
+* The sides in a terminal
 
-A side hangs on =line-prefix=, which belongs to the buffer, and a
-fringe belongs to the window.  So every window showing a boxed buffer
+A terminal has no fringes.  A side there hangs on =line-prefix=, which
+belongs to the buffer, and a margin belongs to the window.  So every
+window showing a boxed buffer
 draws the sides — the windows =window-box-window-predicate= spares as
 well, and a buffer shown twice is one buffer.  The box therefore draws
 the sides in a face of their own, =window-box--side=, and remaps that
@@ -277,16 +283,19 @@ a row at the window's edge, so the cut loses nothing that was shown.
 
 The content of the row can align something to the right edge itself.
 A header line with a button at its right hand end does this, and that
-button would fill the place of the box.  The box therefore draws the
-content with =format-mode-line= and moves each =right= in the
-alignments of the result to the row's right end — out by the margin
-and in by the end's own pixel on a graphic display, in by two columns
-in a terminal, where a window left of another spends its last column
-on the separator and a tail that compensates for the margin otherwise
-ends exactly on the corner's column.  A tail keeps across the margin
-the distance from the end that it keeps in a window without one.  The
-drawing keeps the text properties, so the button keeps its keymap and
-its face.
+button would fill the place of the box.  The content also works the
+width of that tail out by itself, and often wrongly: mood-line counts
+characters, and a check mark or an icon is wider than a column.  The
+box therefore draws the content with =format-mode-line=, finds the
+last stretch whose =:align-to= names =right=, =right-margin= or
+=right-fringe=, and measures the text after it: in pixels and in the
+row's own face on a graphic display, in columns in a terminal.  It
+then aligns that tail to end at the box's padding.  On a graphic
+display that point is past the margin the buffer keeps, less the
+padding and the end's own pixel.  In a terminal it is two columns
+short of =right=, because a window left of another spends its last
+column on the separator.  The drawing keeps the text properties, so
+the button keeps its keymap and its face.
 
 * The dressing that the box uses
 
@@ -356,19 +365,18 @@ A window that comes from a split of a boxed window has the margins of
 the box already.  The box saves the widths of the buffer for such a
 window, because these are the widths that Emacs would give it.
 
-The widths of the fringes are the window's own.  The box does not
-change them, so a fringe keeps its width and draws its indicators
-where you can read them.
+** Fringes
 
-The box does set the order of the two areas.  A window is born with
-its margins outside its fringes, and the box needs them the other way
-round: a side is the outermost pixel of a fringe, and with the margins
-outside it that pixel sits between the text and the padding — inside
-the box rather than on it.  The box turns the order around on a
-graphic display and gives it back when it goes.  It leaves the fourth
-answer of =window-fringes= alone, the one that says the widths survive
-a buffer change: that is the window's own answer, and a box that set
-it left the window pinned to the widths of the moment for good.
+On a graphic display the box gives each boxed window fringes of one
+pixel, outside the margins, and marks the window with the
+=window-box--fringes= parameter.  The mark goes on every boxed window,
+also on one whose fringes have that width already: a window split off
+a boxed one inherits its fringes.  When the box goes, the window gets
+the fringes its buffer and its frame give it, from
+=left-fringe-width=, =right-fringe-width= and
+=fringes-outside-margins=.  The box never sets the fifth argument of
+=set-window-fringes=, so a buffer change gives a window its usual
+fringes back by itself.
 
 A buffer can use its margins for its own text.  The log of magit
 writes the author and the date into a right margin of thirty columns,
@@ -386,8 +394,8 @@ and steps aside at that time.
 
 ** The line prefix
 
-The side characters hang on the =line-prefix= and the =wrap-prefix=
-of the buffer, on both displays.  A prefix has two advantages over an
+In a terminal the side characters hang on the =line-prefix= and the
+=wrap-prefix= of the buffer.  A prefix has two advantages over an
 overlay:
 
 - A prefix reaches the rows below the last line of text.  An overlay
@@ -403,9 +411,10 @@ last boxed window of that buffer loses its box.
 The box remaps the row faces for an overline or an underline, and it
 takes the overline, the underline and the border off a row that is
 inside the box, because all three are drawn where the box draws.  The
-sides carry a face of their own, =window-box--side=, which is remapped
-twice: to the background of the buffer, where nobody sees it, and to
-the color of the box in the windows the box is drawn in.
+graphic sides are the =fringe= face, remapped to the box's color.  The
+terminal sides carry a face of their own, =window-box--side=, which is
+remapped twice: to the background of the buffer, where nobody sees it,
+and to the color of the box in the windows the box is drawn in.
 
 A face remap belongs to the buffer.  It would reach each window that
 shows the buffer, and =window-box-window-predicate= exists for the
@@ -506,8 +515,9 @@ neighbour on its left.  Emacs draws its own border there.
 
 A side is one pixel of fringe wide, so the check asks each side for a
 pixel of the box color in that column of every row between the two
-horizontal edges.  The side is a periodic bitmap, which tiles a row of
-any height, so a gap is the package's fault and never the font's.
+horizontal edges.  One example window holds a row of 300 pixels, taller
+than a fringe bitmap can be, so a side that breaks beside a tall row
+fails the check.
 
 ** =make tty=
 
