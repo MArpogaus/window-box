@@ -365,11 +365,12 @@ window, because these are the widths that Emacs would give it.
 ** Fringes
 
 On a graphic display the box gives each boxed window fringes of one
-pixel, outside the margins.  When the box goes, the window gets the
-fringes its buffer and its frame give it, not the ones it wore before:
-a window split off a boxed one inherits the box's fringes.  They come
-from
-=left-fringe-width=, =right-fringe-width= and
+pixel, outside the margins.  It saves the fringes the window wore
+before, all four answers of =window-fringes=, and gives them back when
+it goes: a package may have set fringes of its own on the window.  A
+window split off a boxed one arrives with the box's fringes already.
+It saves nothing, and gets the fringes its buffer and its frame give
+it, from =left-fringe-width=, =right-fringe-width= and
 =fringes-outside-margins=.  The box never sets the fifth argument of
 =set-window-fringes=, so a buffer change gives a window its usual
 fringes back by itself.

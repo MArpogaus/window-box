@@ -904,12 +904,20 @@ the margins; a terminal hangs them on the buffer's line prefix."
           (set-window-margins window left right)))))
   (if (display-graphic-p (window-frame window))
       (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
+        ;; What the window wore, for the box to give back: a package
+        ;; may have set fringes of its own.  Saved once, before the
+        ;; box's own go on; a window split off a boxed one arrives
+        ;; with those already and saves nothing.
+        (unless (window-parameter window 'window-box--saved-fringes)
+          (set-window-parameter window 'window-box--saved-fringes
+                                (window-fringes window)))
         ;; Four arguments, not five: the fifth would pin the widths
         ;; across every later `set-window-buffer'.
         (set-window-fringes window 1 1 t))
     ;; ponytail: a buffer boxed in a terminal frame wears the prefix,
     ;; and a graphic window of a daemon that shows it with margins
-    ;; draws the terminal's side there too.
+    ;; draws the terminal's side there too, until no boxed window
+    ;; shows the buffer.
     (window-box--wear (window-box--prefix window))))
 
 (defun window-box--apply (window)
@@ -932,11 +940,16 @@ boxed window that shows it."
   (dolist (entry window-box--rows)
     (when (window-box--own-row-p window (car entry))
       (window-box--undress window (car entry))))
-  ;; The fringes the buffer and the frame give a window: what the
-  ;; window wore before may be a box's own, inherited from a split.
-  (with-current-buffer (window-buffer window)
-    (set-window-fringes window left-fringe-width right-fringe-width
-                        fringes-outside-margins))
+  ;; The fringes the window wore before the box, or, for a window
+  ;; that arrived with the box's own from a split, the ones its buffer
+  ;; and its frame give it.
+  (let ((saved (window-parameter window 'window-box--saved-fringes)))
+    (if saved
+        (apply #'set-window-fringes window saved)
+      (with-current-buffer (window-buffer window)
+        (set-window-fringes window left-fringe-width right-fringe-width
+                            fringes-outside-margins)))
+    (set-window-parameter window 'window-box--saved-fringes nil))
   ;; The margins the window wore without the box, nil and all: nil is
   ;; how a window leaves the width to the buffer, and a number the box
   ;; wrote over would take that away.
@@ -964,6 +977,7 @@ boxed window that shows it."
 ;; can hold a closure, so those travel within the session only.
 (dolist (entry '((window-box . writable)
                  (window-box--saved-margins . writable)
+                 (window-box--saved-fringes . writable)
                  (window-box--saved-tab-line . t)
                  (window-box--saved-header-line . t)
                  (window-box--saved-mode-line . t)))

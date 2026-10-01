@@ -222,8 +222,8 @@ line of its own."
 (defun gui-test--fringe-sides ()
   "Check the fringes the box gives a window and gives back.
 The sides are the fringes, one pixel wide and outside the margins.
-Unboxing gives the window what its buffer and the frame give it, all
-four answers of `window-fringes' included: the last one says the
+Unboxing gives the window back the fringes it wore, all four answers
+of `window-fringes' included: the last one says the
 widths survive a buffer change, and a box that set it left the window
 pinned to the widths of the moment for good.  Only a graphic display
 has fringes, so this is checked here and not in the batch suite."
@@ -244,7 +244,18 @@ has fringes, so this is checked here and not in the batch suite."
       (window-box--refresh)
       (unless (equal (window-fringes window) born)
         (error "Unboxing left the fringes %S, wanted %S"
-               (window-fringes window) born)))
+               (window-fringes window) born))
+      ;; Fringes a package set on the window, pinned across buffer
+      ;; changes, come back as they were.
+      (set-window-fringes window 0 0 nil t)
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (unless (equal (window-fringes window) '(0 0 nil t))
+        (error "Unboxing lost the window's own fringes: %S"
+               (window-fringes window)))
+      (set-window-fringes window nil nil nil nil))
     (delete-other-windows)
     (kill-buffer buffer)))
 
