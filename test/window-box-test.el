@@ -211,7 +211,7 @@ column is a margin the box may take; wider is the buffer's own, and
     (set-window-margins (selected-window) nil 1)
     (window-box-mode 1)
     ;; the box's column beside the one the window already had
-    (should (equal (window-margins (selected-window)) '(1 . 2)))
+    (should (equal (window-margins (selected-window)) '(2 . 3)))
     (should (equal (window-parameter (selected-window) 'header-line-format)
                    '(:eval (window-box--edge t))))
     (should window-box--saved-prefix)
@@ -361,7 +361,7 @@ anew, and the box's top edge went with them."
     (window-box--refresh)
     (should (equal (window-parameter (selected-window) 'header-line-format)
                    (window-box--own 'header-line-format)))
-    (should (equal (window-margins (selected-window)) '(1 . 1)))
+    (should (equal (window-margins (selected-window)) '(2 . 2)))
     (window-box-mode -1)))
 
 (ert-deftest window-box-test-a-tab-line-of-your-own-stays ()
@@ -441,7 +441,7 @@ on nothing."
           (set-window-margins (selected-window) 1 30)
           (window-box-mode 1)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(2 . 31)))
+          (should (equal (window-margins (selected-window)) '(3 . 32)))
           (should window-box--saved-prefix)
           ;; and unboxing gives the window its own margins back
           (window-box-mode -1)
@@ -464,14 +464,14 @@ the box are saved once, the first time the box takes them."
           (set-window-buffer (selected-window) buffer)
           (window-box-mode 1)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(1 . 1)))
+          (should (equal (window-margins (selected-window)) '(2 . 2)))
           (should window-box--saved-prefix)
           ;; the buffer asks for two columns of its own now
           (setq left-margin-width 2)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(3 . 1)))
+          (should (equal (window-margins (selected-window)) '(4 . 2)))
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(3 . 1)))
+          (should (equal (window-margins (selected-window)) '(4 . 2)))
           (should window-box--saved-prefix))
       (set-window-margins (selected-window) nil nil)
       (kill-buffer buffer))))
@@ -609,14 +609,14 @@ buttons use."
           (set-window-buffer (selected-window) buffer)
           (window-box-mode 1)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(1 . 1)))
+          (should (equal (window-margins (selected-window)) '(2 . 2)))
           (should window-box--saved-prefix)
           ;; the buffer asks for two columns of its own
           (setq left-margin-width 2)
           (window-box--refresh)
           (should window-box--saved-prefix)
           ;; and the window shows the buffer's width and the box's
-          (should (equal (window-margins (selected-window)) '(3 . 1)))
+          (should (equal (window-margins (selected-window)) '(4 . 2)))
           ;; unboxed, the buffer's own width is what is left
           (window-box-mode -1)
           (window-box--refresh)
@@ -690,7 +690,7 @@ back as the width the window is supposed to have."
           (set-window-buffer (selected-window) buffer)
           (window-box-mode 1)
           (window-box--refresh)
-          (should (equal (window-margins (selected-window)) '(1 . 1)))
+          (should (equal (window-margins (selected-window)) '(2 . 2)))
           (let ((other (split-window)))
             (window-box--refresh)
             ;; a window split off a boxed one arrives wearing the
@@ -921,12 +921,12 @@ meantime would leave those widths on a window nothing knows to
 undress."
   (window-box-test--with-buffer
     (window-box-mode 1)
-    (should (equal (window-margins (selected-window)) '(1 . 1)))
+    (should (equal (window-margins (selected-window)) '(2 . 2)))
     (let ((state (window-state-get (selected-window))))
       (window-box-mode -1)
       (window-state-put state (selected-window))
       (should (window-parameter (selected-window) 'window-box))
-      (should (equal (window-margins (selected-window)) '(1 . 1)))
+      (should (equal (window-margins (selected-window)) '(2 . 2)))
       ;; the buffer is not boxed anymore, so the refresh takes the
       ;; widths back off
       (window-box--refresh)
@@ -1080,18 +1080,19 @@ row and be clipped away."
 The row reaches past a margin the buffer keeps, while `right' names
 the text area's edge — magit's log keeps thirty columns of one, and a
 panel header's close button aligned to plain `right' hung thirty
-columns off the box's end.  So `right' moves out by the margin, in
-by the end's own pixel: the tail keeps the distance from the end it
-keeps in a window without a margin."
+columns off the box's end.  So `right' moves out by the margin the
+buffer keeps, in by the end's own pixel, and the box's padding stays
+between the tail and the end."
   (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
-            ((symbol-function 'window-margins) (lambda (&rest _) '(1 . 30)))
+            ((symbol-function 'window-margins) (lambda (&rest _) '(2 . 31)))
             ((symbol-function 'frame-char-width) (lambda (&rest _) 8)))
+    ;; thirty columns of the buffer's, one of the box's padding
     (should (equal (window-box--indented 'right)
                    '(+ right (240) (- (1)))))
-    ;; no margin, the move is the end's own pixel alone
-    (cl-letf (((symbol-function 'window-margins) (lambda (&rest _) nil)))
+    ;; no padding, the margin is the buffer's alone
+    (let ((window-box-padding 0))
       (should (equal (window-box--indented 'right)
-                     '(+ right (0) (- (1))))))))
+                     '(+ right (248) (- (1))))))))
 
 (ert-deftest window-box-test-a-list-shaped-stretch-is-moved-in-too ()
   "A display property that is a LIST of specs is indented like a bare one.
@@ -1140,55 +1141,20 @@ other row is passed through by the sides."
     (should (equal (window-box--corners nil 'mode-line-format) "└┘"))
     (should (equal (window-box--corners nil 'tab-line-format) "││"))))
 
-(ert-deftest window-box-test-graphic-sides-ride-the-fringes ()
-  "The graphic sides are periodic fringe bitmaps, one pixel each.
-A bitmap repeats over every line's full height, however tall the
-line; a margin image is one default line tall and dashed on taller
-ones, and one taller than the line grows every line to its height."
-  ;; A build without fringes still has `define-fringe-bitmap': fringe.el
-  ;; defines one that defines nothing.  Whether a standard bitmap is
-  ;; there says whether one can be made at all.
-  (skip-unless (fringe-bitmap-p 'left-arrow))
-  (let* ((window (selected-window))
-         (prefix (cl-letf (((symbol-function 'display-graphic-p)
-                            (lambda (&rest _) t)))
-                   (window-box--prefix window))))
-    (pcase-let ((`(,left ,right . ,_) (window-fringes window)))
-      (should (equal (get-text-property 0 'display prefix)
-                     `(left-fringe ,(window-box--side-bitmap 'left left)
-                                   window-box--side)))
-      (should (equal (get-text-property 1 'display prefix)
-                     `(right-fringe ,(window-box--side-bitmap 'right right)
-                                    window-box--side))))))
-
-(ert-deftest window-box-test-a-side-is-as-wide-as-its-fringe ()
-  "A side's bitmap is the width of the fringe it is drawn in.
-A fringe draws a bitmap from its inner edge outwards and clips what
-does not fit, so the outermost pixel of a wider bitmap never reaches
-the display: the right side, whose only pixel is that one, went
-missing in every window whose right fringe was narrower — a window
-`dirvish-side' dresses has one pixel.  Measured in a graphic frame:
-the old eight pixel bitmap drew at a fringe of eight and at no width
-below it, and a bitmap of the fringe's own width drew at eight, four,
-two and one."
-  ;; A build without fringes still has `define-fringe-bitmap': fringe.el
-  ;; defines one that defines nothing.  Whether a standard bitmap is
-  ;; there says whether one can be made at all.
-  (skip-unless (fringe-bitmap-p 'left-arrow))
-  ;; One name per side and width, and the name says which.
-  (should (eq (window-box--side-bitmap 'right 1) 'window-box--right-side-1))
-  (should (eq (window-box--side-bitmap 'left 8) 'window-box--left-side-8))
-  (should (eq (window-box--side-bitmap 'right 1)
-              (window-box--side-bitmap 'right 1)))
-  ;; A fringe of no pixels still names a bitmap, rather than one of no
-  ;; width, which `define-fringe-bitmap' will not take.
-  (should (eq (window-box--side-bitmap 'left 0) 'window-box--left-side-1))
-  ;; Each name has been defined as a bitmap, and the two sides are not
-  ;; the same bitmap: their set pixel sits at opposite ends.
-  (should (fringe-bitmap-p (window-box--side-bitmap 'left 4)))
-  (should (fringe-bitmap-p (window-box--side-bitmap 'right 4)))
-  (should-not (eq (window-box--side-bitmap 'left 4)
-                  (window-box--side-bitmap 'right 4))))
+(ert-deftest window-box-test-graphic-sides-are-the-fringe-face ()
+  "The graphic sides are the `fringe' face, filtered to the boxed windows.
+Emacs clears a fringe over each row's full height in that face, so a
+fringe one pixel wide in the box's color is a side no row can break."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (window-box--apply (selected-window))
+    (should (member (cons 'fringe
+                          `(:filtered (:window window-box t)
+                                      (:background ,(window-box--color)
+                                                   :foreground ,(window-box--color))))
+                    (car window-box--remaps)))
+    (window-box-mode -1)
+    (should-not window-box--remaps)))
 
 (ert-deftest window-box-test-a-side-hides-where-no-box-is-drawn ()
   "A window the box spares shows no side, though it has the fringes.

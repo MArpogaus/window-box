@@ -135,6 +135,11 @@ line of its own."
   ;; Four windows with a header, a mode line and room to see them.
   (set-frame-size (selected-frame) 700 900 t)
   (switch-to-buffer (gui-test--example "*text*" nil nil nil))
+  ;; A row taller than a fringe bitmap can be, as an image makes one:
+  ;; the sides must run down all of it.
+  (with-current-buffer "*text*"
+    (insert (propertize " " 'display '(space :width (1) :height (300)))
+            "\n"))
   (delete-other-windows)
   (let* ((first (selected-window))
          (second (split-window first nil 'below))
@@ -191,15 +196,20 @@ line of its own."
                                            ;; buffer keeps in the margins
                                            (list 1)
                                            ;; the margin the buffer
-                                           ;; keeps and the fringe
-                                           ;; between it and the edge,
-                                           ;; for the tail of the header
-                                           ;; to be measured against
-                                           (list (or (cdr (window-margins
+                                           ;; keeps and the air the
+                                           ;; tail keeps from the edge,
+                                           ;; fringe and padding, for
+                                           ;; the tail of the header to
+                                           ;; be measured against
+                                           (list (buffer-local-value
+                                                  'right-margin-width
+                                                  (window-buffer window))
+                                                 (+ (cadr (window-fringes
                                                            window))
-                                                     0)
-                                                 (cadr (window-fringes
-                                                        window)))))
+                                                    (* (buffer-local-value
+                                                        'window-box-padding
+                                                        (window-buffer window))
+                                                       (frame-char-width))))))
                            " ")))
                 windows "")
      nil gui-test-encloses-geometry nil 'quiet)
@@ -211,10 +221,12 @@ line of its own."
     (delete-other-windows)))
 
 (defun gui-test--order ()
-  "Check that the box leaves the fringes exactly as it finds them.
-The sides are periodic bitmaps in the fringes, so the box needs
-neither their order nor their widths changed — a window another
-package dressed keeps whatever it was given.  Only a graphic display
+  "Check the fringes the box gives a window and gives back.
+The sides are the fringes, one pixel wide and outside the margins.
+Unboxing gives the window what its buffer and the frame give it, all
+four answers of `window-fringes' included: the last one says the
+widths survive a buffer change, and a box that set it left the window
+pinned to the widths of the moment for good.  Only a graphic display
 has fringes, so this is checked here and not in the batch suite."
   (set-frame-size (selected-frame) 700 520 t)
   (let ((buffer (get-buffer-create "*order*")))
@@ -223,46 +235,17 @@ has fringes, so this is checked here and not in the batch suite."
       (insert "fringes as they were\n"))
     (switch-to-buffer buffer)
     (delete-other-windows)
-    (let ((window (selected-window)))
-      (set-window-fringes window 8 8 t)
+    (let* ((window (selected-window))
+           (born (window-fringes window)))
       (with-current-buffer buffer (window-box-mode 1))
       (window-box--refresh)
-      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
-        (error "The box touched the fringes: %S" (window-fringes window)))
+      (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
+        (error "The box left the fringes at %S" (window-fringes window)))
       (with-current-buffer buffer (window-box-mode -1))
       (window-box--refresh)
-      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
-        (error "Unboxing touched the fringes: %S" (window-fringes window)))
-      ;; A narrow fringe takes a narrow bitmap: a wider one is clipped
-      ;; at the fringe's width and loses the outermost pixel, which is
-      ;; the side.  `dirvish-side' gives its window one pixel.
-      (set-window-fringes window 3 1 t)
-      (with-current-buffer buffer (window-box-mode 1))
-      (window-box--refresh)
-      (let ((wanted `(right-fringe window-box--right-side-1
-                                   window-box--side))
-            (worn (with-current-buffer buffer
-                    (get-text-property 1 'display line-prefix))))
-        (unless (equal worn wanted)
-          (error "A one pixel fringe wears %S, wanted %S" worn wanted)))
-      (with-current-buffer buffer (window-box-mode -1))
-      ;; A window with the order it is born with, which is the one the
-      ;; box has to turn around.  It gives back all four answers of
-      ;; `window-fringes', the last of them included: that one says the
-      ;; widths survive a buffer change, and a box that set it left the
-      ;; window pinned to the widths of the moment for good.
-      (set-window-fringes window nil nil nil)
-      (let ((born (window-fringes window)))
-        (with-current-buffer buffer (window-box-mode 1))
-        (window-box--refresh)
-        (unless (nth 2 (window-fringes window))
-          (error "The box left the fringes inside the margins: %S"
-                 (window-fringes window)))
-        (with-current-buffer buffer (window-box-mode -1))
-        (window-box--refresh)
-        (unless (equal (window-fringes window) born)
-          (error "Unboxing left the fringes %S, wanted %S"
-                 (window-fringes window) born))))
+      (unless (equal (window-fringes window) born)
+        (error "Unboxing left the fringes %S, wanted %S"
+               (window-fringes window) born)))
     (delete-other-windows)
     (kill-buffer buffer)))
 
