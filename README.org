@@ -19,35 +19,35 @@
   - [[#comparison-with-buffer-box][Comparison with buffer-box]]
   - [[#how-it-works][How It Works]]
   - [[#contributions][Contributions]]
+  - [[#use-of-llm-coding-tools][Use of LLM Coding Tools]]
   - [[#license][License]]
   - [[#contact][Contact]]
 
 ** About The Project
 
 =window-box-mode= draws a box around each window that shows the
-buffer.  The sides sit at the window's very edge: on a graphic
-display one pixel at the outermost edge of each fringe, in a terminal
-a character in the outermost column of each margin.  The horizontal
-edges are drawn on the rows the window has.
+buffer. The sides sit at the window's very edge: on a graphic
+display each fringe is one pixel wide in the color of the box, in a
+terminal a character sits in the outermost column of each margin.
+The horizontal edges are drawn on the rows the window has.
 
-The mode keeps the width of the fringes, so their indicators stay
-where you can read them, and it asks for its own columns of margin
-beside whatever the buffer keeps there: magit's log holds its dates in
-a wide right margin, =diff-hl-margin-mode= marks changed lines on the
-left, and both keep their columns inside the box.  The mode does not change what
-your header line and your mode line show, and =window-box-padding=
-buys air between the box and the text.
+The mode asks for its own columns of margin beside whatever the
+buffer keeps there: magit's log holds its dates in a wide right
+margin, =diff-hl-margin-mode= marks changed lines on the left, and
+both keep their columns inside the box. The mode does not change
+what your header line and your mode line show, and
+=window-box-padding= buys air between the box and the text.
 
 [[file:img/demo.gif]]
 
-The picture below shows two side windows with a box.  The main
+The picture below shows two side windows with a box. The main
 window keeps its own dressing.
 
 [[file:img/screenshot.png]]
 
 ** What the Box Encloses
 
-A window is a stack of rows.  From top to bottom these rows are the
+A window is a stack of rows. From top to bottom these rows are the
 tab line, the header line, the text and the mode line.
 
 The inside of the box is one unbroken stack of rows around the text.
@@ -55,7 +55,7 @@ Two options say where it starts and where it ends:
 =window-box-enclose-top= names the topmost row inside — =tab-line=
 encloses the tab line and the header line, =header-line= the header
 line alone, nil the text alone — and =window-box-enclose-mode-line=
-says whether the mode line is inside.  The default encloses the whole
+says whether the mode line is inside. The default encloses the whole
 window.
 
 A row you name that the window does not show appears: the box writes
@@ -63,10 +63,10 @@ its own edge there, so the box closes with its own line rather than
 borrowing another row's.
 
 Both displays follow the options, and a terminal has one limit: it
-draws with characters, and a character needs a row.  Where the options
+draws with characters, and a character needs a row. Where the options
 leave a row outside the box and the window keeps no row free, a
 terminal has nothing to draw the boundary with and the box is open on
-that side.  Enclose that row and it closes.
+that side. Enclose that row and it closes.
 
 #+begin_src emacs-lisp
   ;; the whole window, which is the default
@@ -86,7 +86,7 @@ Set the options buffer-locally to give each buffer its own box.
 
 [[file:img/encloses-gui.png]]
 
-The picture shows four windows with one setting each.  The box has a
+The picture shows four windows with one setting each. The box has a
 color here, because a color makes the edges easy to find.
 
 A terminal draws the box with characters, and a character needs a
@@ -95,12 +95,12 @@ row:
 [[file:img/encloses-tty.png]]
 
 The top edge uses the tab line row while the window does not show
-tabs.  There is no row below the mode line.  The last row inside the
+tabs. There is no row below the mode line. The last row inside the
 box therefore shows the two corners and closes the box.
 
 ** Getting Started
 
-Install the package.  Then turn the mode on in the buffers you want
+Install the package. Then turn the mode on in the buffers you want
 to box:
 
 #+begin_src emacs-lisp
@@ -111,23 +111,34 @@ to box:
   (add-hook 'help-mode-hook #'window-box-mode)
 #+end_src
 
-The package works well together with [[https://github.com/MArpogaus/auto-side-windows][auto-side-windows]].  Box the
-buffers that go into a side window, and the frame reads as a set of
-panels.
+A box usually belongs to a place, not to a buffer. Then turn on the
+global mode and name the places with a predicate. Every window the
+predicate accepts gets a box, whatever buffer it shows. A buffer that
+arrives in such a window gets the box. A buffer that leaves it keeps
+nothing.
 
 #+begin_src emacs-lisp
-  (add-hook 'auto-side-windows-after-display-hook
-            (lambda (buffer &rest _)
-              (with-current-buffer buffer (window-box-mode 1))))
-
-  ;; The mode belongs to the buffer.  Emacs can show one buffer in a
-  ;; panel and in a usual window at the same time.  A box usually
-  ;; belongs to the place:
-  (setq window-box-window-predicate
-        (lambda (window) (window-parameter window 'window-side)))
+  (use-package window-box
+    :ensure t
+    :custom
+    ;; the side windows are the places
+    (window-box-window-predicate
+     (lambda (window) (window-parameter window 'window-side)))
+    :config
+    (global-window-box-mode 1))
 #+end_src
 
-The picture below shows one buffer in two windows.  Only one of the
+This works well together with [[https://github.com/MArpogaus/auto-side-windows][auto-side-windows]]: the frame reads as a
+set of panels. It also holds when a package puts a new buffer into
+its side window without =display-buffer=, as dirvish does when it
+changes directory. A hook that turns on =window-box-mode= for each
+displayed buffer does not see such a change.
+
+The predicate also applies to =window-box-mode=. Emacs can show one
+buffer in a panel and in a usual window at the same time, and the
+predicate says which of the two gets the box.
+
+The picture below shows one buffer in two windows. Only one of the
 two windows has a box.
 
 [[file:img/windows-gui.png]]
@@ -143,16 +154,14 @@ The package has few options:
 | =window-box-enclose-top=       | the topmost row inside the box                       |
 | =window-box-enclose-mode-line= | whether the mode line is inside                      |
 | =window-box-padding=           | columns between a side and the text                  |
-| =window-box-window-predicate=  | the windows of a boxed buffer that get a box         |
+| =window-box-window-predicate=  | the windows that get a box                           |
 
 The box is one pixel on every side, and one shape: the horizontal
 edges are one pixel because an overline cannot be thicker, and a side
-is a periodic fringe bitmap, one pixel wide, which repeats over every
-line's full height — an ordinary text line, a banner drawn from
-images, a formula preview.  A character's ink height is the font's
-business and a margin image is one line tall, so neither survives
-every buffer; the bitmap does.  A terminal draws ┌ ┐ └ ┘ │ ─.  The
-color is yours, the shape is not.
+is a fringe one pixel wide in the color of the box. Emacs paints a
+fringe over the full height of every row, so the side runs down an
+ordinary text line, an image and a formula preview alike. A terminal
+draws ┌ ┐ └ ┘ │ ─. The color is yours, the shape is not.
 
 Give a buffer more air:
 
@@ -173,58 +182,61 @@ The box is made of characters, so it also works in =emacs -nw=.
 
 #+begin_example
   ┌──────────────────────────────────────────────┐
-  │boxed in the terminal                         │
-  │second line                                   │
+  │ boxed in the terminal                        │
+  │ second line                                  │
   └──────────────────────────────────────────────┘
 #+end_example
 
-A window can show a header line and a mode line.  The box then draws
-its top edge in the tab line row.  The mode line shows the two lower
+A window can show a header line and a mode line. The box then draws
+its top edge in the tab line row. The mode line shows the two lower
 corners and closes the box.
 
 #+begin_example
   ┌──────────────────────────────────────────────┐
   │ a header line of my own                      │
-  │boxed around its own rows                     │
+  │ boxed around its own rows                    │
   │                                              │
   └ a mode line of my own                        ┘
 #+end_example
 
-=make tty= runs Emacs in a pseudo terminal.  It reads the screen back
+=make tty= runs Emacs in a pseudo terminal. It reads the screen back
 through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not close.
 
 ** Known Limits
 
-- On a graphic display the sides live in the fringes, and a fringe
-  shows one bitmap per line: a line whose fringe shows an indicator
-  of its own shows that instead of the side.  Give such indicators a
-  home in the margins instead, where the box frames them —
+- On a graphic display the sides are the fringes, one pixel wide, so
+  a fringe indicator has one pixel to show itself in. An indicator
+  with a face of its own, as flymake and diff-hl have, shows that
+  face on its line instead of the side. Give such indicators a home
+  in the margins instead, where the box frames them —
   [[file:docs/implementation.org][docs/implementation.org]] has the settings for magit, flymake and
   diff-hl.
 - A terminal draws the sides in one column of margin per side, and
   asks for that column beside the buffer's own: the side is drawn
   before what the buffer puts in the margin, so it sits outside it on
-  the left.  In the right margin the order is the same, so a buffer's
+  the left. In the right margin the order is the same, so a buffer's
   own content there — magit's dates — sits outside the box's side
   rather than inside it.
-- A line carries one =line-prefix=, so a side of the box and a gutter
+- In a terminal the sides ride the =line-prefix= of the buffer, and a
+  line carries one =line-prefix=. So a side of the box and a gutter
   the buffer draws — dirvish's subtree guide, =org-indent-mode=, a
   shell that indents its output — are on the screen together only
   where the box draws the two as one string, an overlay for each
-  region of the buffer's own.  New gutter is
-  crossed once Emacs is idle: an overlay arrives without a hook, so a
-  subtree opened this instant wears its side a moment later.
+  region of the buffer's own. New gutter is
+  crossed when the command that made it ends, before the screen shows
+  it. Gutter that arrives from a process, for example a shell's
+  output, is crossed once Emacs is idle.
 - In a terminal an edge needs a row of its own, and a window has only
-  so many rows.  The top edge uses the tab line row if the window
-  shows no tabs.  There is no row below the mode line.  The box has
+  so many rows. The top edge uses the tab line row if the window
+  shows no tabs. There is no row below the mode line. The box has
   no edge where it must go between two rows, for example below a
-  header line that stays outside.  A graphic display draws each
+  header line that stays outside. A graphic display draws each
   setting.
-- A row inside the box shows the edges of the box at its two ends.  A
+- A row inside the box shows the edges of the box at its two ends. A
   row that fills its full width loses the last column to the edge.
 - On a graphic display Emacs draws its own border in the first pixel
-  column of a window that has a neighbour on its left.  This border
-  covers the side of the box there.  A line is there in each case,
+  column of a window that has a neighbour on its left. This border
+  covers the side of the box there. A line is there in each case,
   but it has the color of the frame and not the color of the box.
   Window dividers give the border a column of its own and give the
   box its side back:
@@ -234,13 +246,13 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
           window-divider-default-right-width 1)
     (window-divider-mode 1)
   #+end_src
-- A window that shows its own tab line keeps it.  In a terminal the
-  tabs use the row of the top edge.  The box then has three edges,
+- A window that shows its own tab line keeps it. In a terminal the
+  tabs use the row of the top edge. The box then has three edges,
   and the tab line closes it at the top.
 - A scroll bar is outside the margin, and the right side of the box
-  is then inside the scroll bar.  Turn the scroll bar off for a clean
+  is then inside the scroll bar. Turn the scroll bar off for a clean
   box.
-- An edge on a row takes one pixel from the height of that row.  The
+- An edge on a row takes one pixel from the height of that row. The
   text moves down by one pixel when the box appears.
 
 ** Comparison with buffer-box
@@ -252,24 +264,31 @@ There are four differences:
 - buffer-box replaces the header line and the mode line with its own.
   window-box keeps what they show.
 - buffer-box draws the side edges with overlays, which stop at the
-  end of the text.  window-box uses the =line-prefix= of the buffer,
-  which reaches the rows below the last line of text as well.
+  end of the text. window-box draws them in the fringes, and in a
+  terminal on the =line-prefix= of the buffer. Both reach the rows
+  below the last line of text as well.
 - buffer-box sets the fringes of the frame to zero, and gives advice
-  to =set-window-margins= and =set-window-fringes=.  window-box
+  to =set-window-margins= and =set-window-fringes=. window-box
   changes nothing global.
 - buffer-box has border styles and a header line with many parts.
   window-box draws a box.
 
 ** How It Works
 
-[[file:docs/implementation.org][docs/implementation.org]] describes how the package draws the box.  It
+[[file:docs/implementation.org][docs/implementation.org]] describes how the package draws the box. It
 names the parts of the window dressing that the box uses, tells how
 the box gives them back, and lists what the tests measure.
 
 ** Contributions
 
-Contributions are greatly appreciated!  Feel free to check the
+Contributions are greatly appreciated! Feel free to check the
 [[https://github.com/MArpogaus/window-box/issues][issues page]] or submit a [[https://github.com/MArpogaus/window-box/pulls][pull request]].
+
+** Use of LLM Coding Tools
+
+Parts of this package were written with the help of a large
+language model (LLM) coding assistant. A person reviewed and tested
+every change before it was committed.
 
 ** License
 

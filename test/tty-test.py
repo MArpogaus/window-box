@@ -44,9 +44,9 @@ failures = []
 # A row of the box's own borrows the space of the header line or the
 # mode line, but it encloses the text and must wear the text's
 # background: the horizontal edges did not, and the box showed a grey
-# band above the text and another below it.  The reference is a row of
+# band above the text and another below it. The reference is a row of
 # text inside a box — its own background, and the colour its sides are
-# drawn in.  A side that crosses an enclosed header line is another
+# drawn in. A side that crosses an enclosed header line is another
 # matter: that band keeps its background behind the side, as it does on
 # a graphic display.
 text_row = next((y for y, l in enumerate(lines)

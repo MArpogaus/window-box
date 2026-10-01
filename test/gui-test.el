@@ -24,7 +24,7 @@
   (when font (set-frame-font (format "%s 13" font) nil t)))
 
 ;; A scroll bar sits outside the fringe, so the box's right edge would
-;; land inside it.  Off, as a configuration that wants boxes has it.
+;; land inside it. Off, as a configuration that wants boxes has it.
 (menu-bar-mode -1)
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
@@ -135,6 +135,11 @@ line of its own."
   ;; Four windows with a header, a mode line and room to see them.
   (set-frame-size (selected-frame) 700 900 t)
   (switch-to-buffer (gui-test--example "*text*" nil nil nil))
+  ;; A row taller than a fringe bitmap can be, as an image makes one:
+  ;; the sides must run down all of it.
+  (with-current-buffer "*text*"
+    (insert (propertize " " 'display '(space :width (1) :height (300)))
+            "\n"))
   (delete-other-windows)
   (let* ((first (selected-window))
          (second (split-window first nil 'below))
@@ -144,17 +149,16 @@ line of its own."
     (set-window-buffer second (gui-test--example "*header*" 'header-line nil nil))
     (set-window-buffer third (gui-test--example "*header and mode*"
                                                 'header-line t nil))
-    ;; and one with padding: the box takes a column for its side and
-    ;; two more for air, and the side stays at the window's edge.  Its
-    ;; header carries the tail too: the box's own margins move `right'
-    ;; just as much as a margin the buffer keeps does.
+    ;; and one with padding: two columns of air between the side and
+    ;; the text, and the side stays at the window's edge. Its header
+    ;; carries the tail too, which stops at the padding.
     (with-current-buffer (window-buffer second)
       (setq-local window-box-padding 2
                   header-line-format gui-test-header))
     (set-window-buffer fourth (gui-test--example "*everything*" 'tab-line t t))
     ;; A buffer that keeps a margin of its own, as magit's log does:
     ;; the row spans that margin, and the end of the box has to reach
-    ;; past it.  Its header carries a tail aligned to `right', the way
+    ;; past it. Its header carries a tail aligned to `right', the way
     ;; a panel header's close button is: the tail has to keep across
     ;; the margin the distance from the end it keeps without one.
     (with-current-buffer (window-buffer third)
@@ -191,15 +195,20 @@ line of its own."
                                            ;; buffer keeps in the margins
                                            (list 1)
                                            ;; the margin the buffer
-                                           ;; keeps and the fringe
-                                           ;; between it and the edge,
-                                           ;; for the tail of the header
-                                           ;; to be measured against
-                                           (list (or (cdr (window-margins
+                                           ;; keeps and the air the
+                                           ;; tail keeps from the edge,
+                                           ;; fringe and padding, for
+                                           ;; the tail of the header to
+                                           ;; be measured against
+                                           (list (buffer-local-value
+                                                  'right-margin-width
+                                                  (window-buffer window))
+                                                 (+ (cadr (window-fringes
                                                            window))
-                                                     0)
-                                                 (cadr (window-fringes
-                                                        window)))))
+                                                    (* (buffer-local-value
+                                                        'window-box-padding
+                                                        (window-buffer window))
+                                                       (frame-char-width))))))
                            " ")))
                 windows "")
      nil gui-test-encloses-geometry nil 'quiet)
@@ -210,67 +219,93 @@ line of its own."
       (with-current-buffer (window-buffer window) (window-box-mode -1)))
     (delete-other-windows)))
 
-(defun gui-test--order ()
-  "Check that the box leaves the fringes exactly as it finds them.
-The sides are periodic bitmaps in the fringes, so the box needs
-neither their order nor their widths changed — a window another
-package dressed keeps whatever it was given.  Only a graphic display
+(defun gui-test--fringe-sides ()
+  "Check the fringes the box gives a window and gives back.
+The sides are the fringes, one pixel wide and outside the margins.
+Unboxing gives the window back the fringes it wore, all four answers
+of `window-fringes' included: the last one says the
+widths survive a buffer change, and a box that set it left the window
+pinned to the widths of the moment for good.  Only a graphic display
 has fringes, so this is checked here and not in the batch suite."
   (set-frame-size (selected-frame) 700 520 t)
-  (let ((buffer (get-buffer-create "*order*")))
+  (let ((buffer (get-buffer-create "*fringe sides*")))
     (with-current-buffer buffer
       (erase-buffer)
       (insert "fringes as they were\n"))
     (switch-to-buffer buffer)
     (delete-other-windows)
-    (let ((window (selected-window)))
-      (set-window-fringes window 8 8 t)
+    (let* ((window (selected-window))
+           (born (window-fringes window)))
       (with-current-buffer buffer (window-box-mode 1))
       (window-box--refresh)
-      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
-        (error "The box touched the fringes: %S" (window-fringes window)))
+      (unless (equal (seq-take (window-fringes window) 3) '(1 1 t))
+        (error "The box left the fringes at %S" (window-fringes window)))
       (with-current-buffer buffer (window-box-mode -1))
       (window-box--refresh)
-      (unless (equal (seq-take (window-fringes window) 3) '(8 8 t))
-        (error "Unboxing touched the fringes: %S" (window-fringes window)))
-      ;; A narrow fringe takes a narrow bitmap: a wider one is clipped
-      ;; at the fringe's width and loses the outermost pixel, which is
-      ;; the side.  `dirvish-side' gives its window one pixel.
-      (set-window-fringes window 3 1 t)
+      (unless (equal (window-fringes window) born)
+        (error "Unboxing left the fringes %S, wanted %S"
+               (window-fringes window) born))
+      ;; Fringes a package set on the window, pinned across buffer
+      ;; changes, come back as they were.
+      (set-window-fringes window 0 0 nil t)
       (with-current-buffer buffer (window-box-mode 1))
       (window-box--refresh)
-      (let ((wanted `(right-fringe window-box--right-side-1
-                                   window-box--side))
-            (worn (with-current-buffer buffer
-                    (get-text-property 1 'display line-prefix))))
-        (unless (equal worn wanted)
-          (error "A one pixel fringe wears %S, wanted %S" worn wanted)))
       (with-current-buffer buffer (window-box-mode -1))
-      ;; A window with the order it is born with, which is the one the
-      ;; box has to turn around.  It gives back all four answers of
-      ;; `window-fringes', the last of them included: that one says the
-      ;; widths survive a buffer change, and a box that set it left the
-      ;; window pinned to the widths of the moment for good.
-      (set-window-fringes window nil nil nil)
-      (let ((born (window-fringes window)))
+      (window-box--refresh)
+      (unless (equal (window-fringes window) '(0 0 nil t))
+        (error "Unboxing lost the window's own fringes: %S"
+               (window-fringes window)))
+      (set-window-fringes window nil nil nil nil)
+      ;; Fringes that are not pinned follow the frame after unboxing.
+      (with-current-buffer buffer (window-box-mode 1))
+      (window-box--refresh)
+      (with-current-buffer buffer (window-box-mode -1))
+      (window-box--refresh)
+      (let ((wide (frame-parameter nil 'left-fringe)))
+        (set-frame-parameter nil 'left-fringe 20)
+        (unless (= (car (window-fringes window)) 20)
+          (error "An unboxed window does not follow the frame: %S"
+                 (window-fringes window)))
+        (set-frame-parameter nil 'left-fringe wide))
+      ;; A window that leaves a boxed buffer for one with fringes of its
+      ;; own wears that buffer's fringes.
+      (let ((other (get-buffer-create "*narrow fringes*")))
+        (with-current-buffer other
+          (setq-local left-fringe-width 0 right-fringe-width 0))
         (with-current-buffer buffer (window-box-mode 1))
         (window-box--refresh)
-        (unless (nth 2 (window-fringes window))
-          (error "The box left the fringes inside the margins: %S"
+        (set-window-buffer window other)
+        (window-box--refresh)
+        (unless (equal (seq-take (window-fringes window) 2) '(0 0))
+          (error "A window kept the boxed buffer's fringes: %S"
                  (window-fringes window)))
         (with-current-buffer buffer (window-box-mode -1))
-        (window-box--refresh)
-        (unless (equal (window-fringes window) born)
-          (error "Unboxing left the fringes %S, wanted %S"
-                 (window-fringes window) born))))
+        (set-window-buffer window buffer)
+        (kill-buffer other)))
     (delete-other-windows)
     (kill-buffer buffer)))
+
+(defun gui-test--tail-remap ()
+  "Check that a tail is measured with the buffer's face remaps.
+A header that remaps its row faces is drawn with them, so a tail
+measured without them is aligned to a width it does not have, and a
+remap of the active face alone moved the buttons with the focus."
+  (with-temp-buffer
+    (switch-to-buffer (current-buffer))
+    (let ((plain (window-box--tail-width "tail" 'header-line-format)))
+      (face-remap-add-relative 'header-line-active :height 2.0)
+      (face-remap-add-relative 'header-line-inactive :height 2.0)
+      (let ((large (window-box--tail-width "tail" 'header-line-format)))
+        (unless (> large plain)
+          (error "A tail was measured without the remaps: %s, plain %s"
+                 large plain))))))
 
 (defun gui-test--run ()
   "Box two side windows, export the frame and exit."
   (set-frame-size (selected-frame) 700 520 t)
   (gui-test--fringes)
-  (gui-test--order)
+  (gui-test--fringe-sides)
+  (gui-test--tail-remap)
   (switch-to-buffer (get-buffer-create "*main*"))
   (delete-other-windows)
   (insert "The main window keeps its own dressing.\n")
