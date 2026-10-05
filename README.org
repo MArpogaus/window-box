@@ -100,16 +100,20 @@ box therefore shows the two corners and closes the box.
 
 ** Getting Started
 
-Install the package. Then turn the mode on in the buffers you want
-to box:
+The package needs Emacs 29.1 or later. It is not on MELPA yet. From
+Emacs 30 on, =use-package= installs it from the repository. Then turn the
+mode on in the buffers you want to box:
 
 #+begin_src emacs-lisp
   (use-package window-box
-    :ensure t)
+    :vc (:url "https://github.com/MArpogaus/window-box" :rev :newest))
 
   ;; for example: a box around each help buffer
   (add-hook 'help-mode-hook #'window-box-mode)
 #+end_src
+
+On Emacs 29, install it once with =M-x package-vc-install=, give it
+the URL above, and write =use-package= without =:vc=.
 
 A box usually belongs to a place, not to a buffer. Then turn on the
 global mode and name the places with a predicate. Every window the
@@ -119,7 +123,7 @@ nothing.
 
 #+begin_src emacs-lisp
   (use-package window-box
-    :ensure t
+    :vc (:url "https://github.com/MArpogaus/window-box" :rev :newest)
     :custom
     ;; the side windows are the places
     (window-box-window-predicate
