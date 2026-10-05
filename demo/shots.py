@@ -26,7 +26,7 @@ SIZE = 15
 PAD = 10
 # The palette of the graphic screenshots: white ground, near black
 # text, the grey of a GUI mode line for reverse video, and "blue" as
-# the #5e81ac the graphic pictures draw the box in.  One theme for
+# the #5e81ac the graphic pictures draw the box in. One theme for
 # every picture in the README.
 BACKGROUND = (255, 255, 255)
 FOREGROUND = (26, 26, 26)
