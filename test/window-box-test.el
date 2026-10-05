@@ -1177,5 +1177,14 @@ so it wins where it applies."
     (window-box-mode -1)
     (should-not window-box--remaps)))
 
+(ert-deftest window-box-test-a-graphic-tail-is-measured ()
+  "A tail must be measurable on a graphic display of any Emacs.
+Emacs 30 gives `string-pixel-width' no BUFFER argument, and a call
+with one signalled in the `:eval' of every boxed row."
+  (window-box-test--with-buffer
+    (cl-letf (((symbol-function 'display-graphic-p) #'always))
+      (should (natnump (window-box--tail-width
+                        "tail" 'header-line-format))))))
+
 (provide 'window-box-test)
 ;;; window-box-test.el ends here

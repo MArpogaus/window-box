@@ -290,9 +290,9 @@ has fringes, so this is checked here and not in the batch suite."
 A header that remaps its row faces is drawn with them, so a tail
 measured without them is aligned to a width it does not have, and a
 remap of the active face alone moved the buttons with the focus.
-Emacs 29 measures without them: its `string-pixel-width' takes no
-buffer."
-  (when (>= emacs-major-version 30)
+Emacs 29 and 30 measure without them: their `string-pixel-width'
+takes no buffer."
+  (when (>= emacs-major-version 31)
     (with-temp-buffer
       (switch-to-buffer (current-buffer))
       (let ((plain (window-box--tail-width "tail" 'header-line-format)))
