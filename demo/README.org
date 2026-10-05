@@ -7,23 +7,24 @@ This directory holds the scripts that make the pictures in the
 
 =img/demo.gif= comes from a scripted session. =demo.el= drives the
 session and writes one frame each tenth of a second with
-=x-export-frames=. There is no screen recorder.
+=x-export-frames=. There is no screen recorder. Run the commands
+of this section from =demo/=.
 
 #+begin_src shell
   Xvfb :99 -screen 0 1280x900x24 &   # if there is no display
-  DISPLAY=:99 emacs -Q -l demo.el    # writes frames to /tmp/demo-wb
+  DISPLAY=:99 emacs -Q -l demo.el    # writes /tmp/demo-wb/frames/
 #+end_src
 
 Make the animation from the frames. Keep the size of the frames and
 do not use dithering:
 
 #+begin_src shell
-  ffmpeg -framerate 13 -start_number 1 -i frames/f%04d.png \
+  ffmpeg -framerate 13 -start_number 1 -i /tmp/demo-wb/frames/f%04d.png \
       -filter_complex "[0:v]tpad=stop_mode=clone:stop_duration=2,\
                        split[a][b];[a]palettegen=max_colors=256[p];\
                        [b][p]paletteuse=dither=none" \
-      -loop 0 raw.gif
-  gifsicle -O3 raw.gif -o ../img/demo.gif
+      -loop 0 /tmp/demo-wb/raw.gif
+  gifsicle -O3 /tmp/demo-wb/raw.gif -o ../img/demo.gif
 #+end_src
 
 There are three rules. Each rule comes from a measurement of the
