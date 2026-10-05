@@ -289,16 +289,19 @@ has fringes, so this is checked here and not in the batch suite."
   "Check that a tail is measured with the buffer's face remaps.
 A header that remaps its row faces is drawn with them, so a tail
 measured without them is aligned to a width it does not have, and a
-remap of the active face alone moved the buttons with the focus."
-  (with-temp-buffer
-    (switch-to-buffer (current-buffer))
-    (let ((plain (window-box--tail-width "tail" 'header-line-format)))
-      (face-remap-add-relative 'header-line-active :height 2.0)
-      (face-remap-add-relative 'header-line-inactive :height 2.0)
-      (let ((large (window-box--tail-width "tail" 'header-line-format)))
-        (unless (> large plain)
-          (error "A tail was measured without the remaps: %s, plain %s"
-                 large plain))))))
+remap of the active face alone moved the buttons with the focus.
+Emacs 29 measures without them: its `string-pixel-width' takes no
+buffer."
+  (when (>= emacs-major-version 30)
+    (with-temp-buffer
+      (switch-to-buffer (current-buffer))
+      (let ((plain (window-box--tail-width "tail" 'header-line-format)))
+        (face-remap-add-relative 'header-line-active :height 2.0)
+        (face-remap-add-relative 'header-line-inactive :height 2.0)
+        (let ((large (window-box--tail-width "tail" 'header-line-format)))
+          (unless (> large plain)
+            (error "A tail was measured without the remaps: %s, plain %s"
+                   large plain)))))))
 
 (defun gui-test--run ()
   "Box two side windows, export the frame and exit."

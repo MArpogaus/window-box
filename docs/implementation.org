@@ -286,7 +286,10 @@ characters, and a check mark or an icon is wider than a column. The
 box therefore draws the content with =format-mode-line=, finds the
 last stretch whose =:align-to= names =right=, =right-margin= or
 =right-fringe=, and measures the text after it: in pixels and in the
-row's own face on a graphic display, in columns in a terminal. It
+row's own face on a graphic display, in columns in a terminal. The
+pixels include the face remaps of the buffer from Emacs 30 on. Emacs
+29 has no such measure, and a remapped row is then aligned a little
+off. It
 then aligns that tail to end at the box's padding. On a graphic
 display that point is past the margin the buffer keeps, less the
 padding and the end's own pixel. In a terminal it is two columns
