@@ -39,8 +39,7 @@ The margins are left to their owners. A buffer that keeps text in
 them, as magit's log keeps its dates in a thirty column margin, keeps
 them, and the sides still frame that content. =window-box-padding=
 adds blank margins between the fringe and the text, one column by
-default, which is the air a fringe of normal width gives. A frame
-without fringes shows no sides.
+default, which is the air a fringe of normal width gives.
 
 A terminal has no fringes, so its sides live in the margins, and it
 asks for its columns *beside* the buffer's rather than instead of
