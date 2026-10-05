@@ -212,7 +212,7 @@ through [[https://github.com/selectel/pyte][pyte]] and fails if an edge does not
   a fringe indicator has one pixel to show itself in. An indicator
   with a face of its own, as flymake and diff-hl have, shows that
   face on its line instead of the side. Give such indicators a home
-  in the margins instead, where the box frames them —
+  in the margins instead, where the box frames them.
   [[file:docs/implementation.org][docs/implementation.org]] has the settings for magit, flymake and
   diff-hl.
 - A terminal draws the sides in one column of margin per side, and
