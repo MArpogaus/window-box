@@ -549,6 +549,29 @@ buffer that left is undressed, remaps and all."
       (kill-buffer first)
       (kill-buffer second))))
 
+(ert-deftest window-box-test-a-graphic-buffer-that-leaves-keeps-nothing ()
+  "A buffer that leaves a boxed place on a graphic display loses its remaps.
+A graphic display wears no prefix, and the buffer was not noted as
+one that wears the box, so it kept the remaps for good."
+  (let* ((first (generate-new-buffer "*window-box test*"))
+         (second (generate-new-buffer "*window-box test*"))
+         (window (selected-window))
+         (window-box-window-predicate (lambda (w) (eq w window))))
+    (unwind-protect
+        (cl-letf (((symbol-function 'display-graphic-p) #'always))
+          (set-window-buffer window first)
+          (global-window-box-mode 1)
+          (should (buffer-local-value 'window-box--remaps first))
+          (set-window-buffer window second)
+          (window-box--refresh)
+          (should-not (buffer-local-value 'window-box--remaps first))
+          (global-window-box-mode -1)
+          (should-not (buffer-local-value 'window-box--remaps second)))
+      (global-window-box-mode -1)
+      (set-window-margins window nil nil)
+      (kill-buffer first)
+      (kill-buffer second))))
+
 (ert-deftest window-box-test-the-buffer-mode-outlives-the-global-one ()
   "A buffer with the mode of its own keeps its box when the global mode goes.
 And turning the buffer's mode off leaves the box where the place still

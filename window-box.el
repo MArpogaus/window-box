@@ -688,7 +688,7 @@ variables are killed again.  Non-nil while the sides are worn.")
   "The idle timer that will draw the sides over new gutter, if any.")
 
 (defvar window-box--worn nil
-  "The buffers that wear the sides of a terminal on their line prefix.
+  "The buffers that wear the remaps of the box, and in a terminal its sides.
 A boxed place changes its buffer, and the one that left keeps the
 prefix and the remaps until this list is walked: `window-box--refresh'
 sheds every buffer here that no boxed window shows and that has no
@@ -765,8 +765,6 @@ prefixes of the buffer's own."
     (unless window-box--saved-prefix
       (setq window-box--saved-prefix
             (list line-prefix wrap-prefix (local-variable-p 'line-prefix)))
-      (unless (memq (current-buffer) window-box--worn)
-        (push (current-buffer) window-box--worn))
       ;; A change in the text alone fires none of the window hooks, and
       ;; a buffer that renders itself again deletes the overlays the
       ;; sides ride. Here and not in the mode: a major mode change
@@ -931,6 +929,10 @@ the margins; a terminal hangs them on the buffer's line prefix."
   "Draw the box around WINDOW.
 Call it with the window's buffer current."
   (set-window-parameter window 'window-box t)
+  ;; On a graphic display the buffer wears no prefix, but it wears the
+  ;; remaps, and those must go when it leaves the place.
+  (unless (memq (current-buffer) window-box--worn)
+    (push (current-buffer) window-box--worn))
   (let ((top (window-box--top-edge window))
         (bottom (window-box--bottom-edge window))
         (dressed (window-box--dressed-rows window)))
