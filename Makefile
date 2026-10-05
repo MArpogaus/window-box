@@ -78,7 +78,9 @@ XVFB := $(shell command -v xvfb-run 2>/dev/null)
 # The exported frame shows what a user on a graphic display really
 # sees, down to the pixel. It doubles as the screenshot in the README.
 gui:
-	@$(XVFB) $(EMACS) -Q -L . -L test -l test/gui-test.el
+	@rm -f /tmp/window-box-gui-error.txt
+	@$(XVFB) $(EMACS) -Q -L . -L test -l test/gui-test.el \
+	  || { cat /tmp/window-box-gui-error.txt 2>/dev/null; exit 1; }
 	@python3 test/gui-check.py
 
 clean:
