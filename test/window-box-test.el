@@ -749,6 +749,27 @@ apply."
       (should (member (cdr (cadr wanted))
                       (cdr (assq 'window-box--side face-remapping-alist)))))))
 
+(ert-deftest window-box-test-remaps-do-not-stack-on-a-mode-reset ()
+  "The remaps are held once, whatever a major mode does to the locals.
+`org-agenda-mode' keeps `face-remapping-alist' across
+`kill-all-local-variables'; each redo of an agenda then added the remaps
+once more.  A mode that clears the alist gets them made again."
+  (window-box-test--with-buffer
+    (window-box-mode 1)
+    (let ((wanted (car window-box--remaps))
+          (count (lambda () (length (cdr (assq 'window-box--side face-remapping-alist))))))
+      (let ((before (funcall count)))
+        ;; the agenda: locals go, a copy of the remaps comes back
+        (let ((remaps (copy-tree face-remapping-alist)))
+          (kill-all-local-variables)
+          (setq-local face-remapping-alist remaps))
+        (window-box--remap wanted)
+        (should (= (funcall count) before))
+        ;; any other mode: both go, and the remaps come back once
+        (kill-all-local-variables)
+        (window-box--remap wanted)
+        (should (= (funcall count) before))))))
+
 (ert-deftest window-box-test-a-hidden-row-stays-hidden ()
   "A window that had hidden a row has it hidden again after the box.
 The top edge goes in a row parameter, so it has to hand back what it

@@ -4,7 +4,7 @@
 
 ;; Author: Marcel Arpogaus <znepry.necbtnhf@tznvy.pbz>
 ;; Assisted-by: Claude:claude-fable-5
-;; Version: 1.2.0
+;; Version: 1.2.1
 ;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: convenience, frames
 ;; URL: https://github.com/MArpogaus/window-box
@@ -584,13 +584,37 @@ WANTED is the alist of face and spec they were made from.  A remap is
 the buffer's and would reach every window showing it, so the specs of
 the box are filtered on the window parameter the box sets; the one
 that hides the sides is not, and the filtered ones are added after it
-and win where they apply.")
+and win where they apply.
+
+Permanent: a mode such as `org-agenda-mode' keeps the remaps of the
+buffer across `kill-all-local-variables', and a record lost there made
+every redo add the remaps once more.  See `window-box--forget-remaps'.")
+(put 'window-box--remaps 'permanent-local t)
+
+(defun window-box--remaps-live-p ()
+  "Return non-nil when the buffer still holds every remap on record."
+  (seq-every-p (lambda (cookie)
+                 (memq (cdr cookie) (cdr (assq (car cookie) face-remapping-alist))))
+               (cdr window-box--remaps)))
+
+(defun window-box--forget-remaps ()
+  "Drop the remaps on record, found by value, and the record.
+A major mode may clear `face-remapping-alist', and `org-agenda-mode'
+puts back a copy of it: the cookies no longer match, while the copied
+remaps would stay and stack."
+  (dolist (cookie (cdr window-box--remaps))
+    (when-let* ((spec (car (member (cdr cookie)
+                                   (cdr (assq (car cookie) face-remapping-alist))))))
+      (face-remap-remove-relative (cons (car cookie) spec))))
+  (setq window-box--remaps nil))
 
 (defun window-box--remap (wanted)
   "Hold exactly the remaps WANTED, an alist of face and spec.
 Nothing is done while WANTED is what the buffer holds already; a
 change — the box's color, the edge moved from one row to another, a
 theme with another background — remakes them all."
+  (unless (window-box--remaps-live-p)
+    (window-box--forget-remaps))
   (unless (equal wanted (car window-box--remaps))
     (mapc #'face-remap-remove-relative (cdr window-box--remaps))
     (setq window-box--remaps
